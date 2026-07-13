@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew test *)",
+      "Bash(cmd //c \"gradlew.bat test --no-daemon\")",
+      "Bash(cmd /c \"gradlew.bat test\")"
+    ]
+  }
+}

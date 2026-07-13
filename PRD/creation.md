@@ -1,0 +1,262 @@
+# Grid Creation Design
+
+## Overview
+
+On startup the application reads `grid.yaml` and instantiates the full grid hierarchy: RTGs → LTGs → Hosts (and optionally PLTGs). This document defines the structure of that file and the data it should contain.
+
+---
+
+## Initialization Sequence
+
+1. Parse `grid.yaml`.
+2. Instantiate all RTG objects with their System Ratings.
+3. For each RTG, instantiate its LTGs. LTG ratings default to the parent RTG's ratings unless overridden.
+4. For each LTG, instantiate its Hosts with their own System Ratings.
+5. For each RTG (or LTG), instantiate any PLTGs and connect them.
+
+---
+
+## Rating Format
+
+All System Ratings follow the ACIFS shorthand from the rules:
+
+```
+SecurityCode-SecurityValue / Access / Control / Index / Files / Slave
+```
+
+Example: `Orange-6/8/8/8/8/8`
+
+Security codes: `Blue` (minimal), `Green` (average), `Orange` (significant), `Red` (high/lethal).
+
+---
+
+## YAML Structure
+
+```yaml
+rtgs:
+  - id: UCAS                        # RTG identifier used in LTG addresses
+    name: UCAS Regional Grid
+    security: Green-4
+    ratings: { access: 6, control: 8, index: 6, files: 6, slave: 6 }
+    ltgs:
+      - id: UCAS-SEA
+        region: Seattle
+        # ratings omitted → inherited from parent RTG
+        hosts:
+          - name: Mitsuhama Pagoda
+            security: Orange-6
+            ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
+            sculpt: medieval_japanese
+          - name: Lone Star GridSec Seattle
+            security: Orange-7
+            ratings: { access: 9, control: 9, index: 8, files: 8, slave: 8 }
+          - name: Renraku Public Relations
+            security: Green-5
+            ratings: { access: 7, control: 8, index: 7, files: 7, slave: 7 }
+      - id: UCAS-CHI
+        region: Chicago
+        hosts:
+          - name: Ares Macrotechnology Chicago Branch
+            security: Orange-5
+            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 7 }
+      - id: UCAS-NYC
+        region: New York City
+        hosts:
+          - name: Fuchi Industrial Electronics East Coast Hub
+            security: Orange-6
+            ratings: { access: 8, control: 9, index: 8, files: 8, slave: 7 }
+      - id: UCAS-BOS
+        region: Boston
+        hosts:
+          - name: MIT&T Academic Network
+            security: Green-4
+            ratings: { access: 6, control: 7, index: 8, files: 8, slave: 5 }
+    pltgs:
+      - id: UCAS-PLTG-ARES
+        owner: Ares Macrotechnology
+        security: Orange-6
+        ratings: { access: 9, control: 9, index: 8, files: 8, slave: 8 }
+
+  - id: CAS
+    name: Confederate American States Grid
+    security: Green-3
+    ratings: { access: 6, control: 8, index: 7, files: 8, slave: 8 }
+    ltgs:
+      - id: CAS-ATL
+        region: Atlanta
+        hosts:
+          - name: CAS Government Archives
+            security: Green-4
+            ratings: { access: 7, control: 8, index: 8, files: 8, slave: 7 }
+      - id: CAS-DAL
+        region: Dallas
+        hosts:
+          - name: Lone Star Corporate HQ
+            security: Orange-5
+            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 8 }
+      - id: CAS-MIA
+        region: Miami
+        hosts:
+          - name: Caribbean Trade Exchange
+            security: Green-3
+            ratings: { access: 6, control: 7, index: 7, files: 8, slave: 7 }
+
+  - id: CFS
+    name: California Free State Grid
+    security: Green-4
+    ratings: { access: 6, control: 8, index: 6, files: 6, slave: 7 }
+    ltgs:
+      - id: CFS-LAX
+        region: Los Angeles
+        hosts:
+          - name: Horizon Group Entertainment Archive
+            security: Green-5
+            ratings: { access: 7, control: 8, index: 7, files: 8, slave: 6 }
+      - id: CFS-SFO
+        region: San Francisco
+        hosts:
+          - name: Shiawase Envirotech West Coast
+            security: Orange-5
+            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 7 }
+
+  - id: AZT
+    name: Aztlan Grid
+    security: Orange-3
+    ratings: { access: 8, control: 8, index: 6, files: 7, slave: 7 }
+    ltgs:
+      - id: AZT-MEX
+        region: Mexico City
+        hosts:
+          - name: Aztechnology Archive
+            security: Red-6
+            ratings: { access: 10, control: 10, index: 9, files: 9, slave: 8 }
+          - name: Aztlan Government Ministry of Information
+            security: Orange-5
+            ratings: { access: 8, control: 9, index: 8, files: 8, slave: 7 }
+      - id: AZT-GDL
+        region: Guadalajara
+        hosts:
+          - name: Aztechnology Regional Office
+            security: Orange-4
+            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 7 }
+    pltgs:
+      - id: AZT-PLTG-AZTECHNOLOGY
+        owner: Aztechnology
+        note: Only corporate PLTG that operates freely within Aztlan
+        security: Red-5
+        ratings: { access: 10, control: 12, index: 10, files: 9, slave: 9 }
+
+  - id: SS
+    name: Salish-Shidhe Grid
+    security: Green-3
+    ratings: { access: 6, control: 8, index: 7, files: 6, slave: 6 }
+    ltgs:
+      - id: SS-PDX
+        region: Portland
+        hosts:
+          - name: Salish-Shidhe Council Datastore
+            security: Green-4
+            ratings: { access: 7, control: 8, index: 7, files: 7, slave: 6 }
+      - id: SS-VAN
+        region: Vancouver
+        hosts:
+          - name: Wuxing Pacific Rim Office
+            security: Orange-4
+            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 7 }
+
+  - id: SIO
+    name: Sioux Nation Grid
+    security: Orange-3
+    ratings: { access: 7, control: 8, index: 8, files: 7, slave: 7 }
+    ltgs:
+      - id: SIO-RAP
+        region: Rapid City
+        hosts:
+          - name: Sioux Military Intelligence Network
+            security: Red-5
+            ratings: { access: 10, control: 10, index: 9, files: 8, slave: 9 }
+
+  - id: PUE
+    name: Pueblo Corporate Council Grid
+    security: Orange-4
+    ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
+    ltgs:
+      - id: PUE-DEN
+        region: Denver
+        hosts:
+          - name: Pueblo Corporate Council Data Exchange
+            security: Orange-4
+            ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
+
+  - id: QUE
+    name: Québec Grid
+    security: Green-2
+    ratings: { access: 6, control: 8, index: 8, files: 7, slave: 7 }
+    ltgs:
+      - id: QUE-MTL
+        region: Montreal
+        hosts:
+          - name: Québec Provincial Archives
+            security: Green-3
+            ratings: { access: 6, control: 7, index: 8, files: 8, slave: 6 }
+      - id: QUE-QBC
+        region: Quebec City
+        hosts:
+          - name: Université Laval Research Network
+            security: Green-3
+            ratings: { access: 6, control: 7, index: 8, files: 7, slave: 5 }
+
+  - id: TT
+    name: Tir Tairngire Grid
+    security: Orange-5
+    ratings: { access: 7, control: 8, index: 8, files: 7, slave: 7 }
+    ltgs:
+      - id: TT-PDX
+        region: Portland Border Zone
+        hosts:
+          - name: Tir Tairngire Embassy Data Node
+            security: Orange-6
+            ratings: { access: 9, control: 9, index: 8, files: 8, slave: 8 }
+
+  - id: TSI
+    name: Tsimshian Grid
+    security: Orange-5
+    ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
+    ltgs:
+      - id: TSI-PRI
+        region: Prince Rupert
+        hosts:
+          - name: Tsimshian Council Secure Datastore
+            security: Red-5
+            ratings: { access: 9, control: 10, index: 9, files: 9, slave: 8 }
+
+  # Remaining RTGs (Caribbean League sub-nations, NAN nations) follow the same pattern.
+  # Ratings taken verbatim from the North American RTG System Ratings table (rules p. 203).
+```
+
+---
+
+## Offline Hosts
+
+Hosts that are physically isolated (no jackpoint reachable from the Matrix) are flagged `offline: true`. A decker cannot access them remotely; physical access to the facility is required.
+
+```yaml
+- name: Saeder-Krupp Research Vault
+  security: Red-8
+  ratings: { access: 12, control: 12, index: 10, files: 9, slave: 9 }
+  offline: true
+```
+
+---
+
+## LTG Address Format
+
+LTG addresses combine the RTG identifier, a regional abbreviation, and a four-digit node number:
+
+```
+UCAS-SEA-2206
+UCAS-SEA-4206
+CFS-LAX-1101
+```
+
+Individual LTG entries in the YAML carry an `id` (e.g. `UCAS-SEA`) which is the base address. Specific node numbers within that LTG are allocated at runtime or can be enumerated under a `nodes` list if deterministic addressing is required.
