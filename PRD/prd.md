@@ -53,7 +53,7 @@ This document focuses on the various use cases.
 
 The initial data is stored in different configuration files in yaml format. The application should read this file and instantiate the corresponding entities.
 
-### Grid
+#### Grid
 
 The configuration file `grid.yaml` should contain data following these guidelines:
 
@@ -62,6 +62,60 @@ The configuration file `grid.yaml` should contain data following these guideline
 - Each LTG contains at least one named host from the Shadowrun world. Hosts carry their own System Rating independent of the LTG.
 - PLTGs (private grids) are separate from public LTGs. They are owned by megacorps or governments, may use Orange/Red security codes, and security tally accrued on the public RTG carries over on entry.
 
+#### Host
+
+There is a configuration file per host: ```<host_name>.yaml```. Every public host must reference an existing LTG (see above).
+
+Each host configuration must include:
+
+- **Topology type** — one of: `open-access` (connected directly to a grid, reachable by any decker on that LTG); `tiered` (only the first-tier host is on the grid; second-tier hosts require passing through it, and moving between second-tier hosts requires re-entering the first-tier host); `host-host` (hosts linked in a chain, e.g., B → C → D → E; a decker must traverse the chain in order with no shortcuts); `private-grid` (host lives behind a PLTG; once on the PLTG any connected host is directly accessible).
+- **Offline flag** — `offline: true` marks a host that is physically isolated from the Matrix. Such a host cannot be reached remotely; a decker must find a jackpoint at the physical facility. Example from the rules: accessing the Saeder-Krupp research vault requires physically penetrating the facility.
+- **Security sheaf** — an ordered list of trigger steps. Each trigger step is a security-tally threshold; when the decker's tally reaches or exceeds it, the system activates IC programs and/or transitions alert status. A host config may declare explicit trigger steps or rely on generated defaults based on its security code. Example sheaf from the rules:
+
+  | Trigger Step | Event |
+  | --- | --- |
+  | 3 | Probe-5 |
+  | 7 | Probe-7 |
+  | 10 | Killer-8, Passive Alert |
+  | 13 | Killer-10, Active Alert |
+
+  Trigger step spacing by security code: Red = 2–4, Orange = 3–5, Green = 4–6, Blue = 5–7 (roll 1D6 ÷ 2 + modifier; each result adds to the previous step).
+
+- **Alert status** — starts at No Alert. Passive Alert (typically at the third or fourth trigger step) raises all Subsystem Ratings by +2. Active Alert (one or two trigger steps later) may also spawn corporate or law-enforcement security deckers.
+- **Reset timing** — determined by security code. Blue hosts reset fully in 2D6 minutes. Green/Orange/Red hosts begin resetting after 3D6 minutes if no alert was triggered; if an alert fired, reduce the security tally by 1D6 every 5/10/15 minutes (Green/Orange/Red respectively). IC programs left running when the decker logged off remain active until the tally drops below the trigger step that activated them.
+
+Provide some examples in the Seattle LTG.
+
+#### Decker
+
+There is one configuration file per decker: `<decker_name>.yaml`. It contains all values of:
+
+- **Decker** (physical character stats): Intelligence, Body, Willpower, Reaction, Computer Skill (with optional Decking specialization).
+- **Cyberdeck**:
+  - MPCP Rating — master OS; no single persona program may exceed MPCP; sum of all four persona programs ≤ MPCP × 3.
+  - Hardening — reduces Power of Black IC damage; raises Gray IC Attack Test target numbers.
+  - Active Memory (Mp) — limits total Mp of simultaneously running utilities.
+  - Storage Memory (Mp) — must hold all utilities (active or not) plus any downloaded data.
+  - I/O Speed (Mp per Combat Turn) — upload/download rate.
+  - Response Increase (0–3 points; max = floor(MPCP ÷ 4)) — each point adds +2 Reaction and +1D6 Initiative to the persona.
+- **Persona programs** (exactly 4, each with a numeric rating): Bod, Evasion, Masking, Sensors. Constraints: each rating ≤ MPCP; sum of all four ≤ MPCP × 3. Example from the rules: a Renraku Kraftwerk-8 with programs distributed equally yields MPCP-8/6/6/6/6; raising Bod to 8 and reducing Evasion and Sensor by 1 each gives MPCP-8/8/5/6/5.
+- **Utilities** — each with a type and a rating. Program Mp size = Rating² × Multiplier. Total Mp of all utilities must fit within Storage Memory. Utility types by category:
+  - *Operational* (reduce System Test target numbers): Analyze (×3), Browse (×1), Commlink (×1), Deception (×2), Decrypt (×1), Read/Write (×2), Relocate (×2), Scanner (×3), Spoof (×3).
+  - *Special*: Sleaze (×3), Track (×8).
+  - *Offensive*: Attack at Light/Medium/Serious/Deadly damage level (×2/3/4/5), Black Hammer (×20), Killjoy (×10), Slow (×4).
+  - *Defensive*: Armor (×3), Cloak (×3), Lock-On (×3), Medic (×4).
+
+The following persona values are **calculated by the application** and must not be stored in the config file:
+
+- **Hacking Pool** = floor((Intelligence + MPCP) ÷ 3).
+- **Detection Factor** = ceil((Masking + Sleaze rating) ÷ 2); if no Sleaze program is loaded, Detection Factor = Masking ÷ 2. Example from the rules: HeadCrash (Computer-6, MPCP-8/6/6/6/6, Sleaze-5) has Detection Factor = ceil((6 + 5) ÷ 2) = 6.
+- **Persona Reaction** = base Reaction + (Response Increase × 2).
+- **Persona attributes** (Bod, Evasion, Masking, Sensor) are read directly from the four persona program ratings.
+
 ### Integration Tests
 
 - A decker logs on to an LTG, switches to the RTG, moves to a different RTG and one of the LTGs. There, he logs on to a host. Afterwards, he logs of.
+
+### Non functional Requirements
+
+- 

@@ -179,7 +179,9 @@ data class Decker(
     fun logonToHost(host: Host, diceRoller: DiceRoller): LogonResult {
         requireJackedIn()
         when (val loc = currentLocation) {
-            is MatrixLocation.OnLTG -> Unit // open-access: any host on the LTG is reachable
+            is MatrixLocation.OnLTG -> require(loc.ltg.hosts.contains(host)) {
+                "Host is not attached to the current LTG"
+            }
             is MatrixLocation.OnPLTG -> require(loc.pltg.hosts.contains(host)) {
                 "Host is not connected to the current PLTG"
             }

@@ -1,0 +1,383 @@
+rtgs:
+  - id: UCAS
+    name: UCAS Regional Grid
+    security: Green-4
+    ratings: { access: 6, control: 8, index: 6, files: 6, slave: 6 }
+    ltgs:
+      - id: UCAS-SEA
+        region: Seattle
+        hosts:
+          - name: Mitsuhama Pagoda
+            security: Orange-6
+            ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
+            intrusion_difficulty: AVERAGE
+            topology: OPEN_ACCESS
+          - name: Lone Star GridSec Seattle
+            security: Orange-7
+            ratings: { access: 9, control: 9, index: 8, files: 8, slave: 8 }
+            intrusion_difficulty: HARD
+            topology: OPEN_ACCESS
+          - name: Renraku Public Relations
+            security: Green-5
+            ratings: { access: 7, control: 8, index: 7, files: 7, slave: 7 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS
+          - name: Saeder-Krupp Research Vault
+            security: Red-8
+            ratings: { access: 12, control: 12, index: 10, files: 9, slave: 9 }
+            intrusion_difficulty: HARD
+            topology: OPEN_ACCESS
+            offline: true
+      - id: UCAS-CHI
+        region: Chicago
+        hosts:
+          - name: Ares Macrotechnology Chicago Branch
+            security: Orange-5
+            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 7 }
+            intrusion_difficulty: AVERAGE
+            topology: OPEN_ACCESS
+      - id: UCAS-NYC
+        region: New York City
+        hosts:
+          - name: Fuchi Industrial Electronics East Coast Hub
+            security: Orange-6
+            ratings: { access: 8, control: 9, index: 8, files: 8, slave: 7 }
+            intrusion_difficulty: AVERAGE
+            topology: OPEN_ACCESS
+      - id: UCAS-BOS
+        region: Boston
+        hosts:
+          - name: MIT&T Academic Network
+            security: Green-4
+            ratings: { access: 6, control: 7, index: 8, files: 8, slave: 5 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS
+    pltgs:
+      - id: UCAS-PLTG-ARES
+        name: Ares Macrotechnology PLTG
+        owner: Ares Macrotechnology
+        security: Orange-6
+        ratings: { access: 9, control: 9, index: 8, files: 8, slave: 8 }
+        hosts:
+          - name: Ares R&D Secure Archive
+            security: Red-7
+            ratings: { access: 10, control: 10, index: 9, files: 9, slave: 8 }
+            intrusion_difficulty: HARD
+            topology: TIERED
+
+  - id: CAS
+    name: Confederate American States Grid
+    security: Green-3
+    ratings: { access: 6, control: 8, index: 7, files: 8, slave: 8 }
+    ltgs:
+      - id: CAS-ATL
+        region: Atlanta
+        hosts:
+          - name: CAS Government Archives
+            security: Green-4
+            ratings: { access: 7, control: 8, index: 8, files: 8, slave: 7 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS
+      - id: CAS-DAL
+        region: Dallas
+        hosts:
+          - name: Lone Star Corporate HQ
+            security: Orange-5
+            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 8 }
+            intrusion_difficulty: AVERAGE
+            topology: OPEN_ACCESS
+      - id: CAS-MIA
+        region: Miami
+        hosts:
+          - name: Caribbean Trade Exchange
+            security: Green-3
+            ratings: { access: 6, control: 7, index: 7, files: 8, slave: 7 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS
+
+  - id: CFS
+    name: California Free State Grid
+    security: Green-4
+    ratings: { access: 6, control: 8, index: 6, files: 6, slave: 7 }
+    ltgs:
+      - id: CFS-LAX
+        region: Los Angeles
+        hosts:
+          - name: Horizon Group Entertainment Archive
+            security: Green-5
+            ratings: { access: 7, control: 8, index: 7, files: 8, slave: 6 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS
+      - id: CFS-SFO
+        region: San Francisco
+        hosts:
+          - name: Shiawase Envirotech West Coast
+            security: Orange-5
+            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 7 }
+            intrusion_difficulty: AVERAGE
+            topology: OPEN_ACCESS
+
+  - id: AZT
+    name: Aztlan Grid
+    security: Orange-3
+    ratings: { access: 8, control: 8, index: 6, files: 7, slave: 7 }
+    ltgs:
+      - id: AZT-MEX
+        region: Mexico City
+        hosts:
+          - name: Aztechnology Archive
+            security: Red-6
+            ratings: { access: 10, control: 10, index: 9, files: 9, slave: 8 }
+            intrusion_difficulty: HARD
+            topology: TIERED
+          - name: Aztlan Ministry of Information
+            security: Orange-5
+            ratings: { access: 8, control: 9, index: 8, files: 8, slave: 7 }
+            intrusion_difficulty: AVERAGE
+            topology: OPEN_ACCESS
+      - id: AZT-GDL
+        region: Guadalajara
+        hosts:
+          - name: Aztechnology Regional Office
+            security: Orange-4
+            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 7 }
+            intrusion_difficulty: AVERAGE
+            topology: OPEN_ACCESS
+    pltgs:
+      - id: AZT-PLTG-AZTECHNOLOGY
+        name: Aztechnology PLTG
+        owner: Aztechnology
+        security: Red-5
+        ratings: { access: 10, control: 12, index: 10, files: 9, slave: 9 }
+        hosts:
+          - name: Aztechnology Inner Sanctum
+            security: Red-8
+            ratings: { access: 12, control: 12, index: 10, files: 10, slave: 10 }
+            intrusion_difficulty: HARD
+            topology: HOST_HOST
+
+  - id: SS
+    name: Salish-Shidhe Grid
+    security: Green-3
+    ratings: { access: 6, control: 8, index: 7, files: 6, slave: 6 }
+    ltgs:
+      - id: SS-PDX
+        region: Portland
+        hosts:
+          - name: Salish-Shidhe Council Datastore
+            security: Green-4
+            ratings: { access: 7, control: 8, index: 7, files: 7, slave: 6 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS
+      - id: SS-VAN
+        region: Vancouver
+        hosts:
+          - name: Wuxing Pacific Rim Office
+            security: Orange-4
+            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 7 }
+            intrusion_difficulty: AVERAGE
+            topology: OPEN_ACCESS
+
+  - id: SIO
+    name: Sioux Nation Grid
+    security: Orange-3
+    ratings: { access: 7, control: 8, index: 8, files: 7, slave: 7 }
+    ltgs:
+      - id: SIO-RAP
+        region: Rapid City
+        hosts:
+          - name: Sioux Military Intelligence Network
+            security: Red-5
+            ratings: { access: 10, control: 10, index: 9, files: 8, slave: 9 }
+            intrusion_difficulty: HARD
+            topology: TIERED
+
+  - id: PUE
+    name: Pueblo Corporate Council Grid
+    security: Orange-4
+    ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
+    ltgs:
+      - id: PUE-DEN
+        region: Denver
+        hosts:
+          - name: Pueblo Corporate Council Data Exchange
+            security: Orange-4
+            ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
+            intrusion_difficulty: AVERAGE
+            topology: OPEN_ACCESS
+
+  - id: QUE
+    name: Quebec Grid
+    security: Green-2
+    ratings: { access: 6, control: 8, index: 8, files: 7, slave: 7 }
+    ltgs:
+      - id: QUE-MTL
+        region: Montreal
+        hosts:
+          - name: Quebec Provincial Archives
+            security: Green-3
+            ratings: { access: 6, control: 7, index: 8, files: 8, slave: 6 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS
+      - id: QUE-QBC
+        region: Quebec City
+        hosts:
+          - name: Universite Laval Research Network
+            security: Green-3
+            ratings: { access: 6, control: 7, index: 8, files: 7, slave: 5 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS
+
+  - id: TT
+    name: Tir Tairngire Grid
+    security: Orange-5
+    ratings: { access: 7, control: 8, index: 8, files: 7, slave: 7 }
+    ltgs:
+      - id: TT-PDX
+        region: Portland Border Zone
+        hosts:
+          - name: Tir Tairngire Embassy Data Node
+            security: Orange-6
+            ratings: { access: 9, control: 9, index: 8, files: 8, slave: 8 }
+            intrusion_difficulty: AVERAGE
+            topology: OPEN_ACCESS
+
+  - id: TSI
+    name: Tsimshian Grid
+    security: Orange-5
+    ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
+    ltgs:
+      - id: TSI-PRI
+        region: Prince Rupert
+        hosts:
+          - name: Tsimshian Council Secure Datastore
+            security: Red-5
+            ratings: { access: 9, control: 10, index: 9, files: 9, slave: 8 }
+            intrusion_difficulty: HARD
+            topology: TIERED
+
+  - id: NAN-ALG
+    name: Algonkian-Manitou Grid
+    security: Green-4
+    ratings: { access: 7, control: 8, index: 7, files: 6, slave: 6 }
+    ltgs:
+      - id: NAN-ALG-WIN
+        region: Winnipeg
+        hosts:
+          - name: Algonkian-Manitou Council Records
+            security: Green-4
+            ratings: { access: 7, control: 7, index: 7, files: 6, slave: 6 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS
+
+  - id: NAN-ATH
+    name: Athabaskan Grid
+    security: Green-3
+    ratings: { access: 6, control: 8, index: 6, files: 6, slave: 6 }
+    ltgs:
+      - id: NAN-ATH-YEG
+        region: Edmonton
+        hosts:
+          - name: Athabaskan Council Archive
+            security: Green-3
+            ratings: { access: 6, control: 7, index: 6, files: 6, slave: 6 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS
+
+  - id: NAN-UTH
+    name: Ute Nation Grid
+    security: Orange-3
+    ratings: { access: 7, control: 8, index: 7, files: 7, slave: 7 }
+    ltgs:
+      - id: NAN-UTH-SLC
+        region: Salt Lake City
+        hosts:
+          - name: Ute Nation Security Databank
+            security: Orange-4
+            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 7 }
+            intrusion_difficulty: AVERAGE
+            topology: OPEN_ACCESS
+
+  - id: NAN-TPA
+    name: Trans-Polar Aleut Grid
+    security: Green-2
+    ratings: { access: 6, control: 6, index: 6, files: 6, slave: 6 }
+    ltgs:
+      - id: NAN-TPA-ANC
+        region: Anchorage
+        hosts:
+          - name: Trans-Polar Aleut Public Library
+            security: Blue-2
+            ratings: { access: 5, control: 5, index: 6, files: 6, slave: 5 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS
+
+  - id: CAR-CUB
+    name: Caribbean League Cuba Grid
+    security: Orange-3
+    ratings: { access: 8, control: 8, index: 7, files: 8, slave: 7 }
+    ltgs:
+      - id: CAR-CUB-HAV
+        region: Havana
+        hosts:
+          - name: Cuban State Information Bureau
+            security: Orange-4
+            ratings: { access: 8, control: 8, index: 7, files: 8, slave: 7 }
+            intrusion_difficulty: AVERAGE
+            topology: OPEN_ACCESS
+
+  - id: CAR-JAM
+    name: Caribbean League Jamaica Grid
+    security: Green-3
+    ratings: { access: 6, control: 7, index: 6, files: 6, slave: 6 }
+    ltgs:
+      - id: CAR-JAM-KIN
+        region: Kingston
+        hosts:
+          - name: Jamaica Trade Network
+            security: Green-3
+            ratings: { access: 6, control: 7, index: 6, files: 6, slave: 6 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS
+
+  - id: CAR-SFL
+    name: Caribbean League South Florida Grid
+    security: Green-2
+    ratings: { access: 6, control: 7, index: 6, files: 6, slave: 6 }
+    ltgs:
+      - id: CAR-SFL-MIA
+        region: Miami Barrens
+        hosts:
+          - name: South Florida Port Authority
+            security: Green-2
+            ratings: { access: 6, control: 6, index: 6, files: 6, slave: 6 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS
+
+  - id: CAR-GRN
+    name: Caribbean League Grenada Grid
+    security: Orange-4
+    ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
+    ltgs:
+      - id: CAR-GRN-STG
+        region: St. George's
+        hosts:
+          - name: Grenada Offshore Banking Network
+            security: Orange-5
+            ratings: { access: 8, control: 9, index: 8, files: 9, slave: 8 }
+            intrusion_difficulty: HARD
+            topology: TIERED
+
+  - id: CAR-VIR
+    name: Caribbean League Virgin Islands Grid
+    security: Green-2
+    ratings: { access: 6, control: 7, index: 6, files: 6, slave: 6 }
+    ltgs:
+      - id: CAR-VIR-STT
+        region: St. Thomas
+        hosts:
+          - name: Virgin Islands Tourism Board
+            security: Green-2
+            ratings: { access: 5, control: 6, index: 6, files: 6, slave: 5 }
+            intrusion_difficulty: EASY
+            topology: OPEN_ACCESS

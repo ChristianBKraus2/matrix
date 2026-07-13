@@ -1,0 +1,37 @@
+name: HeadCrash
+intelligence: 6
+body: 4
+willpower: 5
+reaction: 5
+computer_skill: 6
+cyberdeck:
+  model: Renraku Kraftwerk-8
+  mpcp: 8
+  hardening: 4
+  active_memory: 1000
+  storage_memory: 2000
+  io_speed: 360
+  response_increase: 2       # max = floor(8/4) = 2
+  persona_programs:          # each <= mpcp; sum (24) <= mpcp*3 (24)
+    bod: 6
+    evasion: 6
+    masking: 6
+    sensor: 6
+  utilities:
+    - type: Deception          # operational, multiplier 2;  Mp = 4^2 * 2 = 32
+      rating: 4
+    - type: Sleaze             # special,      multiplier 3;  Mp = 5^2 * 3 = 75
+      rating: 5
+    - type: Analyze            # operational, multiplier 3;  Mp = 4^2 * 3 = 48
+      rating: 4
+    - type: Attack             # offensive,   multiplier 4;  Mp = 6^2 * 4 = 144
+      damage_level: Serious
+      rating: 6
+    - type: Armor              # defensive,   multiplier 3;  Mp = 5^2 * 3 = 75
+      rating: 5
+  # Total utility storage: 32 + 75 + 48 + 144 + 75 = 374 Mp  (fits in 2000 Mp)
+  #
+  # Calculated by application (not stored here):
+  #   hacking_pool     = floor((6 + 8) / 3) = 4
+  #   detection_factor = ceil((masking=6 + sleaze=5) / 2) = 6
+  #   persona.reaction = reaction=5 + response_increase=2 * 2 = 9

@@ -249,9 +249,95 @@ Hosts that are physically isolated (no jackpoint reachable from the Matrix) are 
 
 ---
 
-## LTG Address Format
+## Decker Configuration
 
-LTG addresses combine the RTG identifier, a regional abbreviation, and a four-digit node number:
+On startup the application reads each `<decker_name>.yaml` and instantiates the decker, their cyberdeck, persona programs, and loaded utilities.
+
+---
+
+### Validation Rules
+
+The application must enforce these constraints on load:
+
+- Each persona program rating ≤ MPCP.
+- Sum of all four persona program ratings ≤ MPCP × 3.
+- Response Increase ≤ min(3, floor(MPCP ÷ 4)).
+- Total Mp of all utilities ≤ Storage Memory.
+- Total Mp of utilities loaded into active memory ≤ Active Memory (checked at runtime, not at parse time).
+
+---
+
+### Calculated Fields
+
+These values are derived by the application; they must **not** appear in the YAML:
+
+| Field | Formula |
+| --- | --- |
+| Hacking Pool | floor((Intelligence + MPCP) ÷ 3) |
+| Detection Factor | ceil((Masking + Sleaze rating) ÷ 2); or Masking ÷ 2 if no Sleaze loaded |
+| Persona Reaction | base Reaction + (Response Increase × 2) |
+| Persona Bod/Evasion/Masking/Sensor | read directly from the four persona program ratings |
+| Program Mp size | Rating² × Multiplier |
+
+---
+
+### Decker YAML Structure
+
+```yaml
+name: HeadCrash
+intelligence: 6
+body: 4
+willpower: 5
+reaction: 5
+computer_skill: 6
+cyberdeck:
+  model: Renraku Kraftwerk-8    # flavor only; no mechanical effect
+  mpcp: 8
+  hardening: 4
+  active_memory: 1000           # Mp
+  storage_memory: 2000          # Mp
+  io_speed: 360                 # Mp per Combat Turn
+  response_increase: 2          # max = min(3, floor(mpcp / 4)) = 2
+  persona_programs:             # each ≤ mpcp; sum ≤ mpcp × 3 = 24
+    bod: 6
+    evasion: 6
+    masking: 6
+    sensor: 6
+  utilities:
+    - type: Deception            # operational; multiplier 2
+      rating: 4                 # Mp = 4² × 2 = 32
+    - type: Sleaze               # special; multiplier 3
+      rating: 5                 # Mp = 5² × 3 = 75
+    - type: Analyze              # operational; multiplier 3
+      rating: 4                 # Mp = 4² × 3 = 48
+    - type: Attack               # offensive; multiplier 4 (Serious)
+      damage_level: Serious
+      rating: 6                 # Mp = 6² × 4 = 144
+    - type: Armor                # defensive; multiplier 3
+      rating: 5                 # Mp = 5² × 3 = 75
+# Total utility storage: 32 + 75 + 48 + 144 + 75 = 374 Mp (fits in 2000 Mp)
+#
+# Calculated by application:
+#   hacking_pool    = floor((6 + 8) / 3) = 4
+#   detection_factor = ceil((6 + 5) / 2) = 6
+#   persona.reaction = 5 + (2 × 2) = 9
+```
+
+---
+
+### Decker Initialization Sequence
+
+1. Parse `<decker_name>.yaml`.
+2. Instantiate the `Decker` with physical stats.
+3. Instantiate the `Cyberdeck` with hardware values.
+4. Instantiate the four `PersonaPrograms`; validate against MPCP constraints.
+5. Validate Response Increase against MPCP cap.
+6. Instantiate each `Utility`; calculate Mp sizes; validate total against Storage Memory.
+7. Derive and attach the `Persona` (Bod/Evasion/Masking/Sensor from persona programs; Reaction from base + Response Increase; Hacking Pool and Detection Factor computed lazily or eagerly).
+
+---
+
+## LTG Address Format
 
 ```
 UCAS-SEA-2206

@@ -14,6 +14,8 @@ data class Host(
     val subsystemRatings: SubsystemRatings,
     val intrusionDifficulty: IntrusionDifficulty,
     val topologyType: TopologyType,
+    // Physically isolated: cannot be reached from the Matrix; requires on-site jackpoint access.
+    val offline: Boolean = false,
     val securitySheaf: SecuritySheaf = SecuritySheaf(),
     val alertStatus: AlertStatus = AlertStatus.NO_ALERT,
     val securityTally: Int = 0,

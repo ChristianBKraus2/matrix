@@ -391,7 +391,7 @@ class MovementTest {
     @Test
     fun `logonToHost from LTG succeeds`() {
         val h = host()
-        val l = ltg()
+        val l = ltg().copy(hosts = listOf(h))
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
         val d = decker(currentLocation = MatrixLocation.OnLTG(l), persona = persona)
         val result = d.logonToHost(h, DiceRoller(Random(42)))
@@ -518,7 +518,7 @@ class MovementTest {
     @Test
     fun `successful logon increments security tally by host successes`() {
         val h = host().copy(securityTally = 0)
-        val l = ltg()
+        val l = ltg().copy(hosts = listOf(h))
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
         val d = decker(currentLocation = MatrixLocation.OnLTG(l), persona = persona)
         // Force exactly 2 host successes

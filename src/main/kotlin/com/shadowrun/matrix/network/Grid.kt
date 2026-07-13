@@ -33,7 +33,9 @@ data class LTG(
     override val securitySheaf: SecuritySheaf = SecuritySheaf(),
     override val securityTally: Int = 0,
     override val alertStatus: AlertStatus = AlertStatus.NO_ALERT,
-    val pltgs: List<PLTG> = emptyList()
+    val hosts: List<Host> = emptyList(),
+    val pltgs: List<PLTG> = emptyList(),
+    val region: String = ""
 ) : Grid(name, securityRating, subsystemRatings, securitySheaf, securityTally, alertStatus)
 
 data class PLTG(

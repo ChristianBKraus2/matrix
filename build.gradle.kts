@@ -10,6 +10,7 @@ repositories {
 }
 
 dependencies {
+    implementation("org.yaml:snakeyaml:2.3")
     testImplementation(kotlin("test"))
 }
 

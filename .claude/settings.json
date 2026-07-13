@@ -3,7 +3,11 @@
     "allow": [
       "Bash(./gradlew test *)",
       "Bash(cmd //c \"gradlew.bat test --no-daemon\")",
-      "Bash(cmd /c \"gradlew.bat test\")"
+      "Bash(cmd /c \"gradlew.bat test\")",
+      "Bash(cmd //c \"gradlew.bat test\")",
+      "Bash(powershell -Command \"Set-Location 'c:\\\\VSCode\\\\private\\\\matrix'; & '.\\\\gradlew.bat' test --info 2>&1\")",
+      "Bash(cmd /c \"cd /d c:\\\\VSCode\\\\private\\\\matrix && gradlew.bat test\")",
+      "Bash(cmd /c \"cd /d c:\\\\VSCode\\\\private\\\\matrix && gradlew.bat test 2>&1\")"
     ]
   }
 }
