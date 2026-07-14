@@ -336,14 +336,29 @@ All operations follow the same pattern: precondition check → `SystemTestResolv
 **Precondition:** `currentLocation is OnHost` (decker must be on the host, not merely on a grid)
 
 ```kotlin
-fun analyzeHost(host: Host, diceRoller: DiceRoller): AnalyzeHostResult
+fun analyzeHost(
+    host: Host,
+    requestedItems: List<HostInfoItem>,   // caller's priority-ordered wish list
+    diceRoller: DiceRoller
+): AnalyzeHostResult
 ```
 
 **Algorithm:**
 1. Resolve `SystemTestResolver.resolve(this, ANALYZE_HOST, host.controlRating, host.securityValue, diceRoller)`.
 2. Net successes = `outcome.deckerSuccesses - outcome.hostSuccesses`.
-3. For each net success, the caller selects one item from: Security Rating, or any one of the five subsystem ratings. 7+ net successes reveals all.
-4. Return `AnalyzeHostResult` with revealed data.
+3. If net ≤ 0: reveal nothing.
+4. If net ≥ 7: ignore `requestedItems` — reveal Security Rating + all 5 subsystem ratings.
+5. Otherwise: take the first `net` distinct items from `requestedItems` (extras silently ignored, duplicates collapsed). Reveal exactly those items.
+6. Return `AnalyzeHostResult` with revealed data.
+
+`HostInfoItem` (defined in `OperationResult.kt`):
+
+```kotlin
+sealed class HostInfoItem {
+    object SecurityRating : HostInfoItem()
+    data class Subsystem(val type: SubsystemType) : HostInfoItem()
+}
+```
 
 ---
 

@@ -21,6 +21,8 @@ data class SubsystemRatings(
 data class ConditionMonitor(val maxBoxes: Int = 10, val damage: Int = 0) {
     val remaining: Int get() = maxBoxes - damage
     val isDestroyed: Boolean get() = damage >= maxBoxes
+    val isCrashed: Boolean get() = isDestroyed
 
     fun applyDamage(boxes: Int): ConditionMonitor = copy(damage = (damage + boxes).coerceAtMost(maxBoxes))
+    fun applyDamage(level: DamageLevel): ConditionMonitor = applyDamage(level.boxes)
 }

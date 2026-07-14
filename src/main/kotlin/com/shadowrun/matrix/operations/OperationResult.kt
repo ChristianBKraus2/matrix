@@ -21,13 +21,23 @@ sealed class OperationResult {
     ) : OperationResult()
 }
 
-/** Result of Analyze Host: reveals host security info per net success. */
+/** One item the decker may request per net success in an Analyze Host operation. */
+sealed class HostInfoItem {
+    object SecurityRating : HostInfoItem()
+    data class Subsystem(val type: SubsystemType) : HostInfoItem()
+}
+
+/**
+ * Result of Analyze Host. The decker supplies [requestedItems] in priority order;
+ * the library reveals the first [net] distinct items from that list.
+ * On 7+ net successes all six pieces of info are revealed regardless of [requestedItems].
+ */
 data class AnalyzeHostResult(
     val decker: Decker,
     val outcome: SystemTestOutcome,
-    /** Non-null when ≥ 1 net success. */
+    /** Non-null when the decker requested (or net ≥ 7) and net > 0. */
     val revealedSecurityRating: SecurityRating?,
-    /** One entry per net success (up to all 5 subsystems). */
+    /** One entry per net success spent on a subsystem (up to all 5). */
     val revealedSubsystemRatings: Map<SubsystemType, Int>
 )
 

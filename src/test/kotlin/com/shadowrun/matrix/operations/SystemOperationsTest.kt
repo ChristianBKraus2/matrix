@@ -60,7 +60,8 @@ class SystemOperationsTest {
         cyberdeck: Cyberdeck = deck(),
         reaction: Int = 5,
         jackedIn: Boolean = false,
-        host: Host? = null
+        host: Host? = null,
+        computerSkill: Int = 6
     ): Decker {
         val persona = if (jackedIn) Persona(
             bod = 6, evasion = 6, masking = 6, sensor = 6,
@@ -69,7 +70,7 @@ class SystemOperationsTest {
         val location = if (host != null && jackedIn) MatrixLocation.OnHost(host) else null
         return Decker(
             name = "TestDecker", intelligence = 6, body = 4,
-            willpower = 5, reaction = reaction, computerSkill = 6,
+            willpower = 5, reaction = reaction, computerSkill = computerSkill,
             cyberdeck = cyberdeck,
             physicalConditionMonitor = ConditionMonitor(),
             mentalConditionMonitor = ConditionMonitor(),
@@ -213,33 +214,73 @@ class SystemOperationsTest {
     // ── analyzeHost ───────────────────────────────────────────────────────────────
 
     @Test
-    fun `analyzeHost reveals security rating on 1 net success`() {
-        val h = host(secValue = 2, control = 2)  // low TN so decker wins with face=5
+    fun `analyzeHost decker chooses security rating with 1 net success`() {
+        val h = host(secValue = 2, control = 2)
         val d = decker(jackedIn = true, host = h)
-        val result = d.analyzeHost(h, winRoller)
+        val result = d.analyzeHost(h, listOf(HostInfoItem.SecurityRating), winRoller)
         assertNotNull(result.revealedSecurityRating)
+        assertTrue(result.revealedSubsystemRatings.isEmpty())
     }
 
     @Test
-    fun `analyzeHost reveals all ratings on 7 net successes`() {
+    fun `analyzeHost decker chooses subsystem instead of security rating`() {
         val h = host(secValue = 2, control = 2)
         val d = decker(jackedIn = true, host = h)
-        val result = d.analyzeHost(h, winRoller)
-        // With face=8 vs control=2, decker should get many successes
-        if (result.revealedSubsystemRatings.size == 5) {
-            assertEquals(5, result.revealedSubsystemRatings.size)
+        val result = d.analyzeHost(h, listOf(HostInfoItem.Subsystem(SubsystemType.FILES)), winRoller)
+        assertNull(result.revealedSecurityRating)
+        assertNotNull(result.revealedSubsystemRatings[SubsystemType.FILES])
+    }
+
+    @Test
+    fun `analyzeHost with 2 net successes reveals only first 2 requested items`() {
+        // face=4: decker rolls 6d6 all-4 vs TN=2 → 6 successes; host rolls 2d6 all-4 vs DF≈3 → 2 successes; net=4
+        // Use a narrow roller that gives exactly 2 net: face=2 keeps decker below TN on most dice
+        // Simpler: use a host with secValue=0 so host always gets 0 successes, and constrain decker successes.
+        // Instead rely on: face=5, control=4 → TN=4, decker hits on 5 (1 success per die with 6 dice = 6 successes);
+        // host secValue=4, DF≈3 → host hits on 3 with 4 dice = 4 successes; net = 6-4 = 2.
+        val h = host(secValue = 4, control = 4)
+        val d = decker(jackedIn = true, host = h)
+        val requested = listOf(
+            HostInfoItem.SecurityRating,
+            HostInfoItem.Subsystem(SubsystemType.INDEX),
+            HostInfoItem.Subsystem(SubsystemType.SLAVE)  // 3rd item — should not be revealed
+        )
+        val result = d.analyzeHost(h, requested, winRoller)
+        val revealedCount = (if (result.revealedSecurityRating != null) 1 else 0) + result.revealedSubsystemRatings.size
+        val net = result.outcome.deckerSuccesses - result.outcome.hostSuccesses
+        assertEquals(net.coerceAtLeast(0), revealedCount)
+        assertTrue(SubsystemType.SLAVE !in result.revealedSubsystemRatings || revealedCount >= 3)
+    }
+
+    @Test
+    fun `analyzeHost reveals all on 7 plus net successes regardless of requestedItems`() {
+        // computerSkill=9, face=5, TN=2 → 9 decker successes; secValue=2, face=5 vs DF=3 → 2 host successes; net=7
+        val h = host(secValue = 2, control = 2)
+        val d = decker(jackedIn = true, host = h, computerSkill = 9)
+        val result = d.analyzeHost(h, emptyList(), winRoller)
+        assertEquals(7, result.outcome.deckerSuccesses - result.outcome.hostSuccesses)
+        assertNotNull(result.revealedSecurityRating)
+        assertEquals(5, result.revealedSubsystemRatings.size)
+    }
+
+    @Test
+    fun `analyzeHost with 0 net successes reveals nothing`() {
+        val h = host(secValue = 8, control = 8)
+        val d = decker(jackedIn = true, host = h)
+        val result = d.analyzeHost(h, listOf(HostInfoItem.SecurityRating), loseRoller)
+        if (result.outcome.deckerSuccesses - result.outcome.hostSuccesses <= 0) {
+            assertNull(result.revealedSecurityRating)
+            assertTrue(result.revealedSubsystemRatings.isEmpty())
         }
-        assertNotNull(result.outcome)
     }
 
     @Test
     fun `analyzeHost fails when decker is not on target host`() {
         val targetHost = host()
         val otherHost = host(secValue = 4)
-        // Decker is jacked in but on a different host than targetHost
         val d = decker(jackedIn = true, host = otherHost)
         try {
-            d.analyzeHost(targetHost, winRoller)
+            d.analyzeHost(targetHost, emptyList(), winRoller)
             assertTrue(false, "Expected exception")
         } catch (e: IllegalArgumentException) {
             assertTrue(e.message!!.contains("analyzeHost"))

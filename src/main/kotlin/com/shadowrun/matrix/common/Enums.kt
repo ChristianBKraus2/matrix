@@ -32,3 +32,10 @@ enum class JackpointType {
 enum class AccessoryType { OFFLINE_STORAGE, VID_SCREEN, HITCHER_JACK }
 
 enum class CombatManeuverType { EVADE_DETECTION, PARRY_ATTACK, POSITION_ATTACK }
+
+val DamageLevel.boxes: Int get() = when (this) {
+    DamageLevel.LIGHT    -> 1
+    DamageLevel.MODERATE -> 3
+    DamageLevel.SERIOUS  -> 6
+    DamageLevel.DEADLY   -> 10
+}

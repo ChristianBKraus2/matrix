@@ -303,7 +303,7 @@ Each operation entry: **Test** (subsystem), **Utility** (reduces TN), **Action t
 
 | Operation | Test | Utility | Action | Notes |
 | --- | --- | --- | --- | --- |
-| Analyze Host | Control | Analyze | Complex | Each net success reveals one piece of info (Security Rating or one subsystem rating). 7+ successes reveals all. Decker must be on the host. |
+| Analyze Host | Control | Analyze | Complex | Each net success reveals one piece of info. **Decker chooses** which piece each success reveals: Security Rating or any one subsystem rating not yet revealed. 7+ successes reveals all. Decker must be on the host. |
 | Analyze IC | Control | Analyze | Free | Identifies type and rating of a located IC program, plus any options/defenses. |
 | Analyze Icon | Control | Analyze | Free | Scans any icon; identifies general type. Decker may subtract Sensor Rating + Analyze rating from TN, but TN may not drop below 2. |
 | Analyze Security | Control | Analyze | Simple | Returns current Security Rating, decker's current security tally (including points from this test), and alert status. |

@@ -13,6 +13,7 @@ import com.shadowrun.matrix.network.RTG
 import com.shadowrun.matrix.network.RemoteDevice
 import com.shadowrun.matrix.ic.IC
 import com.shadowrun.matrix.operations.AnalyzeHostResult
+import com.shadowrun.matrix.operations.HostInfoItem
 import com.shadowrun.matrix.operations.AnalyzeSecurityResult
 import com.shadowrun.matrix.operations.DownloadHandle
 import com.shadowrun.matrix.operations.EditFileResult
@@ -30,6 +31,8 @@ import com.shadowrun.matrix.operations.SystemTestOutcome
 import com.shadowrun.matrix.operations.SystemTestResolver
 import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.utility.DiceRoller
+import com.shadowrun.matrix.combat.BlackIcPinState
+import com.shadowrun.matrix.combat.TrackState
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.math.ceil
 
@@ -46,9 +49,12 @@ data class Decker(
     val mentalConditionMonitor: ConditionMonitor = ConditionMonitor(),
     val persona: Persona? = null,
     val jackpoint: Jackpoint? = null,
-    val currentLocation: MatrixLocation? = null
+    val currentLocation: MatrixLocation? = null,
+    val blackIcPin: BlackIcPinState? = null,
+    val trackState: TrackState? = null
 ) {
     val hackingPool: Int get() = (intelligence + cyberdeck.mcpRating) / 3
+    val isPinnedByBlackIc: Boolean get() = blackIcPin != null
 
     /** Detection Factor = ceil((Masking + Sleaze.currentRating) / 2); or ceil(Masking / 2) if no Sleaze active.
      *  Recalculated dynamically — Sleaze in pendingUploads does not count. PRD: CD-17, CD-18 */
@@ -388,7 +394,11 @@ data class Decker(
             storedUtilities = newStored
         )
         nowActive.forEach { logger.info { "[$name] advanceCombatTurn: ${it.type} upload complete, now active" } }
-        return copy(cyberdeck = updatedDeck)
+        val newTrackState = trackState?.let {
+            val remaining = it.locationCycleTurnsRemaining - 1
+            if (remaining <= 0) null else it.copy(locationCycleTurnsRemaining = remaining)
+        }
+        return copy(cyberdeck = updatedDeck, trackState = newTrackState)
     }
 
     // ── Action economy ────────────────────────────────────────────────────────────
@@ -448,10 +458,11 @@ data class Decker(
     // ── Analyze operations ────────────────────────────────────────────────────────
 
     /**
-     * Analyze the ratings of [host]. Each net success reveals one piece of info;
-     * 7+ net successes reveals all. Decker must be on the host. PRD: SO individual table
+     * Analyze the ratings of [host]. For each net success the decker reveals one item from
+     * [requestedItems] (in list order, duplicates collapsed). 7+ net successes reveals all
+     * regardless of [requestedItems]. Decker must be on the host. PRD: SO individual table
      */
-    fun analyzeHost(host: Host, diceRoller: DiceRoller): AnalyzeHostResult {
+    fun analyzeHost(host: Host, requestedItems: List<HostInfoItem>, diceRoller: DiceRoller): AnalyzeHostResult {
         logger.info { "[$name] analyzeHost → ${host.name}" }
         requireJackedIn()
         require(currentLocation is MatrixLocation.OnHost && (currentLocation as MatrixLocation.OnHost).host == host) {
@@ -460,12 +471,19 @@ data class Decker(
         val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_HOST, host.subsystemRatings.control, host.securityRating.value, diceRoller)
         val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
         val net = outcome.deckerSuccesses - outcome.hostSuccesses
-        val secRating = if (net >= 1) host.securityRating else null
-        val subsystems = if (net >= 7) {
-            SubsystemType.entries.associateWith { host.subsystemRatings.get(it) }
+        val secRating: com.shadowrun.matrix.common.SecurityRating?
+        val subsystems: Map<SubsystemType, Int>
+        if (net >= 7) {
+            secRating = host.securityRating
+            subsystems = SubsystemType.entries.associateWith { host.subsystemRatings.get(it) }
+        } else if (net <= 0) {
+            secRating = null
+            subsystems = emptyMap()
         } else {
-            SubsystemType.entries.take(maxOf(0, net - 1))
-                .associateWith { host.subsystemRatings.get(it) }
+            val chosen = requestedItems.distinct().take(net)
+            secRating = if (chosen.any { it is HostInfoItem.SecurityRating }) host.securityRating else null
+            subsystems = chosen.filterIsInstance<HostInfoItem.Subsystem>()
+                .associate { it.type to host.subsystemRatings.get(it.type) }
         }
         return AnalyzeHostResult(updatedDecker, outcome, secRating, subsystems).also {
             logger.info { "[$name] analyzeHost: net=$net successes, revealed security=${secRating != null}, subsystems=${subsystems.keys}" }
