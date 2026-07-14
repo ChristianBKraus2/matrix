@@ -35,6 +35,18 @@ class MovementIntegrationTest {
         }
     })
 
+    /** Roller where decker always loses (rolls 1s) and host always wins (rolls 4s). */
+    private fun failRoller() = DiceRoller(object : Random() {
+        private var call = 0
+        override fun nextBits(bitCount: Int) = 0
+        override fun nextInt(from: Int, until: Int): Int {
+            call++
+            // decker rolls computerSkill (8) dice first → face=1 (no success vs TN ≥ 2)
+            // host rolls after → nextInt returns 3 → face=4 (success vs detectionFactor=3, no explosion)
+            return if (call <= 8) 0 else 3
+        }
+    })
+
     private fun buildDecker(jackpoint: Jackpoint): Decker {
         val programs = listOf(
             PersonaProgram(PersonaAttributeType.BOD, 6),
@@ -147,5 +159,38 @@ class MovementIntegrationTest {
         assertIs<LogoffResult.GracefulSuccess>(logoffResult, "Step 6 - logoff failed")
         assertNull(logoffResult.decker.persona)
         assertNull(logoffResult.decker.currentLocation)
+    }
+
+    // ── Failed host logon ─────────────────────────────────────────────────────
+    //
+    // Scenario (PRD Integration Tests):
+    //   1. Decker logs on to an LTG (succeeds)
+    //   2. Decker tries to logon to a host (fails)
+
+    @Test
+    fun `integration - jack in to LTG, fail to logon to host`() {
+        // ── Resolve grid objects ──────────────────────────────────────────────────
+        val ucas = matrix.rtgs.first { it.name == "UCAS" }
+        val seattle = ucas.ltgs.first { it.name == "UCAS-SEA" }
+        val targetHost = seattle.hosts.first { it.name == "Mitsuhama Pagoda" }
+
+        // ── Step 1: jack in to Seattle LTG (succeeds) ────────────────────────────
+        val jackpoint = Jackpoint(JackpointType.ILLEGAL_ACCESS, connectsToLtg = seattle)
+        var decker = buildDecker(jackpoint)
+
+        val jackInResult = decker.jackInToLtg(seattle, winRoller())
+        assertIs<LogonResult.Success>(jackInResult, "Step 1 - jack in to LTG failed")
+        assertIs<MatrixLocation.OnLTG>(jackInResult.location)
+        decker = jackInResult.decker
+
+        // Make the host visible on the LTG object the decker is currently on
+        val seattleWithHosts = (decker.currentLocation as MatrixLocation.OnLTG).ltg
+            .copy(hosts = seattle.hosts)
+        decker = decker.copy(currentLocation = MatrixLocation.OnLTG(seattleWithHosts))
+
+        // ── Step 2: logon to host (fails) ────────────────────────────────────────
+        val toHostResult = decker.logonToHost(targetHost, failRoller())
+        assertIs<LogonResult.Failure>(toHostResult, "Step 2 - expected host logon to fail")
+        assertIs<MatrixLocation.OnLTG>(toHostResult.location, "Decker should still be on LTG after failed logon")
     }
 }
