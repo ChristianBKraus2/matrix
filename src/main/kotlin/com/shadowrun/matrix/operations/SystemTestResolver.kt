@@ -41,7 +41,7 @@ object SystemTestResolver {
         val deckerResult = diceRoller.roll(decker.computerSkill, effectiveTn)
         logger.info { "[${decker.name}] Decker rolls: ${decker.computerSkill} dice vs TN $effectiveTn (base=$accessRating, ${operation.name} modifier=$utilityRating) → ${deckerResult.successes} successes" }
 
-        val detectionFactor = decker.detectionFactor
+        val detectionFactor = decker.effectiveDetectionFactor
         val hostResult = diceRoller.roll(hostSecurityValue, detectionFactor)
         logger.info { "[${decker.name}] Host rolls: $hostSecurityValue dice vs TN $detectionFactor → ${hostResult.successes} successes" }
 
@@ -96,8 +96,8 @@ object SystemTestResolver {
         val deckerResult = diceRoller.roll(decker.computerSkill, adjustedTn)
         logger.info { "[${decker.name}] Interrogation ${operation.name}: TN=$adjustedTn (base=$baseSubsystemRating precision=${queryPrecision.modifier} utility=$utilityRating) → ${deckerResult.successes} successes" }
 
-        val hostResult = diceRoller.roll(host.securityRating.value, decker.detectionFactor)
-        logger.info { "[${decker.name}] Host Security Test: ${host.securityRating.value} dice vs DF=${decker.detectionFactor} → ${hostResult.successes} successes" }
+        val hostResult = diceRoller.roll(host.securityRating.value, decker.effectiveDetectionFactor)
+        logger.info { "[${decker.name}] Host Security Test: ${host.securityRating.value} dice vs DF=${decker.effectiveDetectionFactor} → ${hostResult.successes} successes" }
 
         val outcome = SystemTestOutcome(
             deckerSuccesses = deckerResult.successes,

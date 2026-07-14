@@ -40,6 +40,7 @@
 **SecuritySheaf** — the complete security configuration of a host or grid.
 
 - Ordered list of TriggerSteps (security tally threshold → IC activation or alert transition)
+- If a single security tally accumulation reaches or exceeds two or more trigger steps at once, all triggered steps fire simultaneously.
 
 **Jackpoint** — physical access point used to enter the Matrix.
 
@@ -63,9 +64,10 @@
 - Willpower
 - Reaction
 - Computer Skill (optional Decking specialization)
-- Hacking Pool = (Intelligence + MPCP) ÷ 3, rounded down
+- Hacking Pool = floor((Intelligence + MPCP) ÷ 3); may be added to any Matrix test except Body/Willpower tests resisting gray or black IC physical damage
 - Physical Condition Monitor (10 boxes)
 - Mental Condition Monitor (10 boxes)
+- Suppressed IC list — crashed IC programs held to prevent tally increase; each entry reduces Detection Factor by 1
 
 **Cyberdeck** — the hardware a decker uses to enter the Matrix.
 
@@ -233,7 +235,7 @@ Named operations (~25 total): Analyze Host, Analyze IC, Analyze Icon, Analyze Se
 - **SecuritySheaf → TriggerStep** (1:many, ordered) — A sheaf is an ordered list of TriggerSteps; step intervals are determined by the host/grid SecurityCode (Red = tightest spacing, Blue = widest).
 - **TriggerStep → IC activation** (1:many events) — When the decker's SecurityTally reaches or exceeds a trigger threshold, the host activates one or more IC programs listed for that step.
 - **TriggerStep → AlertTransition** (0:1) — Specific trigger steps flip the host's AlertStatus to Passive Alert or Active Alert.
-- **SecurityTally is per (Decker × Host/Grid)** — Each decker accumulates a separate tally on each host/grid. The tally persists through the run and resets according to SecurityCode (Blue resets fastest; Red slowest). Crashing IC adds the IC's Rating to the tally.
+- **SecurityTally is per (Decker × Host/Grid)** — Each decker accumulates a separate tally on each host/grid. The tally persists through the run and resets according to SecurityCode (Blue resets fastest; Red slowest). Crashing IC adds the IC's Rating to the tally unless the decker suppresses the crashed IC (CC-22). A decker who enters a host while its tally is mid-reset starts at the tally's current reduced value, not at 0.
 
 ### Decker, Cyberdeck, and Persona
 

@@ -153,7 +153,7 @@ object CombatResolver {
 
     fun resolveCrippler(decker: Decker, ic: Crippler, securityCode: SecurityCode, diceRoller: DiceRoller): CripplerResult {
         val sv = securityCode.securityValue
-        val icSuccesses = diceRoller.roll(sv, decker.detectionFactor).successes
+        val icSuccesses = diceRoller.roll(sv, decker.effectiveDetectionFactor).successes
         val persona = decker.persona!!
         val currentAttr = persona.attribute(ic.targetAttribute)
         val deckerSuccesses = diceRoller.roll(currentAttr, ic.rating).successes
@@ -170,7 +170,7 @@ object CombatResolver {
         resolveAttack(attacker, defender, diceRoller)
 
     fun resolveProbe(ic: Probe, decker: Decker, diceRoller: DiceRoller): Int {
-        return diceRoller.roll(ic.rating, decker.detectionFactor).successes
+        return diceRoller.roll(ic.rating, decker.effectiveDetectionFactor).successes
     }
 
     fun resolveTarBaby(decker: Decker, ic: TarBaby, utility: Utility, diceRoller: DiceRoller): TarBabyResult {
@@ -203,7 +203,7 @@ object CombatResolver {
 
     fun resolveRipper(decker: Decker, ic: Ripper, securityCode: SecurityCode, diceRoller: DiceRoller): CripplerResult {
         val sv = securityCode.securityValue
-        val icSuccesses = diceRoller.roll(sv, decker.detectionFactor).successes
+        val icSuccesses = diceRoller.roll(sv, decker.effectiveDetectionFactor).successes
         val persona = decker.persona!!
         val currentAttr = persona.attribute(ic.targetAttribute)
         val deckerSuccesses = diceRoller.roll(currentAttr, ic.rating).successes
@@ -381,6 +381,51 @@ object CombatResolver {
         val net = attack.attackerSuccesses - evadeSuccesses
         val cycleTurns = ceil(10.0 / net).toInt()
         return TrackState(trackRating, cycleTurns)
+    }
+
+    // ── IC Suppression ────────────────────────────────────────────────────────────
+
+    /**
+     * Decker declares suppression of a crashed IC (CC-22).
+     * The tally increase for the crash is NOT applied; the IC is held in the suppressed list.
+     * The decker's effective Detection Factor drops by 1 for each suppressed IC.
+     * Returns the updated Decker (does NOT modify tally).
+     */
+    fun suppressIc(decker: Decker, ic: IC): Decker {
+        val state = IcSuppressionState(ic, ic.rating)
+        return decker.copy(suppressedIc = decker.suppressedIc + state)
+    }
+
+    /**
+     * Decker releases a previously suppressed IC (CC-22).
+     * Calls [onTallyIncrease] with the IC's original rating so the caller can raise the tally.
+     * The decker's effective Detection Factor is restored by 1.
+     * Returns the updated Decker.
+     */
+    fun unsuppressIc(decker: Decker, ic: IC, onTallyIncrease: (Int) -> Unit): Decker {
+        val state = decker.suppressedIc.firstOrNull { it.ic == ic }
+            ?: return decker
+        onTallyIncrease(state.icRating)
+        return decker.copy(suppressedIc = decker.suppressedIc - state)
+    }
+
+    // ── IC Attack Using Host Security Value ───────────────────────────────────────
+
+    /**
+     * Build an [AttackParticipant] for an IC program using its host's Security Value as the dice pool (CC-23).
+     * The IC's rating is the weapon (determines Power and base DamageLevel).
+     */
+    fun icAttackParticipant(ic: IC, securityCode: SecurityCode): AttackParticipant {
+        val rawLevel = when (securityCode) {
+            SecurityCode.BLUE, SecurityCode.GREEN -> DamageLevel.LIGHT
+            SecurityCode.ORANGE                   -> DamageLevel.MODERATE
+            SecurityCode.RED                      -> DamageLevel.SERIOUS
+        }
+        return AttackParticipant(
+            utilityRating = ic.rating,
+            hackingPool = securityCode.securityValue,
+            rawDamageLevel = rawLevel
+        )
     }
 
     // ── Slow Utility ──────────────────────────────────────────────────────────────

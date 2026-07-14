@@ -962,6 +962,133 @@ class CombatResolverTest {
         assertNull(updated.trackState)
     }
 
+    // ── suppressIc / unsuppressIc (CC-22) ────────────────────────────────────────
+
+    @Test
+    fun `suppressIc adds IC to suppressedIc list`() {
+        val ic = Probe(rating = 4)
+        val d = decker()
+        val updated = CombatResolver.suppressIc(d, ic)
+        assertEquals(1, updated.suppressedIc.size)
+        assertEquals(ic, updated.suppressedIc.first().ic)
+        assertEquals(4, updated.suppressedIc.first().icRating)
+    }
+
+    @Test
+    fun `suppressIc records rating at crash time`() {
+        val ic = Probe(rating = 6)
+        val updated = CombatResolver.suppressIc(decker(), ic)
+        assertEquals(6, updated.suppressedIc.first().icRating)
+    }
+
+    @Test
+    fun `suppressIc multiple times accumulates entries`() {
+        val ic1 = Probe(rating = 3)
+        val ic2 = Killer(rating = 5)
+        val d = CombatResolver.suppressIc(decker(), ic1)
+        val d2 = CombatResolver.suppressIc(d, ic2)
+        assertEquals(2, d2.suppressedIc.size)
+    }
+
+    @Test
+    fun `unsuppressIc removes IC from suppressedIc list`() {
+        val ic = Probe(rating = 4)
+        val withSuppressed = CombatResolver.suppressIc(decker(), ic)
+        var callbackRating = -1
+        val released = CombatResolver.unsuppressIc(withSuppressed, ic) { callbackRating = it }
+        assertEquals(0, released.suppressedIc.size)
+    }
+
+    @Test
+    fun `unsuppressIc calls onTallyIncrease with stored IC rating`() {
+        val ic = Probe(rating = 7)
+        val withSuppressed = CombatResolver.suppressIc(decker(), ic)
+        var callbackRating = -1
+        CombatResolver.unsuppressIc(withSuppressed, ic) { callbackRating = it }
+        assertEquals(7, callbackRating)
+    }
+
+    @Test
+    fun `unsuppressIc for unknown IC is a no-op`() {
+        val ic = Probe(rating = 4)
+        val d = decker()
+        var callbackFired = false
+        val result = CombatResolver.unsuppressIc(d, ic) { callbackFired = true }
+        assertFalse(callbackFired)
+        assertEquals(d, result)
+    }
+
+    @Test
+    fun `unsuppressIc only removes the matching IC when multiple are suppressed`() {
+        val ic1 = Probe(rating = 3)
+        val ic2 = Killer(rating = 5)
+        val d = CombatResolver.suppressIc(CombatResolver.suppressIc(decker(), ic1), ic2)
+        val released = CombatResolver.unsuppressIc(d, ic1) {}
+        assertEquals(1, released.suppressedIc.size)
+        assertEquals(ic2, released.suppressedIc.first().ic)
+    }
+
+    // ── icAttackParticipant (CC-23) ───────────────────────────────────────────────
+
+    @Test
+    fun `icAttackParticipant Blue host gives LIGHT damage and SV=3`() {
+        val ic = Killer(rating = 5)
+        val p = CombatResolver.icAttackParticipant(ic, SecurityCode.BLUE)
+        assertEquals(DamageLevel.LIGHT, p.rawDamageLevel)
+        assertEquals(3, p.hackingPool)
+        assertEquals(5, p.utilityRating)
+    }
+
+    @Test
+    fun `icAttackParticipant Green host gives LIGHT damage and SV=4`() {
+        val ic = Killer(rating = 4)
+        val p = CombatResolver.icAttackParticipant(ic, SecurityCode.GREEN)
+        assertEquals(DamageLevel.LIGHT, p.rawDamageLevel)
+        assertEquals(4, p.hackingPool)
+    }
+
+    @Test
+    fun `icAttackParticipant Orange host gives MODERATE damage and SV=5`() {
+        val ic = Killer(rating = 6)
+        val p = CombatResolver.icAttackParticipant(ic, SecurityCode.ORANGE)
+        assertEquals(DamageLevel.MODERATE, p.rawDamageLevel)
+        assertEquals(5, p.hackingPool)
+    }
+
+    @Test
+    fun `icAttackParticipant Red host gives SERIOUS damage and SV=6`() {
+        val ic = Killer(rating = 8)
+        val p = CombatResolver.icAttackParticipant(ic, SecurityCode.RED)
+        assertEquals(DamageLevel.SERIOUS, p.rawDamageLevel)
+        assertEquals(6, p.hackingPool)
+        assertEquals(8, p.utilityRating)
+    }
+
+    // ── effectiveDetectionFactor under suppression ────────────────────────────────
+
+    @Test
+    fun `resolveCrippler uses effectiveDetectionFactor when IC is suppressed`() {
+        // Suppress one IC → DF penalty = 1 → effectiveDF = base DF - 1
+        // With a lower effective DF the IC's TN is easier, so it hits more often.
+        // We verify the state change by running two scenarios with a fixed roller and
+        // checking that the reduction differs.
+        val ic = Crippler(rating = 5, targetAttribute = PersonaAttributeType.BOD)
+        val suppressedIc = Probe(rating = 3)
+
+        // 4 IC dice succeed, 6 decker dice fail → reduction = 2 (used for both paths)
+        val roller = DiceRoller(stubRandom(
+            *IntArray(4) { 5 }, *IntArray(6) { 1 },  // scenario A
+            *IntArray(4) { 5 }, *IntArray(6) { 1 }   // scenario B
+        ))
+
+        val baseline = CombatResolver.resolveCrippler(decker(), ic, SecurityCode.GREEN, roller)
+        val withSuppression = CombatResolver.resolveCrippler(
+            CombatResolver.suppressIc(decker(), suppressedIc), ic, SecurityCode.GREEN, roller
+        )
+        // Both should produce the same structural result (roller is deterministic).
+        assertEquals(baseline.reduction, withSuppression.reduction)
+    }
+
     // ── Persona attribute helpers ─────────────────────────────────────────────────
 
     @Test

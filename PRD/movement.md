@@ -267,6 +267,7 @@ Dump shock damage (Power = host Security Value, damage level from Security Code)
 | Enter PLTG from public grid | PLTG tally starts at current RTG tally value |
 | Logon to Host | Add `hostSuccesses` to host tally (separate from grid tally) |
 | Graceful Logoff (success) | System tally cleared (caller responsibility) |
+| New decker logs on while host is mid-reset | Tally starts at the current reduced value at time of intrusion (not at 0) |
 
 ---
 

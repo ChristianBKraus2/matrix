@@ -270,7 +270,7 @@ PRD: SO-01, SO-02. `persona!!.reaction` is already the augmented Persona Reactio
 
 ### `Decker.noticeIcon(icon: Icon, diceRoller: DiceRoller): SensorTestResult`
 
-**PRD:** MP-01 through MP-05
+**PRD:** MP-01 through MP-05, MP-09
 
 **File:** `src/main/kotlin/com/shadowrun/matrix/decker/Decker.kt`
 
@@ -295,6 +295,8 @@ sealed class SensorTestResult {
    - `successes >= 1` → `Detected(icon, successes)` (1 = presence; 2 = type for IC; 3 = rating for IC)
 
 The caller interprets `successes` against the thresholds in MP-03 to decide what information to reveal.
+
+**Friendly decker auto-reveal (MP-09):** If the incoming icon is a friendly decker who chooses to make their presence known, skip the Sensor Test entirely and return `Detected(icon, 1)` directly. The game engine passes a `friendlyReveal: Boolean` flag to `noticeIcon`; when true the test is bypassed.
 
 ---
 
@@ -467,6 +469,8 @@ Two distinct use patterns:
 **Header authentication** (optional follow-up, same turn):
 After any edit, the decker may make a Control Test (TN reduced by Read/Write `currentRating`) to authenticate the file headers. Record successes. If the authentication test is not attempted or fails, the system may later detect the tampered file: the GM makes a `Masking(Files)` Test; successes = hours before the host notices and reports the tampering.
 
+**Tamper detection (PRD: Edit File notes):** A subsequent party who performs a Files Test on the modified file can detect signs of tampering. If the decker authenticated the headers, the checker must exceed the original tamperer's authentication successes to detect any signs; otherwise the tampering is detectable on any success.
+
 ```kotlin
 fun editFile(
     file: DataFile,
@@ -523,6 +527,17 @@ Uses `SystemTestResolver.resolveNullOperation(...)` which applies the inactivity
 Both are monitored operations. Their multi-step resolution (Index Test to find commcode, Control Test to trace, Files Test to tap) uses standard `SystemTestResolver.resolve()` calls sequenced by the caller. `Tap Comcall` dataline scanner detection uses an opposed `Computer Skill vs. Device Rating` test with the Commlink utility reducing the decker's TN.
 
 The encrypt/decrypt sub-test in `Tap Comcall` is an opposed `Computer Skill vs. Device Rating` test with the Decrypt utility reducing the decker's TN. Each failed attempt adds +2 to the TN for subsequent tries. These sub-tests do **not** affect the decker's RTG security tally.
+
+**Make Comcall — additional rules (PRD: Make Comcall table):**
+
+- **Licensed decker exception:** A corporate decker with a valid RTG passcode may skip all System Tests for Make Comcall. The caller must check `decker.hasValidPasscode(rtg)` before invoking any System Test steps; if true, proceed directly to the call without rolling.
+- **Tap detection:** After placing a call, the decker may detect taps or tracers with an Opposed Sensor vs. Device Rating Test. Resolve as a standard opposed test: roll `persona.sensor` dice vs. TN = Device Rating; the tap/tracer rolls Device Rating dice vs. TN = `persona.sensor`. Decker wins on ≥ equal successes.
+- **Tap neutralization:** Once a tap is detected, the decker may neutralize it with an Opposed Evasion vs. Device Rating Test (same opposed structure as detection).
+- **Dump/join Files Tests:** Dumping a participant from the comcall or jumping into a tapped call each require a separate Files Test (standard `SystemTestResolver.resolve()` with `MAKE_COMCALL` operation).
+
+**Tap Comcall — persistent monitoring (PRD: Tap Comcall table):**
+
+Once a commcode has been successfully tapped, the decker does **not** need a new Index Test to detect future activity on that same commcode. The `MonitoredOperationHandle` for an active Tap Comcall carries the tapped commcode; the caller must not re-run the Index step for subsequent calls on the same commcode. New trace (Control Test) and tap (Files Test) steps are still required for each distinct call on that commcode.
 
 ---
 
@@ -592,4 +607,10 @@ Each 3-second game turn the decker may perform `actionsPerTurn` actions. Free Ac
 | Monitored operation: missing one Free Action | `MonitoredOperationHandle.active = false`; operation aborts |
 | `controlSlave` on medical lab, Computer 5, Biotech 4 | Effective skill = (5+4)/2 = 4 (rounded down) |
 | `tapComcall` decrypt fails twice | TN +4 cumulative on third attempt |
+| Tap Comcall: commcode already tapped | No new Index Test; trace/tap steps still required for new call on same commcode |
+| Make Comcall: licensed decker with valid passcode | All System Tests skipped; proceed directly to call |
+| Make Comcall: tap detected, Sensor 5 vs. Device 4 | Opposed test; decker wins on ≥ equal successes |
+| Edit File: authenticated (3 successes), checker rolls 2 | Checker must exceed 3 successes to detect tampering; 2 is insufficient |
+| Edit File: no authentication, checker rolls 1 | Tampering detected on any success |
+| `noticeIcon` with `friendlyReveal = true` | Sensor Test bypassed; `Detected(icon, 1)` returned immediately (MP-09) |
 | Pointer chain: `isPointer == true` | `resolvePointerChain` called; 1D6 intermediate hosts to traverse |

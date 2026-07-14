@@ -297,6 +297,67 @@ detectionFactor =
 
 `Decker.detectionFactor` should be implemented as a computed property (or computed at test time) that reads from `cyberdeck.activeUtilities` each time it is called. Loading or unloading Sleaze mid-run automatically changes the Detection Factor for all subsequent tests.
 
+The effective Detection Factor passed to `SystemTestResolver` must subtract `decker.suppressionDfPenalty` (from IC suppression — see `combat.md`):
+
+```kotlin
+val effectiveDetectionFactor: Int
+    get() = detectionFactor - suppressionDfPenalty
+```
+
+---
+
+## Hacking Pool
+
+**PRD:** CD (Decker section), CC-23
+
+`hackingPool` is a computed property:
+
+```kotlin
+val hackingPool: Int
+    get() = (decker.intelligence + cyberdeck.mcpRating) / 3
+```
+
+**General usage:** Hacking Pool dice may be added to any test made in the Matrix — System Tests, Attack or Defense tests, maneuvers, or Attribute Tests.
+
+**Exception (PRD: ICC-11):** Hacking Pool dice may **not** be added to Body or Willpower Tests made to resist damage from gray or black IC attacking the decker's physical body. Only Karma Pool dice, cyberdeck-connected enhancements, or magic boosts to the decker's Body or Willpower apply in those situations.
+
+`hackingPool` is exposed on `Decker` and passed into `ManeuverParticipant` and `AttackParticipant` by callers; `CombatResolver` methods do not read it from the `Decker` directly.
+
+---
+
+## Medic Utility Method
+
+**PRD:** CD-20, Utilities section (Medic mechanics)
+
+```kotlin
+fun invokeMediac(diceRoller: DiceRoller): MedicResult
+```
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/decker/Decker.kt`
+
+```kotlin
+data class MedicResult(
+    val updatedDecker: Decker,
+    val boxesRepaired: Int,
+    val medicRating: Int   // currentRating after decrement
+)
+```
+
+**Algorithm:**
+
+1. Determine target number from current icon Condition Monitor state:
+   - 1–3 boxes filled (Light) → TN 4
+   - 4–6 boxes filled (Moderate) → TN 5
+   - 7–9 boxes filled (Serious) → TN 6
+   - 10 boxes (Deadly/Crashed) → cannot be used; return `MedicResult(this, 0, medic.currentRating)`
+2. Roll `medic.currentRating` dice vs. TN → `successes`.
+3. `boxesRepaired = successes` — each success removes one filled box from the persona's Condition Monitor (floor at 0 filled boxes).
+4. Decrement `medic.currentRating` by 1 (degradation per CD-20), regardless of success or failure.
+5. If `medic.currentRating == 0`: trigger CD-22 auto-unload (medic removed from active memory and storage).
+6. Return `MedicResult(updatedDecker, boxesRepaired, medic.currentRating)`.
+
+**Action cost:** Complex Action (caller deducts from action budget).
+
 ---
 
 ## Cyberdeck Catalog
@@ -554,6 +615,9 @@ When `destination` is `OfflineStorage`, the download does not consume `storedUti
 | Armor-5 takes bleed-through damage | `armor.currentRating` decrements to 4 (CD-19) |
 | Armor `currentRating` reaches 0 | Auto-unloaded, marked depleted, event logged (CD-22) |
 | Medic invoked (success or failure) | `medic.currentRating` decrements by 1 (CD-20) |
+| Medic invoked on icon with 5 boxes filled | TN = 5; each success repairs 1 box; rating decrements whether test passes or fails |
+| Hacking Pool on Attack Test | Pool dice added to `attacker.hackingPool`; excluded on body/willpower resist vs. black IC |
+| Suppression DF penalty: 2 ICs suppressed | `effectiveDetectionFactor = detectionFactor - 2` applied on next System Test |
 | `swapUtility`: unload frees exact space needed | `LoadUtilityResult.Success` after swap (CD-13) |
 | `model: Renraku Kraftwerk-8` in decker YAML | Hardware defaults from `decks.yaml` catalog (CD-26) |
 | Unknown `model:` value in decker YAML | Warning logged; inline values used (CD-26) |

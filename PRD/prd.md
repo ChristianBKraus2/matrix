@@ -81,8 +81,10 @@ Each host configuration must include:
 
   Trigger step spacing by security code: Red = 2–4, Orange = 3–5, Green = 4–6, Blue = 5–7 (roll 1D6 ÷ 2 + modifier; each result adds to the previous step).
 
+  **Multiple trigger steps:** If a single accumulation of security tally points causes the tally to reach or exceed two or more trigger steps at once, all events for every triggered step activate simultaneously.
+
 - **Alert status** — starts at No Alert. Passive Alert (typically at the third or fourth trigger step) raises all Subsystem Ratings by +2. Active Alert (one or two trigger steps later) may also spawn corporate or law-enforcement security deckers.
-- **Reset timing** — determined by security code. Blue hosts reset fully in 2D6 minutes. Green/Orange/Red hosts begin resetting after 3D6 minutes if no alert was triggered; if an alert fired, reduce the security tally by 1D6 every 5/10/15 minutes (Green/Orange/Red respectively). IC programs left running when the decker logged off remain active until the tally drops below the trigger step that activated them.
+- **Reset timing** — determined by security code. Blue hosts reset fully in 2D6 minutes. Green/Orange/Red hosts begin resetting after 3D6 minutes if no alert was triggered; if an alert fired, reduce the security tally by 1D6 every 5/10/15 minutes (Green/Orange/Red respectively). IC programs left running when the decker logged off remain active until the tally drops below the trigger step that activated them. If a new decker illegally logs on to the host before it finishes resetting, that decker's security tally begins at the level the tally had dropped to at the moment of intrusion.
 
 Provide some examples in the Seattle LTG.
 
@@ -105,9 +107,11 @@ There is one configuration file per decker: `<decker_name>.yaml`. It contains al
   - *Offensive*: Attack at Light/Medium/Serious/Deadly damage level (×2/3/4/5), Black Hammer (×20), Killjoy (×10), Slow (×4).
   - *Defensive*: Armor (×3), Cloak (×3), Lock-On (×3), Medic (×4).
 
+  **Medic mechanics:** To use Medic, spend a Complex Action and roll Medic Rating dice. Target number by current icon damage: Light → TN 4; Moderate → TN 5; Serious → TN 6. Each success repairs 1 box on the icon's Condition Monitor. The Medic utility's `currentRating` decreases by 1 each time it is invoked, whether the attempt succeeds or not (see CD-20). The utility can be reloaded from storage via Swap Memory to restore its full rating.
+
 The following persona values are **calculated by the application** and must not be stored in the config file:
 
-- **Hacking Pool** = floor((Intelligence + MPCP) ÷ 3).
+- **Hacking Pool** = floor((Intelligence + MPCP) ÷ 3). Hacking Pool dice may be added to any test made in the Matrix — System Tests, Attack or Defense tests, maneuvers, or Attribute Tests. **Exception:** Hacking Pool dice may **not** be used in Body or Willpower Tests made to resist damage from gray or black IC attacking the decker's physical body. Only Karma Pool dice, cyberdeck-connected enhancements, or magic boosts to the decker's Body or Willpower apply in those cases.
 - **Detection Factor** = ceil((Masking + Sleaze rating) ÷ 2); if no Sleaze program is loaded, Detection Factor = Masking ÷ 2. Example from the rules: HeadCrash (Computer-6, MPCP-8/6/6/6/6, Sleaze-5) has Detection Factor = ceil((6 + 5) ÷ 2) = 6.
 - **Persona Reaction** = base Reaction + (Response Increase × 2).
 - **Persona attributes** (Bod, Evasion, Masking, Sensor) are read directly from the four persona program ratings.
@@ -163,7 +167,7 @@ The following persona values are **calculated by the application** and must not 
   | Analyze | Analyze Host, Analyze IC, Analyze Icon, Analyze Security, Analyze Subsystem, Locate IC |
   | Browse | Locate Access Node, Locate File, Locate Slave |
   | Commlink | Make Comcall, Tap Comcall |
-  | Deception | Logon to Host, Logon to LTG, Logon to RTG, Graceful Logoff |
+  | Deception | Logon to Host, Logon to LTG, Logon to RTG, Graceful Logoff, Null Operation |
   | Decrypt | Decrypt Access, Decrypt File, Decrypt Slave |
   | Read/Write | Download Data, Edit File, Upload Data |
   | Relocate | Relocate Icon |
@@ -242,6 +246,7 @@ Cyberterminals are legal Matrix access devices used by ordinary corporate worker
 - MP-04: Once located, an icon remains "visible" unless it performs a combat maneuver to escape detection.
 - MP-05: If the Sensor Test fails, the decker is **unaware** of the icon's presence until the icon chooses to reveal itself or attacks the decker.
 - MP-06: If a decker **suspects** the presence of another icon, she may perform a **Locate Decker** or **Locate IC** operation to verify that suspicion.
+- MP-09: Friendly deckers who wish to make their presences known to each other may do so automatically, without requiring a Sensor Test.
 
 ### Noticing Triggered Reactive IC
 
@@ -313,10 +318,10 @@ Each operation entry: **Test** (subsystem), **Utility** (reduces TN), **Action t
 | Decrypt File | Files | Decrypt | Simple | Defeats scramble IC on a file; required before downloading a scrambled file. |
 | Decrypt Slave | Slave | Decrypt | Simple | Defeats scramble IC on a Slave subsystem; required before Slave Tests on a scrambled subsystem. |
 | Download Data | Files | Read/Write | Simple | Copies file from host to deck at I/O speed (Mp/Combat Turn). Ongoing operation. Incomplete download = corrupted file. |
-| Edit File | Files | Read/Write | Simple | Creates, changes, or erases a datafile. Small changes (≈1 line) may be made directly. Larger changes require prior offline preparation and upload. After editing, decker may make a Control Test (TN reduced by Read/Write rating) to authenticate headers; failure risks host detection. |
+| Edit File | Files | Read/Write | Simple | Creates, changes, or erases a datafile. Small changes (≈1 line) may be made directly. Larger changes require prior offline preparation and upload. After editing, decker may make a Control Test (TN reduced by Read/Write rating) to authenticate headers; failure risks host detection via Masking(Files) Test (successes = hours before the host notices the tampering). A subsequent Files Test by another party can detect tampering; if headers were authenticated, the checker must exceed the original tamperer's authentication successes to detect signs of tampering. |
 | Edit Slave | Slave | Spoof | Complex | Modifies data sent to/from a remote device (e.g., fake camera feeds). Monitored operation. |
 | Graceful Logoff | Access | Deception | Complex | Disconnects cleanly; no dump shock. On success, clears all traces from host security/memory. Track utility in location cycle adds its rating to TN. |
-| Locate Access Node | Index | Browse | Complex | Finds LTG codes and host addresses (directory assistance). Interrogation operation. TN modifier: vague query +1, specific −1. |
+| Locate Access Node | Index | Browse | Complex | Finds LTG codes, host addresses, and commcodes for regular telecom calls (directory assistance). Interrogation operation. TN modifier: vague query +1, specific −1. Once a decker has located an LTG code or host address, she need not repeat this operation in future (unless the owner changes the address). |
 | Locate Decker | Index | Scanner | Complex | Two-step: System Test then open-ended Sensor Test. Locates deckers whose Masking ≤ Sensor Test result (add target's Sleaze to their Masking). |
 | Locate File | Index | Browse | Complex | Finds specific datafiles. Interrogation operation. Decker must have a specific search goal. |
 | Locate IC | Index | Analyze | Complex | Like Locate Decker but for IC; auto-locates on System Test success (no Sensor Test needed). |
@@ -324,54 +329,64 @@ Each operation entry: **Test** (subsystem), **Utility** (reduces TN), **Action t
 | Logon to Host | Access | Deception | Complex | Standard System Test. Decker learns Access Rating on first attempt. Security tally starts accumulating on this test. |
 | Logon to LTG | Access | Deception | Complex | System Test vs. LTG Access Rating. Failed attempt leaves tally on LTG for ~1D3×5 minutes; switching jackpoints starts fresh tally. |
 | Logon to RTG | Access | Deception | Complex | System Test vs. RTG Access Rating. Required to move between LTGs or between RTGs. |
-| Make Comcall | Files | Commlink | Complex | Places commcode calls; links multiple RTG calls into a secure conference. Monitored operation. |
+| Make Comcall | Files | Commlink | Complex | Places commcode calls; links multiple RTG calls into a secure conference. Each call linked requires a separate System Test. Licensed (corporate) deckers with a valid RTG passcode may skip all System Tests. The decker can detect taps or tracers on commlines with an Opposed Sensor vs. Device Rating Test; may neutralize them with Opposed Evasion vs. Device Rating. Dumping a participant or jumping into a tapped comcall each require a Files Test. Monitored operation. |
 | Monitor Slave | Slave | Spoof | Simple | Reads data from a remote device (audio, video, sensor readouts). Monitored operation. |
 | Null Operation | Control | Deception | Complex | Required when decker is inactive. GM applies TN modifier to host's Security Value: <10 s base; 10 s–1 min +1; 1–60 min +2; 1–12 hr +4; +1 per additional 12 hr. |
 | Relocate Icon | Control | Relocate | Simple | Used to evade a Track utility. Decker makes Computer Test (TN = opponent's Sensor − Relocate rating); tracker makes MPCP Test vs. Relocate rating. Relocating decker wins → track fails completely. |
 | Swap Memory | None | None | Simple | Loads a utility from storage into active memory. Free Action to unload first if needed. Upload countdown begins immediately (see CD-10). No System Test. |
-| Tap Comcall | Special | Commlink | Complex | Locates active commcodes (Index Test), traces calls (Control Test), taps and records (Files Test). Scrambled lines require Opposed Computer vs. Device Rating decrypt test. Dataline scanners trigger Opposed Computer vs. scanner Device Rating test. Monitored operation. |
-| Upload Data | Files | Read/Write | Simple | Transmits data from deck storage to the Matrix at I/O speed. Does not consume active memory. For modifying existing host files, an Edit File operation is required afterward. Ongoing operation. |
+| Tap Comcall | Special | Commlink | Complex | Locates active commcodes (Index Test), traces calls (Control Test), taps and records (Files Test). Scrambled lines require Opposed Computer vs. Device Rating decrypt test. Dataline scanners trigger Opposed Computer vs. scanner Device Rating test. Once a commcode has been tapped, the decker does not need a new Index Test to detect future activity on that same commcode; new trace and tap tests are still required for each subsequent call. Monitored operation. |
+| Upload Data | Files | Read/Write | Simple | Transmits data from deck storage to the Matrix at I/O speed. Does not consume active memory. For modifying existing host files, an Edit File operation is required afterward. **Cannot** be used to upload utility programs — use Swap Memory for that. Ongoing operation. |
 
 ## Cybercombat
 
 ### Combat Sequence and Timing
 
 - CC-01: Combat turns are 3 seconds. Within an Initiative Pass, resolve actions in order: astral → Matrix → physical.
-- CC-02: A Delayed Action waiting for a physical-world event resolves alongside physical actions, even if the decker had a higher Initiative slot.
-- CC-03: Direct meatworld communication (voice, datascreen) during a Combat Turn pins the decker's actions to the physical segment. Hitcher electrodes and intra-Matrix comms are exempt.
+- CC-02: Reactive IC programs that perform tasks at the end of a Combat Turn act **after** all deckers have performed their allotted actions for that turn.
+- CC-03: A Delayed Action waiting for a physical-world event resolves alongside physical actions, even if the decker had a higher Initiative slot.
+- CC-04: Direct meatworld communication (voice, datascreen) during a Combat Turn pins the decker's actions to the physical segment. Hitcher electrodes and intra-Matrix comms are exempt.
 
 ### Initiative
 
-- CC-04: Decker Initiative = Persona Reaction + 1D6 + (Response Increase × 1D6). Physical enhancements (wired reflexes, etc.) do **not** affect Matrix Initiative.
-- CC-05: Direct meatworld communication reduces a decker's Initiative by –1D6 until the link is dropped (hitcher exempt).
-- CC-06: IC Initiative by host Security Code: Blue = 1D6 + IC Rating; Green = 2D6 + IC Rating; Orange = 3D6 + IC Rating; Red = 4D6 + IC Rating.
-- CC-07: IC triggered mid-turn loses 10 Initiative per completed Initiative Pass. It acts on its next Initiative Pass.
+- CC-05: Decker Initiative = Persona Reaction + 1D6 + (Response Increase × 1D6). Physical enhancements (wired reflexes, etc.) do **not** affect Matrix Initiative.
+- CC-06: Direct meatworld communication reduces a decker's Initiative by –1D6 until the link is dropped (hitcher exempt).
+- CC-07: IC Initiative by host Security Code: Blue = 1D6 + IC Rating; Green = 2D6 + IC Rating; Orange = 3D6 + IC Rating; Red = 4D6 + IC Rating.
+- CC-08: IC triggered mid-turn loses 10 Initiative per completed Initiative Pass. It acts on its next Initiative Pass.
 
 ### Actions per Combat Phase
 
-- CC-08: Per Combat Phase: one Free Action AND either two Simple Actions OR one Complex Action.
-- CC-09: **Free Actions** in combat: Analyze IC, Analyze Icon, Delay Action, Jack Out (if not pinned by Black IC), Speak a Word, Terminate Download/Upload, Unload Program, Unsuppress IC.
-- CC-10: **Simple Actions** in combat: Attack, Combat Maneuver, and all Simple system operations.
-- CC-11: **Complex Actions** in combat: Jack Out while pinned by Black IC (Willpower test required), and all Complex system operations.
+- CC-09: Per Combat Phase: one Free Action AND either two Simple Actions OR one Complex Action.
+- CC-10: **Free Actions** in combat: Analyze IC, Analyze Icon, Delay Action, Jack Out (if not pinned by Black IC), Speak a Word or buffer a message (up to 100 words, delivered to a hitcher/datascreen-linked character at end of Combat Turn), Terminate Download/Upload, Unload Program, Unsuppress IC.
+- CC-11: **Simple Actions** in combat: Attack, Combat Maneuver, and all Simple system operations.
+- CC-12: **Complex Actions** in combat: Jack Out while pinned by Black IC (Willpower test required), and all Complex system operations.
 
 ### Initiating Combat
 
-- CC-12: A decker may attack any visible or located icon. Any icon that attacks automatically becomes visible unless it immediately succeeds at an Evade Detection maneuver.
-- CC-13: Proactive IC initiates combat with any decker whose security tally triggers it; it continues attacking until the decker logs off or evades detection.
+- CC-13: A decker may attack any visible or located icon. Any icon that attacks automatically becomes visible unless it immediately succeeds at an Evade Detection maneuver.
+- CC-14: Proactive IC initiates combat with any decker whose security tally triggers it; it continues attacking until the decker logs off or evades detection.
 
 ### Combat Maneuvers
 
-- CC-14: All combat maneuvers are Simple Actions. Opposed Test: maneuvering icon's Evasion vs. opposing icon's Sensor Rating. IC substitutes the host's Security Value for both Evasion and Sensor.
-- CC-15: Cloak reduces the TN for the maneuvering icon by its rating; Lock-On reduces the TN for the opposing icon by its rating. Hacking Pool may be added to these tests.
-- CC-16: Net successes = maneuvering icon's successes minus opposing icon's successes. Equal or more opposing successes = maneuver fails.
-- CC-17: **Evade Detection** — on success, the opposing icon loses track of the evading icon for a number of Combat Turns equal to net successes. This evasion period is shortened by 1 turn for each security tally point added while evading. IC reappears ready for Initiative at the end of the last evasion turn. The decker must use Locate IC / Locate Decker to re-detect.
-- CC-18: **Parry Attack** — on success, all attacks against the maneuvering icon have their TN raised by net successes until the opposing icon's next attack. The bonus is retained if the opposing icon performs a Position Attack, but is lost if either icon performs a successful Evade Detection.
-- CC-19: **Position Attack** — on success, the maneuvering icon may reduce the TN of its next attack by net successes OR increase the Power of its next attack by net successes. Bonus lasts until the next attack. If the opposing icon wins the contest, it receives the bonus instead.
+- CC-15: All combat maneuvers are Simple Actions. Opposed Test: maneuvering icon's Evasion vs. opposing icon's Sensor Rating. IC substitutes the host's Security Value for both Evasion and Sensor.
+- CC-16: Cloak reduces the TN for the maneuvering icon by its rating; Lock-On reduces the TN for the opposing icon by its rating. Hacking Pool may be added to these tests.
+- CC-17: Net successes = maneuvering icon's successes minus opposing icon's successes. Equal or more opposing successes = maneuver fails.
+- CC-18: **Evade Detection** — on success, the opposing icon loses track of the evading icon for a number of Combat Turns equal to net successes. This evasion period is shortened by 1 turn for each security tally point added while evading. IC reappears ready for Initiative at the end of the last evasion turn. The decker must use Locate IC / Locate Decker to re-detect.
+- CC-19: **Parry Attack** — on success, all attacks against the maneuvering icon have their TN raised by net successes until the opposing icon's next attack. The bonus is retained if the opposing icon performs a Position Attack, but is lost if either icon performs a successful Evade Detection.
+- CC-20: **Position Attack** — on success, the maneuvering icon may reduce the TN of its next attack by net successes OR increase the Power of its next attack by net successes. Bonus lasts until the next attack. If the opposing icon wins the contest, it receives the bonus instead.
+
+### Crashing IC
+
+- CC-21: When a decker crashes (destroys) an IC program in cybercombat, the rating of the crashed IC is immediately added to the decker's security tally. This reflects the system detecting that one of its defenses was eliminated.
+- CC-22: **IC Suppression.** A decker may suppress a crashed IC program to avoid the security tally increase. The decker must declare suppression at the moment the IC is crashed. Rules:
+  - Suppressing prevents the tally increase that would otherwise occur from crashing the IC.
+  - For each IC program being suppressed, the decker's Detection Factor is reduced by 1. This reduction lasts as long as the decker remains in the system.
+  - A decker may unsuppress (release) a suppressed IC at any time as a Free Action (CC-09). Unsuppressing restores 1 point of Detection Factor but immediately raises the security tally by the crashed IC's rating.
+  - A decker cannot suppress IC in a system they have already left.
 
 ### Resolving Attacks
 
-- CC-20: Attack is a Simple Action. The attacker makes an Attack Test using the offensive utility's rating (Hacking Pool may be added).
-- CC-21: Target number for the Attack Test by target status and host Security Code:
+- CC-23: Attack is a Simple Action. The attacker makes an Attack Test using the offensive utility's rating (Hacking Pool may be added). IC programs attack using the host's Security Value as the dice pool (not the IC rating); the IC rating serves as the weapon (Power/Damage Level).
+- CC-24: Target number for the Attack Test by target status and host Security Code:
 
   | Security Code | vs. Intruding icon | vs. Legitimate icon |
   | --- | --- | --- |
@@ -382,27 +397,27 @@ Each operation entry: **Test** (subsystem), **Utility** (reduces TN), **Action t
 
   An icon is **Legitimate** if it logged on with a valid passcode; all others are **Intruding**.
 
-- CC-22: A decker who exploits Legitimate status in combat against the host's own security programs has that passcode devalidated at logoff/jackout (cover blown). Using the passcode against intruding deckers does not blow cover.
-- CC-23: Record the number of attack successes — they determine Damage Level staging and trigger special per-IC effects.
+- CC-25: A decker who exploits Legitimate status in combat against the host's own security programs has that passcode devalidated at logoff/jackout (cover blown). Using the passcode against intruding deckers does not blow cover.
+- CC-26: Record the number of attack successes — they determine Damage Level staging and trigger special per-IC effects.
 
 ### Icon Damage
 
-- CC-24: Damage Code — Power = program/IC rating. Damage Level for IC by host Security Code: Blue/Green = Moderate; Orange/Red = Serious. Attack utility Damage Level is fixed at creation (Light / Moderate / Serious / Deadly).
-- CC-25: **Damage Resistance Test**: target icon rolls Bod Rating dice vs. TN = Power. For IC taking damage, the GM rolls host Security Value dice. The Armor utility reduces Power before this test.
-- CC-26: **Staging** — for every 2 net attacker successes stage the Damage Level up by 1; for every 2 net defender successes stage it down by 1.
-- CC-27: **Condition Monitor** — icons use a single 10-box physical damage track (no Stun track). Standard SR3 TN modifiers apply for filled boxes. When all 10 boxes are filled the icon crashes; if the icon is a persona the decker is dumped.
+- CC-27: Damage Code — Power = program/IC rating. Damage Level for IC by host Security Code: Blue/Green = Moderate; Orange/Red = Serious. Attack utility Damage Level is fixed at creation (Light / Moderate / Serious / Deadly).
+- CC-28: **Damage Resistance Test**: target icon rolls Bod Rating dice vs. TN = Power. For IC taking damage, the GM rolls host Security Value dice. The Armor utility reduces Power before this test.
+- CC-29: **Staging** — for every 2 net attacker successes stage the Damage Level up by 1; for every 2 net defender successes stage it down by 1.
+- CC-30: **Condition Monitor** — icons use a single 10-box physical damage track (no Stun track). Standard SR3 TN modifiers apply for filled boxes. When all 10 boxes are filled the icon crashes; if the icon is a persona the decker is dumped.
 
 ### Simsense Overload
 
-- CC-28: When a decker's icon takes damage from **white or gray IC**, the decker makes a Willpower Test to avoid 1 box of Stun damage to the Mental Condition Monitor. TNs: Light damage → TN 2; Moderate → TN 3; Serious → TN 5. Deadly damage auto-crashes the icon and triggers dump shock (no Willpower test for overload). Simsense overload does **not** apply to Black IC damage.
+- CC-31: When a decker's icon takes damage from **white or gray IC**, the decker makes a Willpower Test to avoid 1 box of Stun damage to the Mental Condition Monitor. TNs: Light damage → TN 2; Moderate → TN 3; Serious → TN 5. Deadly damage auto-crashes the icon and triggers dump shock (no Willpower test for overload). Simsense overload does **not** apply to Black IC damage.
 
 ### Dump Shock Resolution
 
-- CC-29: When dump shock occurs (M-17 / M-18), the decker makes a Body Damage Resistance Test vs. TN = Security Value of the last active host/grid. Damage Level by Security Code: Blue = Light; Green = Moderate; Orange = Serious; Red = Deadly. This is Stun damage applied to the Mental Condition Monitor.
+- CC-32: When dump shock occurs (M-17 / M-18), the decker makes a Body Damage Resistance Test vs. TN = Security Value of the last active host/grid. Damage Level by Security Code: Blue = Light; Green = Moderate; Orange = Serious; Red = Deadly. This is Stun damage applied to the Mental Condition Monitor.
 
 ### Track Utility in Combat
 
-- CC-30: After each successful Attack Test against a target decker, the target makes an Evasion (Track Rating) Test. If the target achieves fewer successes than the attacker, the Track utility locks onto the target's datatrail. Location cycle duration (in full Combat Turns) = 10 ÷ net attacker successes (round up). The target may escape by logging off or jacking out; Graceful Logoff TN is raised by the Track Rating while the location cycle is running. Crashing the attacker's persona stops all its running programs, including Track.
+- CC-33: After each successful Attack Test against a target decker, the target makes an Evasion (Track Rating) Test. If the target achieves fewer successes than the attacker, the Track utility locks onto the target's datatrail. Location cycle duration (in full Combat Turns) = 10 ÷ net attacker successes (round up). The target may escape by logging off or jacking out; Graceful Logoff TN is raised by the Track Rating while the location cycle is running. Crashing the attacker's persona stops all its running programs, including Track.
 
 ## Intrusion Countermeasures
 
@@ -433,7 +448,7 @@ Each operation entry: **Test** (subsystem), **Utility** (reduces TN), **Action t
 - ICC-10: **Black IC — Pin Mechanic** — from the moment Black IC scores its first successful hit (even with zero net damage), the ASIST interface begins to be subverted. Before the first hit: Jack Out is a Free Action. After any successful Black IC hit: the decker must spend a Complex Action and succeed at a Willpower (Black IC Rating) Test to jack out. If the test succeeds, the decker may jack out, but Black IC makes one final cybercombat attack before the connection drops. If a companion at the jackpoint manually pulls the plug while Black IC is active, Black IC also gets one automatic final attack.
 
 - ICC-11: **Lethal Black IC** (proactive) — attacks like Killer IC. Damage Code: (IC Rating)M for Blue/Green hosts; (IC Rating)S for Orange/Red hosts. Each successful hit requires **two separate Damage Resistance Tests**:
-  - *Decker's body*: Body dice vs. TN = Power (Hardening reduces Power; Hacking Pool may **not** be used; Karma Pool may be used).
+  - *Decker's body*: Body dice vs. TN = Power (Hardening reduces Power; Hacking Pool may **not** be used; Karma Pool may be used). The Armor utility does **not** protect the decker's meatbody — it only reduces Power for the icon's damage track.
   - *Icon*: icon's Bod dice vs. TN = Power (Armor protects normally).
 
   If the icon crashes before the decker dies: the decker cannot fight back; the IC's effective rating increases by 2 for all subsequent tests against the decker.

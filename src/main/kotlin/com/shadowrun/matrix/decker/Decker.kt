@@ -29,9 +29,11 @@ import com.shadowrun.matrix.operations.SensorTestResult
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.operations.SystemTestOutcome
 import com.shadowrun.matrix.operations.SystemTestResolver
+import com.shadowrun.matrix.programs.Utility
 import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.utility.DiceRoller
 import com.shadowrun.matrix.combat.BlackIcPinState
+import com.shadowrun.matrix.combat.IcSuppressionState
 import com.shadowrun.matrix.combat.TrackState
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.math.ceil
@@ -51,10 +53,17 @@ data class Decker(
     val jackpoint: Jackpoint? = null,
     val currentLocation: MatrixLocation? = null,
     val blackIcPin: BlackIcPinState? = null,
-    val trackState: TrackState? = null
+    val trackState: TrackState? = null,
+    val suppressedIc: List<IcSuppressionState> = emptyList()
 ) {
     val hackingPool: Int get() = (intelligence + cyberdeck.mcpRating) / 3
     val isPinnedByBlackIc: Boolean get() = blackIcPin != null
+
+    /** Each suppressed IC reduces Detection Factor by 1 (CC-22). */
+    val suppressionDfPenalty: Int get() = suppressedIc.size
+
+    /** Detection Factor used by the host in all System Tests = base DF minus suppression penalty. */
+    val effectiveDetectionFactor: Int get() = detectionFactor - suppressionDfPenalty
 
     /** Detection Factor = ceil((Masking + Sleaze.currentRating) / 2); or ceil(Masking / 2) if no Sleaze active.
      *  Recalculated dynamically — Sleaze in pendingUploads does not count. PRD: CD-17, CD-18 */
@@ -419,11 +428,16 @@ data class Decker(
     /**
      * Free Sensor Test to notice a newly-entered icon. No utility modifier allowed.
      * TN = target Masking + Sleaze (for personas) or icon rating (for IC/programs).
-     * PRD: MP-01 through MP-05
+     * If [friendlyReveal] is true the icon announced itself; skip the test and return Detected(icon, 1).
+     * PRD: MP-01 through MP-05, MP-09
      */
-    fun noticeIcon(icon: MatrixIcon, diceRoller: DiceRoller): SensorTestResult {
-        logger.info { "[$name] noticeIcon: $icon" }
+    fun noticeIcon(icon: MatrixIcon, diceRoller: DiceRoller, friendlyReveal: Boolean = false): SensorTestResult {
+        logger.info { "[$name] noticeIcon: $icon (friendlyReveal=$friendlyReveal)" }
         check(persona != null) { "noticeIcon requires a jacked-in persona" }
+        if (friendlyReveal) {
+            logger.info { "[$name] noticeIcon: friendly reveal — skipping Sensor Test" }
+            return SensorTestResult.Detected(icon, 1)
+        }
         val tn = when (icon) {
             is MatrixIcon.PersonaIcon -> icon.persona.masking + icon.sleazeRating
             is MatrixIcon.IcIcon     -> icon.ic.rating
@@ -721,7 +735,7 @@ data class Decker(
         val spoof = cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.SPOOF }
         val tn = maxOf(2, host.subsystemRatings.slave - (spoof?.let { SystemTestResolver.effectiveRating(it, cyberdeck) } ?: 0))
         val deckerResult = diceRoller.roll(skill, tn)
-        val hostResult = diceRoller.roll(host.securityRating.value, detectionFactor)
+        val hostResult = diceRoller.roll(host.securityRating.value, effectiveDetectionFactor)
         val outcome = SystemTestOutcome(deckerResult.successes, hostResult.successes, deckerResult.successes >= hostResult.successes)
         logger.info { "[$name] controlSlave: decker=$skill dice TN=$tn → ${deckerResult.successes}; host=${hostResult.successes}" }
         val updated = withUpdatedTally(outcome.hostSuccesses)
@@ -789,6 +803,50 @@ data class Decker(
         val outcome = SystemTestResolver.resolveNullOperation(this, host, inactivitySeconds, diceRoller)
         val updated = withUpdatedTally(outcome.hostSuccesses)
         return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
+    }
+
+    // ── Medic Utility ─────────────────────────────────────────────────────────────
+
+    /**
+     * Invoke the Medic utility on the decker's own persona condition monitor (Complex Action).
+     * TN = 4 (1–3 boxes filled), 5 (4–6), 6 (7–9); cannot use at 10 boxes (Deadly — use other means).
+     * Each success repairs 1 box. The utility's currentRating decrements by 1 per invocation;
+     * at 0 it is auto-unloaded from active memory and removed from storage (exhausted).
+     * PRD: CD-26 / G-15
+     */
+    fun invokeMediac(diceRoller: DiceRoller): MedicResult {
+        check(persona != null) { "invokeMediac requires a jacked-in persona" }
+        val medic = checkNotNull(cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.MEDIC }) {
+            "Medic utility is not loaded"
+        }
+        val filled = persona!!.conditionMonitor.damage
+        require(filled < 10) { "Cannot use Medic on a Deadly (10-box) condition monitor" }
+        val tn = when {
+            filled <= 3 -> 4
+            filled <= 6 -> 5
+            else        -> 6
+        }
+        val successes = diceRoller.roll(medic.currentRating, tn).successes
+        val repaired = successes.coerceAtMost(filled)
+        val newCm = persona!!.conditionMonitor.copy(damage = filled - repaired)
+        val newMedicRating = medic.currentRating - 1
+
+        val newActive = if (newMedicRating <= 0) {
+            cyberdeck.activeUtilities.filterNot { it.type == UtilityType.MEDIC }
+        } else {
+            cyberdeck.activeUtilities.map { if (it.type == UtilityType.MEDIC) Utility(it.type, it.rating, currentRating = newMedicRating) else it }
+        }
+        val newStored = if (newMedicRating <= 0) {
+            cyberdeck.storedUtilities.filterNot { it.type == UtilityType.MEDIC }
+        } else {
+            cyberdeck.storedUtilities.map { if (it.type == UtilityType.MEDIC) Utility(it.type, it.rating, currentRating = newMedicRating) else it }
+        }
+        val updatedDecker = copy(
+            persona = persona!!.copy(conditionMonitor = newCm),
+            cyberdeck = cyberdeck.copy(activeUtilities = newActive, storedUtilities = newStored)
+        )
+        logger.info { "[$name] invokeMediac: filled=$filled TN=$tn successes=$successes repaired=$repaired newMedicRating=$newMedicRating" }
+        return MedicResult(updatedDecker, repaired, newMedicRating)
     }
 
     // ── Distributed Databases ─────────────────────────────────────────────────────

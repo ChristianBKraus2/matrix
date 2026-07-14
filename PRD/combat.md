@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document specifies the design for implementing the cybercombat and intrusion countermeasure requirements defined in `prd.md` (CC-01 through CC-30 and ICC-01 through ICC-15). It covers:
+This document specifies the design for implementing the cybercombat and intrusion countermeasure requirements defined in `prd.md` (CC-01 through CC-33 and ICC-01 through ICC-15). It covers:
 
 - Initiative calculation for deckers and IC
 - Combat maneuver resolution (Evade Detection, Parry Attack, Position Attack)
@@ -263,6 +263,21 @@ PRD: ICC-15. `icInert = true` when `actionsLost >= icInitiative.initiativePasses
 
 ---
 
+### `IcSuppressionState` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/IcSuppressionState.kt`
+
+```kotlin
+data class IcSuppressionState(
+    val ic: IC,
+    val icRating: Int   // rating at crash moment; used if the decker later unsuppresses
+)
+```
+
+PRD: CC-22. Represents one suppressed (crashed but held) IC program. The decker holds this to prevent the security-tally increase. Unsuppressing restores 1 Detection Factor point and immediately adds `icRating` to the tally.
+
+---
+
 ## Changes to Existing Types
 
 ### `Decker`
@@ -282,9 +297,23 @@ Add computed property:
 val isPinnedByBlackIc: Boolean get() = blackIcPin != null
 ```
 
+Add field for IC suppression:
+
+```kotlin
+val suppressedIc: List<IcSuppressionState> = emptyList()
+```
+
+Computed property for Detection Factor penalty (PRD: CC-22):
+
+```kotlin
+val suppressionDfPenalty: Int get() = suppressedIc.size
+```
+
+The effective Detection Factor used in System Tests = `detectionFactor - suppressionDfPenalty`.
+
 `advanceCombatTurn()` (already defined in `cyberdeck_and_program_mechanics.md`) must also decrement `trackState?.locationCycleTurnsRemaining`, setting `trackState = null` when it reaches 0.
 
-PRD: ICC-10, CC-30.
+PRD: ICC-10, CC-22, CC-30.
 
 ---
 
@@ -348,7 +377,9 @@ PRD: CC-06.
 2. Roll `numDice` D6, sum + `ic.rating` → `score`.
 3. Return `CombatInitiative(score, initiativePasses = numDice)`.
 
-For IC triggered mid-turn (CC-07), the caller subtracts `10 × completedPasses` from `score` before inserting it into the initiative order.
+For IC triggered mid-turn (CC-08), the caller subtracts `10 × completedPasses` from `score` before inserting it into the initiative order.
+
+**Reactive IC end-of-turn timing (CC-02):** Reactive IC programs that perform tasks at the end of a Combat Turn act after all deckers have completed their allotted actions for that turn. The game engine must not resolve reactive IC callbacks until the decker action phase for that turn is fully resolved.
 
 ---
 
@@ -387,7 +418,7 @@ PRD: CC-20–CC-26.
 10. `staged = stage(attacker.rawDamageLevel, net)`
 11. Return `AttackResult.Hit(attackerSuccesses, attacker.rawDamageLevel, staged, effectivePower)`.
 
-**`private fun attackTn(status: PersonaStatus, code: SecurityCode): Int`** encodes the CC-21 table:
+**`private fun attackTn(status: PersonaStatus, code: SecurityCode): Int`** encodes the CC-24 table:
 
 | SecurityCode | INTRUDING | LEGITIMATE |
 |---|---|---|
@@ -396,7 +427,9 @@ PRD: CC-20–CC-26.
 | ORANGE | 4 | 5 |
 | RED | 3 | 6 |
 
-**`private fun stage(base: DamageLevel, net: Int): DamageLevel`** — shift the damage level by `net / 2` (integer division, rounds toward zero), clamped to `[LIGHT, DEADLY]`. Positive net stages up; negative stages down. PRD: CC-26.
+**`private fun stage(base: DamageLevel, net: Int): DamageLevel`** — shift the damage level by `net / 2` (integer division, rounds toward zero), clamped to `[LIGHT, DEADLY]`. Positive net stages up; negative stages down. PRD: CC-29.
+
+**Crashing IC raises security tally (CC-21):** When `resolveAttack` results in the target IC's `ConditionMonitor.isCrashed`, the caller must immediately add the IC's rating to the decker's security tally — unless the decker declares suppression (CC-22) via `suppressIc(ic)`. This logic lives in the game engine / caller, not inside `resolveAttack` itself. IC programs attack using the host's Security Value as the dice pool (CC-23).
 
 ---
 
@@ -445,7 +478,31 @@ On success, the caller resolves one final IC attack (`resolveAttack`) before com
 
 ---
 
-### White IC
+### IC Suppression
+
+#### `suppressIc(ic: IC): Decker`
+
+PRD: CC-21, CC-22. Called on the decker at the moment an IC is crashed and the decker declares suppression.
+
+1. Append `IcSuppressionState(ic, ic.rating)` to `decker.suppressedIc`.
+2. Do **not** add `ic.rating` to the security tally (suppression prevents this).
+3. Return updated `Decker`. The Detection Factor is now effectively reduced by 1 (via `suppressionDfPenalty`).
+
+**Precondition:** May only be called in the same action that crashed the IC; the decker must still be on the system where the IC was active.
+
+---
+
+#### `unsuppressIc(ic: IC, securityTallyIncrement: (Int) -> Unit): Decker`
+
+PRD: CC-22. Called when a decker releases a suppressed IC (Free Action).
+
+1. Find and remove the `IcSuppressionState` matching `ic` from `decker.suppressedIc`.
+2. Call `securityTallyIncrement(state.icRating)` — restores the tally increase that suppression was holding.
+3. Return updated `Decker`. The Detection Factor increases by 1 (penalty reduced by 1).
+
+The caller (game engine) handles the tally update; the method's callback keeps `CombatResolver` decoupled from security-tally state.
+
+---
 
 #### `resolveCrippler(decker: Decker, ic: Crippler, securityCode: SecurityCode, diceRoller: DiceRoller): CripplerResult`
 
@@ -571,7 +628,7 @@ PRD: ICC-11.
 1. Determine Damage Level by `securityCode`: Blue/Green → MODERATE; Orange/Red → SERIOUS. Set `power = ic.rating`.
 2. `effectivePower = max(0, power - decker.cyberdeck.hardening)` — Hardening reduces Power for body test only.
 3. **Icon resistance test**: Roll `decker.persona!!.bod` dice vs. `power` (Armor protects normally, applied before this roll via `DefenderParticipant.armorCurrentRating`).
-4. **Physical body resistance test**: Roll `decker.body` dice vs. `effectivePower` (Hacking Pool may NOT be added; Karma Pool may be used — resolved externally).
+4. **Physical body resistance test**: Roll `decker.body` dice vs. `effectivePower` (Hacking Pool may NOT be added; Karma Pool may be used — resolved externally). **The Armor utility does NOT reduce Power for this body test** (ICC-11); Hardening already accounts for any deck-hardware mitigation.
 5. Stage both results independently with `stage()`.
 6. Apply icon damage to Condition Monitor; apply physical damage to Physical Condition Monitor.
 7. If icon crashes before decker dies: set IC effective rating to `ic.rating + 2` for all subsequent tests (caller holds this state).
@@ -640,23 +697,27 @@ If `icInert`, the IC does not add to the security tally. If not suppressed befor
 
 | Scenario | Expected Result |
 |---|---|
-| Decker Reaction 6, RI 2, no comms | `CombatInitiative(score = 6 + 3D6, initiativePasses = 3)` (CC-04) |
-| Decker RI 2 with meatworld comms | `numDice = max(1, 1+2−1) = 2`; score reduced by ~3.5 average (CC-05) |
-| IC Rating 5 in Orange host | `CombatInitiative(score = 3D6+5, initiativePasses = 3)` (CC-06) |
-| IC triggered after pass 1 completed | Caller subtracts 10 from score; IC acts on next pass (CC-07) |
-| Maneuver: mover 4 successes, opponent 2 | `ManeuverResult.Success(2)` (CC-16) |
-| Maneuver: mover 2, opponent 2 | `ManeuverResult.Failure` — equal successes = fail (CC-16) |
-| Parry Attack 3 net successes | `CombatModifiers(parryAttackBonus = 3)` set on target; next incoming attack TN +3 (CC-18) |
-| Position Attack 2 net successes | Attacker sets TN −2 OR Power +2 on next attack (CC-19) |
-| Attack: Intruding icon in Blue host | TN = 6 (CC-21) |
-| Attack: Legitimate icon in Red host | TN = 6 (CC-21) |
-| Armor-4 vs. Power 7 | `effectivePower = 3`; defender rolls vs. 3 (CC-25) |
-| 4 net attacker successes | Damage stages up by 2 levels (CC-26) |
-| 4 net defender successes | Damage stages down by 2 levels (CC-26) |
-| Moderate damage from White IC, Willpower fails | `stressBoxesApplied = 1` (CC-28) |
-| Deadly damage from Gray IC | `simsenseOverload = null`; `dumpShockTriggered = true`; no Willpower test (CC-28) |
-| Black IC damage | `simsenseOverload = null`; pin state set after first hit (CC-28, ICC-10) |
-| Dump shock in Orange host (SV 5, Security Rating = Orange) | `DumpShock(level = SERIOUS, power = 5)`; body resistance test applied (CC-29) |
+| Decker Reaction 6, RI 2, no comms | `CombatInitiative(score = 6 + 3D6, initiativePasses = 3)` (CC-05) |
+| Decker RI 2 with meatworld comms | `numDice = max(1, 1+2−1) = 2`; score reduced by ~3.5 average (CC-06) |
+| IC Rating 5 in Orange host | `CombatInitiative(score = 3D6+5, initiativePasses = 3)` (CC-07) |
+| IC triggered after pass 1 completed | Caller subtracts 10 from score; IC acts on next pass (CC-08) |
+| Reactive IC callback queued mid-turn | Caller waits until all decker actions complete before resolving (CC-02) |
+| Maneuver: mover 4 successes, opponent 2 | `ManeuverResult.Success(2)` (CC-17) |
+| Maneuver: mover 2, opponent 2 | `ManeuverResult.Failure` — equal successes = fail (CC-17) |
+| Parry Attack 3 net successes | `CombatModifiers(parryAttackBonus = 3)` set on target; next incoming attack TN +3 (CC-19) |
+| Position Attack 2 net successes | Attacker sets TN −2 OR Power +2 on next attack (CC-20) |
+| Attack: Intruding icon in Blue host | TN = 6 (CC-24) |
+| Attack: Legitimate icon in Red host | TN = 6 (CC-24) |
+| Armor-4 vs. Power 7 | `effectivePower = 3`; defender rolls vs. 3 (CC-28) |
+| 4 net attacker successes | Damage stages up by 2 levels (CC-29) |
+| 4 net defender successes | Damage stages down by 2 levels (CC-29) |
+| IC crashes; decker declares suppression | `suppressIc()` called; tally NOT raised; DF −1 (CC-21, CC-22) |
+| IC crashes; no suppression declared | Caller adds `ic.rating` to tally immediately (CC-21) |
+| Decker unsuppresses held IC | `unsuppressIc()` called; tally raised by held IC rating; DF +1 (CC-22) |
+| Moderate damage from White IC, Willpower fails | `stressBoxesApplied = 1` (CC-31) |
+| Deadly damage from Gray IC | `simsenseOverload = null`; `dumpShockTriggered = true`; no Willpower test (CC-31) |
+| Black IC damage | `simsenseOverload = null`; pin state set after first hit (CC-31, ICC-10) |
+| Dump shock in Orange host (SV 5, Security Rating = Orange) | `DumpShock(level = SERIOUS, power = 5)`; body resistance test applied (CC-32) |
 | Black IC first successful hit | `decker.isPinnedByBlackIc == true` (ICC-10) |
 | Pin Willpower test succeeds | `JackOutPinResult(succeeded = true, finalIcAttackTriggered = true)` (ICC-10) |
 | Pin Willpower test fails | `JackOutPinResult(succeeded = false, finalIcAttackTriggered = false)` (ICC-10) |
@@ -666,8 +727,9 @@ If `icInert`, the IC does not add to the security tally. If not suppressed befor
 | Tar Baby wins opposed test | Both programs removed from active memory; tally unchanged (ICC-05) |
 | Tar Pit wins + MPCP test 2 successes | Utility corrupted in all memory; decker cannot reload during run (ICC-09) |
 | Tar Pit wins + MPCP test 0 successes | Same as Tar Baby result; decker may reload from storage (ICC-09) |
-| Track: 5 attacker successes, 2 evade successes | `TrackState(cycleTurns = ceil(10/3) = 4)` (CC-30) |
-| Track: evader matches attacker successes | `null` returned — no lock (CC-30) |
+| Track: 5 attacker successes, 2 evade successes | `TrackState(cycleTurns = ceil(10/3) = 4)` (CC-33) |
+| Track: evader matches attacker successes | `null` returned — no lock (CC-33) |
 | Slow on Reactive IC | Precondition check fails; `SlowResult(0, false)` (ICC-15) |
 | Slow: 4 net successes, IC has 2 passes | `SlowResult(actionsLost = 2, icInert = true)` (ICC-15) |
 | Black Hammer vs. Cyberterminal user | Caller checks `immuneToDumpShock = true`; does not call `resolveBlackHammer` (ICC-13) |
+| Black IC physical body test, Armor-5 loaded | Armor does NOT reduce Power for body test; only Hardening applies (ICC-11) |

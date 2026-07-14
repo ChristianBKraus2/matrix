@@ -11,11 +11,17 @@ import com.shadowrun.matrix.common.SecurityRating
 import com.shadowrun.matrix.common.SubsystemRatings
 import com.shadowrun.matrix.common.IntrusionDifficulty
 import com.shadowrun.matrix.common.TopologyType
+import com.shadowrun.matrix.combat.CombatResolver
+import com.shadowrun.matrix.combat.IcSuppressionState
+import com.shadowrun.matrix.ic.Killer
+import com.shadowrun.matrix.ic.Probe
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.config.DeckCatalogEntry
 import com.shadowrun.matrix.config.DeckCatalogLoader
 import com.shadowrun.matrix.config.DeckerLoader
+import com.shadowrun.matrix.operations.MatrixIcon
+import com.shadowrun.matrix.operations.SensorTestResult
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.operations.SystemTestResolver
 import com.shadowrun.matrix.programs.PersonaProgram
@@ -26,6 +32,7 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -746,5 +753,200 @@ class CyberdeckAndProgramMechanicsTest {
         assertIs<DownloadDestination.StorageMemory>(DownloadDestination.StorageMemory)
         val storage = Accessory(AccessoryType.OFFLINE_STORAGE)
         assertIs<DownloadDestination.OfflineStorage>(DownloadDestination.OfflineStorage(storage))
+    }
+
+    // ── effectiveDetectionFactor / suppressionDfPenalty (CC-22) ──────────────────
+
+    @Test
+    fun `suppressionDfPenalty is 0 with no suppressed IC`() {
+        val d = decker(jackedIn = true)
+        assertEquals(0, d.suppressionDfPenalty)
+    }
+
+    @Test
+    fun `suppressionDfPenalty equals number of suppressed IC`() {
+        val ic1 = Probe(rating = 3)
+        val ic2 = Killer(rating = 5)
+        val d = decker(jackedIn = true)
+        val d2 = CombatResolver.suppressIc(CombatResolver.suppressIc(d, ic1), ic2)
+        assertEquals(2, d2.suppressionDfPenalty)
+    }
+
+    @Test
+    fun `effectiveDetectionFactor decreases by 1 per suppressed IC`() {
+        val d = decker(jackedIn = true)
+        val baseline = d.effectiveDetectionFactor
+        val withOne = CombatResolver.suppressIc(d, Probe(rating = 4))
+        assertEquals(baseline - 1, withOne.effectiveDetectionFactor)
+        val withTwo = CombatResolver.suppressIc(withOne, Killer(rating = 5))
+        assertEquals(baseline - 2, withTwo.effectiveDetectionFactor)
+    }
+
+    @Test
+    fun `effectiveDetectionFactor restores after unsuppress`() {
+        val ic = Probe(rating = 4)
+        val d = decker(jackedIn = true)
+        val baseline = d.effectiveDetectionFactor
+        val suppressed = CombatResolver.suppressIc(d, ic)
+        assertEquals(baseline - 1, suppressed.effectiveDetectionFactor)
+        val released = CombatResolver.unsuppressIc(suppressed, ic) {}
+        assertEquals(baseline, released.effectiveDetectionFactor)
+    }
+
+    // ── noticeIcon friendlyReveal (MP-09) ─────────────────────────────────────────
+
+    @Test
+    fun `noticeIcon friendlyReveal skips sensor test and returns Detected with 1 success`() {
+        val d = decker(jackedIn = true)
+        val icon = MatrixIcon.IcIcon(Probe(rating = 8))
+        // roller all fails — the friendly path must not call it
+        val roller = DiceRoller(object : Random() {
+            override fun nextBits(bitCount: Int) = 0
+            override fun nextInt(from: Int, until: Int): Int = error("Sensor test should not fire on friendlyReveal")
+        })
+        val result = d.noticeIcon(icon, roller, friendlyReveal = true)
+        assertIs<SensorTestResult.Detected>(result)
+        assertEquals(1, (result as SensorTestResult.Detected).successes)
+        assertEquals(icon, result.icon)
+    }
+
+    @Test
+    fun `noticeIcon without friendlyReveal runs normal sensor test`() {
+        val d = decker(jackedIn = true)
+        val icon = MatrixIcon.IcIcon(Probe(rating = 3))
+        // Sensor dice all show 5 → 1 success at TN=3
+        val roller = DiceRoller(object : Random() {
+            override fun nextBits(bitCount: Int) = 0
+            override fun nextInt(from: Int, until: Int) = 5.coerceIn(from, until - 1)
+        })
+        val result = d.noticeIcon(icon, roller)
+        assertIs<SensorTestResult.Detected>(result)
+    }
+
+    @Test
+    fun `noticeIcon without friendlyReveal can return Undetected when all dice fail`() {
+        val d = decker(jackedIn = true)
+        val icon = MatrixIcon.IcIcon(Probe(rating = 8))
+        val roller = DiceRoller(object : Random() {
+            override fun nextBits(bitCount: Int) = 0
+            override fun nextInt(from: Int, until: Int) = 1.coerceIn(from, until - 1)
+        })
+        val result = d.noticeIcon(icon, roller)
+        assertIs<SensorTestResult.Undetected>(result)
+    }
+
+    // ── invokeMediac (CD-26 / G-15) ───────────────────────────────────────────────
+
+    private fun fixedRoller(face: Int) = DiceRoller(object : Random() {
+        override fun nextBits(bitCount: Int) = 0
+        override fun nextInt(from: Int, until: Int) = face.coerceIn(from, until - 1)
+    })
+
+    private fun deckerWithMedic(
+        medicRating: Int = 4,
+        damage: Int = 3
+    ): Decker {
+        val medic = Utility(UtilityType.MEDIC, rating = medicRating)
+        val d = deck(
+            activeUtilities = listOf(medic),
+            storedUtilities = listOf(medic)
+        )
+        val persona = Persona(
+            bod = 6, evasion = 6, masking = 6, sensor = 6,
+            conditionMonitor = ConditionMonitor(damage = damage)
+        )
+        return Decker(
+            name = "Medic", intelligence = 6, body = 4, willpower = 5, reaction = 5,
+            computerSkill = 6, cyberdeck = d, persona = persona
+        )
+    }
+
+    @Test
+    fun `invokeMediac TN is 4 for 1-3 filled boxes`() {
+        // 3 boxes filled → TN 4; medic rating=4 dice all succeed (face=5 ≥ TN 4)
+        val d = deckerWithMedic(medicRating = 4, damage = 3)
+        val result = d.invokeMediac(fixedRoller(5))
+        assertEquals(3, result.boxesRepaired)           // all 3 boxes repaired
+        assertEquals(0, result.updatedDecker.persona!!.conditionMonitor.damage)
+        assertEquals(3, result.medicRating)             // decremented from 4 to 3
+    }
+
+    @Test
+    fun `invokeMediac TN is 5 for 4-6 filled boxes`() {
+        // 5 boxes → TN 5; face=4 → fails TN 5 → 0 successes → 0 repaired
+        val d = deckerWithMedic(medicRating = 4, damage = 5)
+        val result = d.invokeMediac(fixedRoller(4))
+        assertEquals(0, result.boxesRepaired)
+        assertEquals(5, result.updatedDecker.persona!!.conditionMonitor.damage)
+    }
+
+    @Test
+    fun `invokeMediac TN is 6 for 7-9 filled boxes`() {
+        // 9 boxes → TN 6; face=6 → all succeed (4 dice) → 4 successes but only 9 boxes filled → repairs 4
+        val d = deckerWithMedic(medicRating = 4, damage = 9)
+        val result = d.invokeMediac(fixedRoller(6))
+        assertEquals(4, result.boxesRepaired)
+        assertEquals(5, result.updatedDecker.persona!!.conditionMonitor.damage)
+    }
+
+    @Test
+    fun `invokeMediac repairs at most as many boxes as are filled`() {
+        // 1 box filled, TN 4; 4 successes → repair capped at 1
+        val d = deckerWithMedic(medicRating = 4, damage = 1)
+        val result = d.invokeMediac(fixedRoller(5))
+        assertEquals(1, result.boxesRepaired)
+        assertEquals(0, result.updatedDecker.persona!!.conditionMonitor.damage)
+    }
+
+    @Test
+    fun `invokeMediac decrements medic currentRating by 1`() {
+        val d = deckerWithMedic(medicRating = 5, damage = 2)
+        val result = d.invokeMediac(fixedRoller(5))
+        assertEquals(4, result.medicRating)
+        val activeRating = result.updatedDecker.cyberdeck.activeUtilities
+            .first { it.type == UtilityType.MEDIC }.currentRating
+        assertEquals(4, activeRating)
+    }
+
+    @Test
+    fun `invokeMediac at rating 1 auto-unloads medic from active and stored`() {
+        val d = deckerWithMedic(medicRating = 1, damage = 2)
+        val result = d.invokeMediac(fixedRoller(1))  // 0 repairs, but still decrements
+        assertEquals(0, result.medicRating)
+        assertFalse(result.updatedDecker.cyberdeck.activeUtilities.any { it.type == UtilityType.MEDIC })
+        assertFalse(result.updatedDecker.cyberdeck.storedUtilities.any { it.type == UtilityType.MEDIC })
+    }
+
+    @Test
+    fun `invokeMediac throws when persona CM is at 10 boxes`() {
+        val d = deckerWithMedic(medicRating = 4, damage = 10)
+        assertFailsWith<IllegalArgumentException> {
+            d.invokeMediac(fixedRoller(5))
+        }
+    }
+
+    @Test
+    fun `invokeMediac throws when Medic is not loaded`() {
+        val d = Decker(
+            name = "NoDrug", intelligence = 6, body = 4, willpower = 5, reaction = 5,
+            computerSkill = 6, cyberdeck = deck(),
+            persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6,
+                conditionMonitor = ConditionMonitor(damage = 3))
+        )
+        assertFailsWith<IllegalStateException> {
+            d.invokeMediac(fixedRoller(5))
+        }
+    }
+
+    @Test
+    fun `invokeMediac throws when not jacked in`() {
+        val medic = Utility(UtilityType.MEDIC, rating = 4)
+        val d = Decker(
+            name = "Offline", intelligence = 6, body = 4, willpower = 5, reaction = 5,
+            computerSkill = 6, cyberdeck = deck(activeUtilities = listOf(medic), storedUtilities = listOf(medic))
+        )
+        assertFailsWith<IllegalStateException> {
+            d.invokeMediac(fixedRoller(5))
+        }
     }
 }
