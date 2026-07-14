@@ -118,4 +118,4 @@ The following persona values are **calculated by the application** and must not 
 
 ### Non functional Requirements
 
-- 
+- Every public method of the decker, i.e. every action that is triggered from the user, should be logged at the start (describing the intention) and at the end (describing the outcome incl. success or failure)

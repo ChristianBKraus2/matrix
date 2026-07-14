@@ -11,6 +11,7 @@ import com.shadowrun.matrix.network.RTG
 import com.shadowrun.matrix.operations.SystemTestResolver
 import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.utility.DiceRoller
+import io.github.oshai.kotlinlogging.KotlinLogging
 
 data class Decker(
     val name: String,
@@ -47,6 +48,7 @@ data class Decker(
      * PRD: M-01, M-04, M-05
      */
     fun jackInToLtg(ltg: LTG, diceRoller: DiceRoller): LogonResult {
+        logger.info { "[$name] jackInToLtg → ${ltg.name}" }
         requireNotJackedIn()
         val jp = requireJackpoint()
         require(jp.type in LTG_JACKPOINT_TYPES) {
@@ -59,7 +61,12 @@ data class Decker(
             buildLocation = { updatedTally ->
                 MatrixLocation.OnLTG(ltg.copy(securityTally = ltg.securityTally + updatedTally))
             }
-        )
+        ).also { result ->
+            when (result) {
+                is LogonResult.Success -> logger.info { "[$name] jackInToLtg succeeded: now at ${result.location.label()}" }
+                is LogonResult.Failure -> logger.warn { "[$name] jackInToLtg failed: remaining at ${result.location.label()}" }
+            }
+        }
     }
 
     /**
@@ -69,6 +76,7 @@ data class Decker(
      * PRD: M-02, M-04, M-05
      */
     fun jackInToHost(host: Host, diceRoller: DiceRoller): LogonResult {
+        logger.info { "[$name] jackInToHost → ${host.name}" }
         requireNotJackedIn()
         val jp = requireJackpoint()
         require(jp.type in HOST_JACKPOINT_TYPES) {
@@ -84,7 +92,12 @@ data class Decker(
             buildLocation = { updatedTally ->
                 MatrixLocation.OnHost(host.copy(securityTally = host.securityTally + updatedTally))
             }
-        )
+        ).also { result ->
+            when (result) {
+                is LogonResult.Success -> logger.info { "[$name] jackInToHost succeeded: now at ${result.location.label()}" }
+                is LogonResult.Failure -> logger.warn { "[$name] jackInToHost failed: remaining at ${result.location.label()}" }
+            }
+        }
     }
 
     // ── Grid navigation ──────────────────────────────────────────────────────────
@@ -97,6 +110,7 @@ data class Decker(
      * PRD: M-06, M-07, M-10
      */
     fun logonToRtg(rtg: RTG, diceRoller: DiceRoller): LogonResult {
+        logger.info { "[$name] logonToRtg → ${rtg.name} (from ${currentLocation.label()})" }
         requireJackedIn()
         when (val loc = currentLocation) {
             is MatrixLocation.OnLTG -> require(loc.ltg.parentRtg == rtg) {
@@ -115,7 +129,12 @@ data class Decker(
                 // Tally starts fresh on the new RTG (M-10); only the successes from this logon attempt count.
                 MatrixLocation.OnRTG(rtg.copy(securityTally = hostTallyDelta))
             }
-        )
+        ).also { result ->
+            when (result) {
+                is LogonResult.Success -> logger.info { "[$name] logonToRtg succeeded: now at ${result.location.label()}" }
+                is LogonResult.Failure -> logger.warn { "[$name] logonToRtg failed: remaining at ${result.location.label()}" }
+            }
+        }
     }
 
     /**
@@ -124,6 +143,7 @@ data class Decker(
      * PRD: M-06, M-07, M-08, M-09
      */
     fun logonToLtg(ltg: LTG, diceRoller: DiceRoller): LogonResult {
+        logger.info { "[$name] logonToLtg → ${ltg.name} (from ${currentLocation.label()})" }
         requireJackedIn()
         when (val loc = currentLocation) {
             is MatrixLocation.OnRTG -> require(loc.rtg.ltgs.contains(ltg)) {
@@ -139,7 +159,12 @@ data class Decker(
             buildLocation = { hostTallyDelta ->
                 MatrixLocation.OnLTG(ltg.copy(securityTally = ltg.securityTally + hostTallyDelta))
             }
-        )
+        ).also { result ->
+            when (result) {
+                is LogonResult.Success -> logger.info { "[$name] logonToLtg succeeded: now at ${result.location.label()}" }
+                is LogonResult.Failure -> logger.warn { "[$name] logonToLtg failed: remaining at ${result.location.label()}" }
+            }
+        }
     }
 
     /**
@@ -148,6 +173,7 @@ data class Decker(
      * PRD: M-06, M-08, M-11, M-12
      */
     fun logonToPltg(pltg: PLTG, diceRoller: DiceRoller): LogonResult {
+        logger.info { "[$name] logonToPltg → ${pltg.name} (from ${currentLocation.label()})" }
         requireJackedIn()
         val inheritedTally: Int = when (val loc = currentLocation) {
             is MatrixLocation.OnLTG -> {
@@ -166,7 +192,12 @@ data class Decker(
             buildLocation = { hostTallyDelta ->
                 MatrixLocation.OnPLTG(pltg.copy(securityTally = inheritedTally + hostTallyDelta))
             }
-        )
+        ).also { result ->
+            when (result) {
+                is LogonResult.Success -> logger.info { "[$name] logonToPltg succeeded: now at ${result.location.label()}" }
+                is LogonResult.Failure -> logger.warn { "[$name] logonToPltg failed: remaining at ${result.location.label()}" }
+            }
+        }
     }
 
     /**
@@ -177,6 +208,7 @@ data class Decker(
      * PRD: M-06, M-13, M-14, M-15
      */
     fun logonToHost(host: Host, diceRoller: DiceRoller): LogonResult {
+        logger.info { "[$name] logonToHost → ${host.name} (from ${currentLocation.label()})" }
         requireJackedIn()
         when (val loc = currentLocation) {
             is MatrixLocation.OnLTG -> require(loc.ltg.hosts.contains(host)) {
@@ -197,7 +229,12 @@ data class Decker(
             buildLocation = { hostTallyDelta ->
                 MatrixLocation.OnHost(host.copy(securityTally = host.securityTally + hostTallyDelta))
             }
-        )
+        ).also { result ->
+            when (result) {
+                is LogonResult.Success -> logger.info { "[$name] logonToHost succeeded: now at ${result.location.label()}" }
+                is LogonResult.Failure -> logger.warn { "[$name] logonToHost failed: remaining at ${result.location.label()}" }
+            }
+        }
     }
 
     // ── Logging off ──────────────────────────────────────────────────────────────
@@ -209,13 +246,18 @@ data class Decker(
      * PRD: M-16
      */
     fun gracefulLogoff(diceRoller: DiceRoller): LogoffResult {
+        logger.info { "[$name] gracefulLogoff attempt from ${currentLocation.label()}" }
         requireJackedIn()
         val (accessRating, securityValue) = accessRatingAndSecurityValue()
         val outcome = SystemTestResolver.resolve(this, accessRating, securityValue, diceRoller)
         return if (outcome.deckerWins) {
-            LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null))
+            LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null)).also {
+                logger.info { "[$name] gracefulLogoff succeeded: traces cleared, no dump shock" }
+            }
         } else {
-            LogoffResult.JackOut(copy(persona = null, currentLocation = null), dumpShock = true)
+            LogoffResult.JackOut(copy(persona = null, currentLocation = null), dumpShock = true).also {
+                logger.warn { "[$name] gracefulLogoff failed: falling back to jack-out with dump shock" }
+            }
         }
     }
 
@@ -225,9 +267,12 @@ data class Decker(
      * PRD: M-17, M-18
      */
     fun jackOut(pinnedByBlackIc: Boolean = false): LogoffResult {
+        logger.info { "[$name] jackOut (pinnedByBlackIc=$pinnedByBlackIc) from ${currentLocation.label()}" }
         requireJackedIn()
         check(!pinnedByBlackIc) { "Cannot jack out while pinned by Black IC" }
-        return LogoffResult.JackOut(copy(persona = null, currentLocation = null), dumpShock = true)
+        return LogoffResult.JackOut(copy(persona = null, currentLocation = null), dumpShock = true).also {
+            logger.info { "[$name] jackOut complete: dumpShock=true" }
+        }
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────────
@@ -276,6 +321,16 @@ data class Decker(
     }
 
     companion object {
+        private val logger = KotlinLogging.logger {}
+
+        private fun MatrixLocation?.label(): String = when (this) {
+            is MatrixLocation.OnLTG  -> "LTG(${ltg.name}, tally=${ltg.securityTally})"
+            is MatrixLocation.OnRTG  -> "RTG(${rtg.name}, tally=${rtg.securityTally})"
+            is MatrixLocation.OnPLTG -> "PLTG(${pltg.name}, tally=${pltg.securityTally})"
+            is MatrixLocation.OnHost -> "Host(${host.name}, tally=${host.securityTally})"
+            null                     -> "null"
+        }
+
         private val LTG_JACKPOINT_TYPES = setOf(
             JackpointType.LEGAL_ACCESS,
             JackpointType.ILLEGAL_ACCESS,
