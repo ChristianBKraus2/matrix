@@ -289,7 +289,7 @@ Not a player action (no action economy cost); called by the game clock at the st
 
 `Decker.detectionFactor` must be recalculated at the moment each System Test is resolved, not cached at jack-in. The Sleaze utility contributes only when it is **fully active** (present in `activeUtilities`); a pending upload does not count.
 
-```
+```kotlin
 detectionFactor =
     if sleaze in activeUtilities:  ceil((masking + sleaze.currentRating) / 2)
     else:                          ceil(masking / 2)
@@ -397,6 +397,141 @@ Replaces the 7-step sequence in `creation.md`:
 8. Instantiate each `Utility` with `rating`, `currentRating = rating`, `sourceCode` flag; validate `rating ≤ MPCP` (CD-01); calculate Mp sizes; validate total ≤ Storage Memory.
 9. Partition utilities by `active` flag: `active: true` → `activeUtilities` (turnsRemaining = 0, fully uploaded); others → `storedUtilities`. Validate total active Mp ≤ Active Memory.
 10. Derive and attach the `Persona`: Bod/Evasion/Masking/Sensor from persona programs; Reaction = base + Response Increase × 2; Hacking Pool and Detection Factor computed lazily.
+
+---
+
+## Cyberterminals
+
+**PRD:** CT-01 through CT-05
+
+### `Cyberterminal` (subclass of `Cyberdeck`)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/decker/Cyberdeck.kt`
+
+`Cyberterminal` extends `Cyberdeck` and enforces its own constraints in `init`:
+
+```kotlin
+class Cyberterminal(
+    mcpRating: Int,
+    hardening: Int,
+    activeMemoryMp: Int,
+    storageMemoryMp: Int,
+    ioSpeedMpPerTurn: Int,
+    activeUtilities: List<Utility> = emptyList(),
+    storedUtilities: List<Utility> = emptyList(),
+    pendingUploads: List<PendingUpload> = emptyList(),
+    costNuyen: Int = 0
+) : Cyberdeck(
+    mcpRating = mcpRating,
+    hardening = hardening,
+    activeMemoryMp = activeMemoryMp,
+    storageMemoryMp = storageMemoryMp,
+    ioSpeedMpPerTurn = ioSpeedMpPerTurn,
+    responseIncrease = 0,       // CT-02: no Response Increase
+    activeUtilities = activeUtilities,
+    storedUtilities = storedUtilities,
+    pendingUploads = pendingUploads,
+    costNuyen = costNuyen
+) {
+    init {
+        require(mcpRating <= 4) { "Cyberterminal MPCP may not exceed 4 (CT-01); got $mcpRating" }
+    }
+}
+```
+
+Constraints enforced at construction time (CT-01, CT-02):
+
+- MPCP ≤ 4 (hard requirement).
+- `responseIncrease` is always fixed at 0; the constructor accepts no `responseIncrease` argument.
+
+**CT-03 — Program rating reduction:** Applied transparently inside `SystemTestResolver`. When the active decker is using a `Cyberterminal`, each utility's `currentRating` used in TN reduction is treated as `max(0, currentRating - 1)`. No change to the stored `Utility` objects; the adjustment is applied at test resolution time.
+
+Add a helper to `SystemTestResolver`:
+
+```kotlin
+private fun effectiveRating(utility: Utility, deck: Cyberdeck): Int =
+    if (deck is Cyberterminal) max(0, utility.currentRating - 1)
+    else utility.currentRating
+```
+
+**CT-04 — Immunity to Black IC and Dump Shock:** The `jackOut()` and `gracefulLogoff()` methods (in `movement.md`) already check the decker's deck type to decide whether dump shock applies. Add a computed property to `Cyberdeck`:
+
+```kotlin
+open val immuneToDumpShock: Boolean get() = false
+```
+
+Override in `Cyberterminal`:
+
+```kotlin
+override val immuneToDumpShock: Boolean get() = true
+```
+
+The `LogoffResult.JackOut` constructor should pass `dumpShock = !decker.cyberdeck.immuneToDumpShock`.
+
+**CT-05 — Cost:** No code change required; the cost is a data value seeded in YAML. Cyberterminal models are seeded at approximately 10% of the equivalent cyberdeck's `costNuyen`.
+
+### Initialization
+
+The `DeckCatalogLoader` and `DeckerLoader` support cyberterminals transparently: if `model:` resolves to a catalog entry with `type: cyberterminal` (new optional field in `decks.yaml`), the loader instantiates `Cyberterminal` instead of `Cyberdeck`. If no `type` field is present, `Cyberdeck` is used (default).
+
+---
+
+## Cyberdeck Accessories
+
+**PRD:** ACC-01 through ACC-03
+
+### `Accessory` (sealed class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/decker/Accessory.kt`
+
+Already present in `ord.md`. Make it a sealed class:
+
+```kotlin
+sealed class Accessory {
+    /** ACC-01: External storage beyond the deck's built-in Storage Memory. */
+    data class OfflineStorage(val capacityMp: Int) : Accessory()
+
+    /** ACC-02: Screen that lets bystanders observe the decker's Matrix view. */
+    object VidScreen : Accessory()
+
+    /**
+     * ACC-03: Electrode net or datajack feed that allows a second person to
+     * jack in and observe as a passive hitcher.
+     */
+    data class HitcherJack(val type: HitcherJackType) : Accessory()
+}
+
+enum class HitcherJackType { ELECTRODE_NET, DATAJACK_FEED }
+```
+
+### Rules enforced by code
+
+**ACC-03 — Hitcher behavior:**
+
+- A hitcher is represented as a read-only observer on the `Persona`; the hitcher has no `Decker` of their own and cannot modify any state.
+- `HitcherJack` carries `immuneToDumpShock = true` for its passenger, mirroring the cyberterminal rule (CT-04).
+
+Add a `hitchers: List<HitcherObserver>` field to `Cyberdeck` (default empty):
+
+```kotlin
+data class HitcherObserver(val name: String)
+```
+
+Hitchers are purely informational for the current scope (no game-mechanical effect beyond IC immunity, which the GM enforces narratively).
+
+**ACC-01 — Off-line storage effect on downloads:**
+
+`DownloadHandle` (designed in `operations.md`) accepts an optional `destination: DownloadDestination`:
+
+```kotlin
+sealed class DownloadDestination {
+    object ActiveMemory : DownloadDestination()
+    object StorageMemory : DownloadDestination()
+    data class OfflineStorage(val accessory: Accessory.OfflineStorage) : DownloadDestination()
+}
+```
+
+When `destination` is `OfflineStorage`, the download does not consume `storedUtilities` capacity on the cyberdeck itself; it flows to the external device. The total available Mp for offline storage is `accessory.capacityMp`.
 
 ---
 

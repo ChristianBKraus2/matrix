@@ -5,6 +5,9 @@ import com.shadowrun.matrix.programs.PersonaProgram
 import com.shadowrun.matrix.programs.Utility
 import kotlin.math.ceil
 
+/** Passive observer jacked in via hitcher jack. Cannot affect persona; immune to IC biofeedback. */
+data class HitcherObserver(val name: String)
+
 data class Cyberdeck(
     val name: String,
     val mcpRating: Int,
@@ -22,7 +25,11 @@ data class Cyberdeck(
     val storedUtilities: List<Utility> = emptyList(),
     val accessories: List<Accessory> = emptyList(),
     // Utilities accepted into active memory but not yet fully uploaded
-    val pendingUploads: List<PendingUpload> = emptyList()
+    val pendingUploads: List<PendingUpload> = emptyList(),
+    // Passive observers attached via hitcher jacks; they cannot control the persona (ACC-03)
+    val hitchers: List<HitcherObserver> = emptyList(),
+    // True for cyberterminals and hitchers: immune to dump shock and black IC biofeedback (CT-04, ACC-03)
+    val immuneToDumpShock: Boolean = false
 ) {
     val maxResponseIncrease: Int get() = mcpRating / 4
 

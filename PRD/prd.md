@@ -207,3 +207,127 @@ The following persona values are **calculated by the application** and must not 
 
 - Every public method of the decker, i.e. every action that is triggered from the user, should be logged at the start (describing the intention) and at the end (describing the outcome incl. success or failure)
 - Every Test (set of dice rolls of both parties) should be logged
+
+## Cyberterminals
+
+Cyberterminals are legal Matrix access devices used by ordinary corporate workers. Deckers call them "tortoises" for their lack of speed and finesse.
+
+- CT-01: A cyberterminal functions like a cyberdeck but has an MPCP cap of **4**; no cyberterminal may have an MPCP higher than 4.
+- CT-02: Cyberterminals **cannot** be fitted with Response Increase.
+- CT-03: All utility program ratings run on a cyberterminal are **reduced by 1** to reflect the lack of fine control.
+- CT-04: Cyberterminal users **cannot be hurt by black IC or dump shock**. They are protected from biofeedback side-effects the same way hitcher-jack users are.
+- CT-05: A cyberterminal costs approximately **10% of the price of an equivalent cyberdeck**.
+
+## Cyberdeck Accessories
+
+- ACC-01: **Off-line storage** — external storage that expands the deck's effective storage capacity beyond the on-board Storage Memory.
+- ACC-02: **Vid-screen** — allows bystanders to observe the decker's Matrix activity from the outside ("shoulder-surf") without being jacked in.
+- ACC-03: **Hitcher jacks** (electrode net or datajack feed) — allow a second person to jack in and experience the decker's icon view directly. Hitchers:
+  - Cannot manipulate or affect the decker's persona in any way; they are purely observers.
+  - Are protected from black IC biofeedback in the same way as cyberterminal users.
+  - Cannot control the decker's movements or perspective.
+
+## Matrix Perception
+
+### Noticing New Icons
+
+- MP-01: Whenever a new icon (decker, IC, or other program) **enters the area currently occupied by the decker**, the decker may make a **free Sensor Test** (no utilities allowed) to become aware of the new icon.
+- MP-02: Target number for the Sensor Test:
+  - If the icon is a **decker**: target = that decker's Masking Rating + Sleaze utility rating (if any).
+  - If the icon is **IC or another program**: target = the icon's rating.
+- MP-03: Success thresholds:
+  - **1 success** — the decker is aware of the icon's presence (location known; type unknown unless further analysis is performed).
+  - **2 successes** — (IC/program only) the decker also learns the **type** of IC/program.
+  - **3 successes** — (IC/program only) the decker also learns the **rating**.
+- MP-04: Once located, an icon remains "visible" unless it performs a combat maneuver to escape detection.
+- MP-05: If the Sensor Test fails, the decker is **unaware** of the icon's presence until the icon chooses to reveal itself or attacks the decker.
+- MP-06: If a decker **suspects** the presence of another icon, she may perform a **Locate Decker** or **Locate IC** operation to verify that suspicion.
+
+### Noticing Triggered Reactive IC
+
+- MP-07: Reactive IC does not reveal itself by attacking. Whenever a decker triggers reactive IC, the GM secretly makes a **Sensor Test** (using the decker's Sensor Rating) against a target number equal to the IC's Rating:
+  - **1 success** — the decker is informed that her actions triggered IC (but not which type or rating).
+  - **2 successes** — the decker also learns the **type** of IC triggered.
+  - **3+ successes** — the decker also learns the IC's **rating and location**.
+- MP-08: This Sensor Test is made only once, at the moment the IC becomes active.
+
+## System Operation Mechanics
+
+### Non-Combat Actions Per Turn
+
+- SO-01: Outside of cybercombat, deckers do **not** roll for Initiative. Instead, divide the decker's **Persona Reaction** (augmented by Response Increase) by 10, rounding up. The result is the number of actions the decker may perform during each 3-second game turn.
+- SO-02: Add **+1 action** for every Initiative die the decker receives in the Matrix beyond the base 1D6 (i.e., each point of Response Increase adds +1 action, since each point grants +1D6).
+
+  Example: Reaction 5, Response Increase 2 → Persona Reaction 9 → ⌈9 ÷ 10⌉ = 1 base action + 2 extra actions = 3 actions per turn.
+
+### Distributed Databases
+
+- SO-03: Data on a host may be stored only as a **pointer** to a file on another connected host. When a decker accesses such a pointer, she obtains only the address of where the actual data resides and must navigate to that host to access the real file.
+- SO-04: Roll **1D6** to determine the number of pointer-chain links in a given chain of files. The decker must follow each link through successive hosts, performing the appropriate logon and locate operations at each step.
+
+### Operation Categories
+
+Every system operation belongs to one of three categories:
+
+#### Interrogation Operations
+
+- SO-05: Interrogation operations involve a "dialogue" with the system to locate specific data. The decker may need to repeat the operation more than once.
+- SO-06: Keep a running total of the decker's **net successes** across all attempts at the same interrogation. When the total reaches **5 or more**, the decker has located the objective. The GM may independently assign a different success threshold or reveal data incrementally at specific totals.
+- SO-07: **Query precision modifiers** to the target number:
+  - Vague or general query: **+1** TN modifier.
+  - Extremely vague query: **+2** TN modifier.
+  - Well-phrased, insightful, or very relevant query: **–1** or **–2** TN modifier.
+- SO-08: If the host **does not contain** the queried information, the GM reveals this after the decker achieves **3 or more successes**.
+- SO-09: A successful interrogation may yield only a pointer to a file on another host (see Distributed Databases SO-03/SO-04).
+
+The following operations are interrogation operations: **Locate Access Node**, **Locate File**, **Locate Slave**.
+
+#### Ongoing Operations
+
+- SO-10: Ongoing operations (uploads, downloads, Swap Memory) begin with a successful System Test and then run automatically without further direction from the decker.
+- SO-11: Time is measured in seconds; divide by 3 (round up) to convert to Combat Turns.
+- SO-12: If an ongoing operation is terminated before completion, the partial data transfer produces a **corrupted, worthless file copy** (unless the GM rules the partial data is usable for story purposes).
+
+The following are ongoing operations: **Download Data**, **Swap Memory**, **Upload Data**.
+
+#### Monitored Operations
+
+- SO-13: After the initial System Test to start a monitored operation, the decker must spend a **Free Action each Initiative Pass** to maintain it. Missing even one Free Action causes the operation to **abort**; the decker must repeat the System Test to restart.
+- SO-14: Aborting a monitored operation may have **irreversible real-world consequences** (e.g., aborting an Edit Slave that was hiding the team from security cameras).
+
+The following are monitored operations: **Control Slave**, **Edit Slave**, **Make Comcall**, **Monitor Slave**, **Tap Comcall**.
+
+### Individual System Operations
+
+Each operation entry: **Test** (subsystem), **Utility** (reduces TN), **Action type**, and description.
+
+| Operation | Test | Utility | Action | Notes |
+| --- | --- | --- | --- | --- |
+| Analyze Host | Control | Analyze | Complex | Each net success reveals one piece of info (Security Rating or one subsystem rating). 7+ successes reveals all. Decker must be on the host. |
+| Analyze IC | Control | Analyze | Free | Identifies type and rating of a located IC program, plus any options/defenses. |
+| Analyze Icon | Control | Analyze | Free | Scans any icon; identifies general type. Decker may subtract Sensor Rating + Analyze rating from TN, but TN may not drop below 2. |
+| Analyze Security | Control | Analyze | Simple | Returns current Security Rating, decker's current security tally (including points from this test), and alert status. |
+| Analyze Subsystem | Targeted Subsystem | Analyze | Simple | Identifies anomalies in a subsystem, such as scramble IC or other defenses. |
+| Control Slave | Slave | Spoof | Complex | Takes control of a remote device. For manufacturing/scientific processes, use average of Computer Skill + applicable B/R or Knowledge Skill. Monitored operation. |
+| Decrypt Access | Access | Decrypt | Simple | Defeats scramble IC on a SAN; required before Logon to Host on a scrambled SAN. |
+| Decrypt File | Files | Decrypt | Simple | Defeats scramble IC on a file; required before downloading a scrambled file. |
+| Decrypt Slave | Slave | Decrypt | Simple | Defeats scramble IC on a Slave subsystem; required before Slave Tests on a scrambled subsystem. |
+| Download Data | Files | Read/Write | Simple | Copies file from host to deck at I/O speed (Mp/Combat Turn). Ongoing operation. Incomplete download = corrupted file. |
+| Edit File | Files | Read/Write | Simple | Creates, changes, or erases a datafile. Small changes (≈1 line) may be made directly. Larger changes require prior offline preparation and upload. After editing, decker may make a Control Test (TN reduced by Read/Write rating) to authenticate headers; failure risks host detection. |
+| Edit Slave | Slave | Spoof | Complex | Modifies data sent to/from a remote device (e.g., fake camera feeds). Monitored operation. |
+| Graceful Logoff | Access | Deception | Complex | Disconnects cleanly; no dump shock. On success, clears all traces from host security/memory. Track utility in location cycle adds its rating to TN. |
+| Locate Access Node | Index | Browse | Complex | Finds LTG codes and host addresses (directory assistance). Interrogation operation. TN modifier: vague query +1, specific −1. |
+| Locate Decker | Index | Scanner | Complex | Two-step: System Test then open-ended Sensor Test. Locates deckers whose Masking ≤ Sensor Test result (add target's Sleaze to their Masking). |
+| Locate File | Index | Browse | Complex | Finds specific datafiles. Interrogation operation. Decker must have a specific search goal. |
+| Locate IC | Index | Analyze | Complex | Like Locate Decker but for IC; auto-locates on System Test success (no Sensor Test needed). |
+| Locate Slave | Index | Browse | Complex | Like Locate File but for remote devices. Requires only **3 successes** (not 5) to locate a slave. Interrogation operation. |
+| Logon to Host | Access | Deception | Complex | Standard System Test. Decker learns Access Rating on first attempt. Security tally starts accumulating on this test. |
+| Logon to LTG | Access | Deception | Complex | System Test vs. LTG Access Rating. Failed attempt leaves tally on LTG for ~1D3×5 minutes; switching jackpoints starts fresh tally. |
+| Logon to RTG | Access | Deception | Complex | System Test vs. RTG Access Rating. Required to move between LTGs or between RTGs. |
+| Make Comcall | Files | Commlink | Complex | Places commcode calls; links multiple RTG calls into a secure conference. Monitored operation. |
+| Monitor Slave | Slave | Spoof | Simple | Reads data from a remote device (audio, video, sensor readouts). Monitored operation. |
+| Null Operation | Control | Deception | Complex | Required when decker is inactive. GM applies TN modifier to host's Security Value: <10 s base; 10 s–1 min +1; 1–60 min +2; 1–12 hr +4; +1 per additional 12 hr. |
+| Relocate Icon | Control | Relocate | Simple | Used to evade a Track utility. Decker makes Computer Test (TN = opponent's Sensor − Relocate rating); tracker makes MPCP Test vs. Relocate rating. Relocating decker wins → track fails completely. |
+| Swap Memory | None | None | Simple | Loads a utility from storage into active memory. Free Action to unload first if needed. Upload countdown begins immediately (see CD-10). No System Test. |
+| Tap Comcall | Special | Commlink | Complex | Locates active commcodes (Index Test), traces calls (Control Test), taps and records (Files Test). Scrambled lines require Opposed Computer vs. Device Rating decrypt test. Dataline scanners trigger Opposed Computer vs. scanner Device Rating test. Monitored operation. |
+| Upload Data | Files | Read/Write | Simple | Transmits data from deck storage to the Matrix at I/O speed. Does not consume active memory. For modifying existing host files, an Edit File operation is required afterward. Ongoing operation. |

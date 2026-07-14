@@ -194,14 +194,22 @@ class DeckerTest {
     @Test
     fun `Cyberterminal MPCP cannot exceed 4`() {
         assertFailsWith<IllegalArgumentException> {
-            Cyberterminal("Tortoise", mcpRating = 5, costNuyen = 500)
+            Cyberterminal(
+                name = "Tortoise", mcpRating = 5,
+                activeMemoryMp = 200, storageMemoryMp = 500, ioSpeedMpPerTurn = 100,
+                costNuyen = 500
+            )
         }
     }
 
     @Test
-    fun `Cyberterminal effectiveRatingModifier is -1`() {
-        val terminal = Cyberterminal("Tortoise", mcpRating = 4, costNuyen = 400)
-        assertEquals(-1, terminal.effectiveRatingModifier)
+    fun `Cyberterminal immuneToDumpShock is true`() {
+        val terminal = Cyberterminal(
+            name = "Tortoise", mcpRating = 4,
+            activeMemoryMp = 200, storageMemoryMp = 500, ioSpeedMpPerTurn = 100,
+            costNuyen = 400
+        )
+        assertEquals(true, terminal.immuneToDumpShock)
     }
 }
 

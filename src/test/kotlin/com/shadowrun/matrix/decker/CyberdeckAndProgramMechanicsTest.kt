@@ -1,11 +1,18 @@
 package com.shadowrun.matrix.decker
 
+import com.shadowrun.matrix.accessories.Accessory
+import com.shadowrun.matrix.common.AccessoryType
 import com.shadowrun.matrix.common.ConditionMonitor
 import com.shadowrun.matrix.common.DamageLevel
+import com.shadowrun.matrix.common.JackpointType
 import com.shadowrun.matrix.common.PersonaAttributeType
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.common.SecurityRating
 import com.shadowrun.matrix.common.SubsystemRatings
+import com.shadowrun.matrix.common.IntrusionDifficulty
+import com.shadowrun.matrix.common.TopologyType
+import com.shadowrun.matrix.network.Host
+import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.config.DeckCatalogEntry
 import com.shadowrun.matrix.config.DeckCatalogLoader
 import com.shadowrun.matrix.config.DeckerLoader
@@ -564,5 +571,180 @@ class CyberdeckAndProgramMechanicsTest {
         )
         assertEquals(80, d.usedActiveMemoryMp) // 32 + 48
         assertEquals(120, d.freeActiveMemoryMp)
+    }
+
+    // ── CT-01: Cyberterminal MPCP cap ─────────────────────────────────────────────
+
+    @Test
+    fun `CT-01 Cyberterminal with MPCP 4 is accepted`() {
+        val ct = Cyberterminal(
+            name = "TestTerm", mcpRating = 4, activeMemoryMp = 200,
+            storageMemoryMp = 500, ioSpeedMpPerTurn = 100, costNuyen = 5_000
+        )
+        assertEquals(4, ct.mcpRating)
+    }
+
+    @Test
+    fun `CT-01 Cyberterminal with MPCP 5 is rejected`() {
+        assertFailsWith<IllegalArgumentException> {
+            Cyberterminal(
+                name = "TestTerm", mcpRating = 5, activeMemoryMp = 200,
+                storageMemoryMp = 500, ioSpeedMpPerTurn = 100, costNuyen = 5_000
+            )
+        }
+    }
+
+    // ── CT-02: Cyberterminal has no Response Increase ─────────────────────────────
+
+    @Test
+    fun `CT-02 Cyberterminal always has responseIncrease 0`() {
+        val ct = Cyberterminal(
+            name = "TestTerm", mcpRating = 4, activeMemoryMp = 200,
+            storageMemoryMp = 500, ioSpeedMpPerTurn = 100, costNuyen = 5_000
+        )
+        assertEquals(0, ct.responseIncrease)
+    }
+
+    // ── CT-03: Cyberterminal applies -1 to utility ratings at test resolution ─────
+
+    @Test
+    fun `CT-03 SystemTestResolver applies -1 to utility rating on Cyberterminal`() {
+        val deception = Utility(UtilityType.DECEPTION, rating = 4) // currentRating = 4
+        val ct = Cyberterminal(
+            name = "TestTerm", mcpRating = 4, activeMemoryMp = 200,
+            storageMemoryMp = 500, ioSpeedMpPerTurn = 100, costNuyen = 5_000,
+            activeUtilities = listOf(deception), storedUtilities = listOf(deception)
+        )
+        // effectiveRating on a terminal = max(0, 4 - 1) = 3
+        assertEquals(3, SystemTestResolver.effectiveRating(deception, ct))
+    }
+
+    @Test
+    fun `CT-03 SystemTestResolver does not modify utility rating on regular cyberdeck`() {
+        val deception = Utility(UtilityType.DECEPTION, rating = 4)
+        val regularDeck = deck(activeUtilities = listOf(deception), storedUtilities = listOf(deception))
+        assertEquals(4, SystemTestResolver.effectiveRating(deception, regularDeck))
+    }
+
+    @Test
+    fun `CT-03 effectiveRating floors at 0 when currentRating is 1 on Cyberterminal`() {
+        val utility = Utility(UtilityType.BROWSE, rating = 1) // currentRating = 1
+        val ct = Cyberterminal(
+            name = "Term", mcpRating = 1, activeMemoryMp = 50,
+            storageMemoryMp = 200, ioSpeedMpPerTurn = 50, costNuyen = 1_000,
+            activeUtilities = listOf(utility), storedUtilities = listOf(utility)
+        )
+        assertEquals(0, SystemTestResolver.effectiveRating(utility, ct))
+    }
+
+    // ── CT-04: Cyberterminal is immune to dump shock ──────────────────────────────
+
+    @Test
+    fun `CT-04 Cyberterminal immuneToDumpShock is true`() {
+        val ct = Cyberterminal(
+            name = "TestTerm", mcpRating = 3, activeMemoryMp = 200,
+            storageMemoryMp = 500, ioSpeedMpPerTurn = 100, costNuyen = 2_000
+        )
+        assertEquals(true, ct.immuneToDumpShock)
+    }
+
+    @Test
+    fun `CT-04 jackOut with Cyberterminal deck does not produce dump shock`() {
+        val ct = Cyberterminal(
+            name = "TestTerm", mcpRating = 4, activeMemoryMp = 200,
+            storageMemoryMp = 500, ioSpeedMpPerTurn = 100, costNuyen = 5_000,
+            personaPrograms = programs(rating = 3) // 4 × 3 = 12 = MPCP(4) × 3
+        )
+        val host = Host(
+            name = "TestHost",
+            securityRating = SecurityRating(SecurityCode.GREEN, 6),
+            subsystemRatings = SubsystemRatings(6, 6, 6, 6, 6),
+            intrusionDifficulty = IntrusionDifficulty.EASY,
+            topologyType = TopologyType.OPEN_ACCESS
+        )
+        val d = decker(cyberdeck = ct, jackedIn = true).copy(
+            currentLocation = MatrixLocation.OnHost(host)
+        )
+        val result = d.jackOut()
+        assertIs<LogoffResult.JackOut>(result)
+        assertEquals(false, result.dumpShock)
+    }
+
+    @Test
+    fun `CT-04 regular cyberdeck jackOut produces dump shock`() {
+        val host = Host(
+            name = "TestHost",
+            securityRating = SecurityRating(SecurityCode.GREEN, 6),
+            subsystemRatings = SubsystemRatings(6, 6, 6, 6, 6),
+            intrusionDifficulty = IntrusionDifficulty.EASY,
+            topologyType = TopologyType.OPEN_ACCESS
+        )
+        val d = decker(jackedIn = true).copy(
+            currentLocation = MatrixLocation.OnHost(host)
+        )
+        val result = d.jackOut()
+        assertIs<LogoffResult.JackOut>(result)
+        assertEquals(true, result.dumpShock)
+    }
+
+    // ── CT-05: Cyberterminal is a Cyberdeck (data class) ─────────────────────────
+
+    @Test
+    fun `CT-05 Cyberterminal produces a valid Cyberdeck instance`() {
+        val ct = Cyberterminal(
+            name = "Tortoise", mcpRating = 3, activeMemoryMp = 100,
+            storageMemoryMp = 300, ioSpeedMpPerTurn = 60, costNuyen = 3_500
+        )
+        assertIs<Cyberdeck>(ct)
+    }
+
+    // ── ACC-01: OfflineStorage accessory ─────────────────────────────────────────
+
+    @Test
+    fun `ACC-01 Cyberdeck can carry an OfflineStorage accessory`() {
+        val storage = Accessory(AccessoryType.OFFLINE_STORAGE, "500 Mp offline storage")
+        val d = deck().copy(accessories = listOf(storage))
+        assertEquals(1, d.accessories.size)
+        assertEquals(AccessoryType.OFFLINE_STORAGE, d.accessories[0].type)
+    }
+
+    // ── ACC-02: VidScreen accessory ───────────────────────────────────────────────
+
+    @Test
+    fun `ACC-02 Cyberdeck can carry a VidScreen accessory`() {
+        val screen = Accessory(AccessoryType.VID_SCREEN, "External monitor for shoulder-surfing")
+        val d = deck().copy(accessories = listOf(screen))
+        assertEquals(AccessoryType.VID_SCREEN, d.accessories[0].type)
+    }
+
+    // ── ACC-03: HitcherJack and HitcherObserver ───────────────────────────────────
+
+    @Test
+    fun `ACC-03 Cyberdeck carries hitchers in hitchers list`() {
+        val observer = HitcherObserver("Shadowrunner ally")
+        val d = deck().copy(hitchers = listOf(observer))
+        assertEquals(1, d.hitchers.size)
+        assertEquals("Shadowrunner ally", d.hitchers[0].name)
+    }
+
+    @Test
+    fun `ACC-03 hitchers default to empty list`() {
+        val d = deck()
+        assertTrue(d.hitchers.isEmpty())
+    }
+
+    @Test
+    fun `ACC-03 DownloadDestination OfflineStorage references accessory`() {
+        val storage = Accessory(AccessoryType.OFFLINE_STORAGE, "External")
+        val dest = DownloadDestination.OfflineStorage(storage)
+        assertEquals(storage, dest.accessory)
+    }
+
+    @Test
+    fun `ACC-03 DownloadDestination variants are distinct`() {
+        assertIs<DownloadDestination.ActiveMemory>(DownloadDestination.ActiveMemory)
+        assertIs<DownloadDestination.StorageMemory>(DownloadDestination.StorageMemory)
+        val storage = Accessory(AccessoryType.OFFLINE_STORAGE)
+        assertIs<DownloadDestination.OfflineStorage>(DownloadDestination.OfflineStorage(storage))
     }
 }
