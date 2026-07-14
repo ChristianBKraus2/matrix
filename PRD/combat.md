@@ -1,0 +1,673 @@
+# Cybercombat Design Document
+
+## Purpose
+
+This document specifies the design for implementing the cybercombat and intrusion countermeasure requirements defined in `prd.md` (CC-01 through CC-30 and ICC-01 through ICC-15). It covers:
+
+- Initiative calculation for deckers and IC
+- Combat maneuver resolution (Evade Detection, Parry Attack, Position Attack)
+- Attack resolution and icon damage (staging, Condition Monitor, dump shock)
+- Simsense overload and the Black IC pin mechanic
+- All nine IC subtypes: White (Crippler, Killer, Probe, Scramble, Tar Baby), Gray (Blaster, Ripper, Sparky, Tar Pit), Black (Lethal, Non-Lethal)
+- Offensive utility combat resolution: Black Hammer, Killjoy, Slow, Track
+
+Cyberdeck and program mechanics are in `cyberdeck_and_program_mechanics.md`. Movement (jack-out, graceful logoff, dump shock trigger) is in `movement.md`. System operations are in `operations.md`. This document covers all combat resolution that those documents defer.
+
+---
+
+## New Types
+
+### `CombatInitiative` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/CombatInitiative.kt`
+
+```kotlin
+data class CombatInitiative(
+    val score: Int,
+    val initiativePasses: Int
+)
+```
+
+PRD: CC-04, CC-06. `initiativePasses` equals the number of initiative dice rolled (1 + Response Increase for deckers; 1–4 for IC by Security Code). Constructed by `CombatResolver.rollDeckerInitiative()` and `CombatResolver.rollIcInitiative()`.
+
+---
+
+### `AttackResult` (sealed class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/AttackResult.kt`
+
+```kotlin
+sealed class AttackResult {
+    data class Hit(
+        val attackerSuccesses: Int,
+        val rawDamageLevel: DamageLevel,
+        val stagedDamageLevel: DamageLevel,
+        val power: Int
+    ) : AttackResult()
+
+    object Miss : AttackResult()
+}
+```
+
+PRD: CC-20–CC-26. `rawDamageLevel` is the pre-staging base; `stagedDamageLevel` is what is applied to the Condition Monitor.
+
+---
+
+### `ManeuverResult` (sealed class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/ManeuverResult.kt`
+
+```kotlin
+sealed class ManeuverResult {
+    data class Success(val netSuccesses: Int) : ManeuverResult()
+    object Failure : ManeuverResult()
+}
+```
+
+PRD: CC-14–CC-19. The caller interprets `netSuccesses` according to which `CombatManeuverType` was attempted.
+
+---
+
+### `ManeuverParticipant` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/ManeuverParticipant.kt`
+
+```kotlin
+data class ManeuverParticipant(
+    val evasion: Int,
+    val sensor: Int,
+    val cloakRating: Int = 0,
+    val lockOnRating: Int = 0,
+    val hackingPool: Int = 0
+)
+```
+
+For IC, `evasion` and `sensor` are both the host's Security Value (CC-14). For deckers, they are the persona attributes. `cloakRating` reduces the maneuvering icon's TN; `lockOnRating` reduces the opposing icon's TN (CC-15).
+
+---
+
+### `AttackParticipant` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/AttackParticipant.kt`
+
+```kotlin
+data class AttackParticipant(
+    val utilityRating: Int,
+    val hackingPool: Int = 0,
+    val rawDamageLevel: DamageLevel,
+    val modifiers: CombatModifiers = CombatModifiers()
+)
+```
+
+PRD: CC-20, CC-24. `utilityRating` is the offensive program's `currentRating`.
+
+---
+
+### `DefenderParticipant` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/DefenderParticipant.kt`
+
+```kotlin
+data class DefenderParticipant(
+    val bod: Int,
+    val armorCurrentRating: Int = 0,
+    val personaStatus: PersonaStatus,
+    val securityCode: SecurityCode
+)
+```
+
+PRD: CC-21, CC-25. For IC defending against a decker's attack, `bod` is the host Security Value (CC-25). `armorCurrentRating` is 0 if no Armor utility is active.
+
+---
+
+### `CombatModifiers` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/CombatModifiers.kt`
+
+```kotlin
+data class CombatModifiers(
+    val parryAttackBonus: Int = 0,
+    val positionAttackTnBonus: Int = 0,
+    val positionAttackPowerBonus: Int = 0
+) {
+    init {
+        require(positionAttackTnBonus == 0 || positionAttackPowerBonus == 0) {
+            "Position Attack grants TN bonus OR Power bonus, not both"
+        }
+    }
+}
+```
+
+PRD: CC-18, CC-19. Held by the caller between actions; cleared after the next attack by the owning icon. `parryAttackBonus` is added to the incoming TN; position bonuses modify the outgoing attack.
+
+---
+
+### `BlackIcPinState` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/BlackIcPinState.kt`
+
+```kotlin
+data class BlackIcPinState(val pinningIc: BlackIC)
+```
+
+PRD: ICC-10. Added to `Decker` as a nullable field. Non-null means the ASIST interface is being subverted; Jack Out requires a Complex Action + Willpower Test.
+
+---
+
+### `JackOutPinResult` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/JackOutPinResult.kt`
+
+```kotlin
+data class JackOutPinResult(
+    val succeeded: Boolean,
+    val finalIcAttackTriggered: Boolean
+)
+```
+
+PRD: ICC-10. If `succeeded`, the caller must resolve one final IC attack before severing the connection.
+
+---
+
+### `IcDamageResult` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/IcDamageResult.kt`
+
+```kotlin
+data class IcDamageResult(
+    val updatedDecker: Decker,
+    val iconDamage: AttackResult,
+    val simsenseOverload: SimsenseOverloadResult?,
+    val dumpShockTriggered: Boolean
+)
+```
+
+PRD: CC-27, CC-28. `simsenseOverload` is null for Black IC hits (CC-28 excludes Black IC). `dumpShockTriggered` is true when the persona crashes or Deadly damage lands.
+
+---
+
+### `SimsenseOverloadResult` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/SimsenseOverloadResult.kt`
+
+```kotlin
+data class SimsenseOverloadResult(
+    val willpowerTestPassed: Boolean,
+    val stressBoxesApplied: Int
+)
+```
+
+PRD: CC-28. `stressBoxesApplied` is 1 on failure, 0 on success.
+
+---
+
+### `CripplerResult` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/CripplerResult.kt`
+
+```kotlin
+data class CripplerResult(
+    val updatedDecker: Decker,
+    val targetAttribute: PersonaAttributeType,
+    val reduction: Int
+)
+```
+
+PRD: ICC-01, ICC-07. `reduction` is the number of attribute points lost (0 if the decker fully defended).
+
+---
+
+### `TarBabyResult` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/TarBabyResult.kt`
+
+```kotlin
+data class TarBabyResult(
+    val updatedDecker: Decker,
+    val bothCrashed: Boolean,
+    val deckerNoticed: Boolean
+)
+```
+
+PRD: ICC-05, ICC-09. `bothCrashed = true` means both the IC and the triggered utility are removed from active memory. `deckerNoticed` is the result of the secret Sensor test when the utility wins.
+
+---
+
+### `TrackState` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/TrackState.kt`
+
+```kotlin
+data class TrackState(
+    val trackingIcRating: Int,
+    val locationCycleTurnsRemaining: Int
+)
+```
+
+PRD: CC-30. Added to `Decker` as a nullable field. Non-null means the decker's datatrail has been locked. `locationCycleTurnsRemaining` is decremented by `advanceCombatTurn()`.
+
+---
+
+### `SlowResult` (data class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/SlowResult.kt`
+
+```kotlin
+data class SlowResult(
+    val actionsLost: Int,
+    val icInert: Boolean
+)
+```
+
+PRD: ICC-15. `icInert = true` when `actionsLost >= icInitiative.initiativePasses`.
+
+---
+
+## Changes to Existing Types
+
+### `Decker`
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/decker/Decker.kt`
+
+Add two nullable fields:
+
+```kotlin
+val blackIcPin: BlackIcPinState? = null
+val trackState: TrackState? = null
+```
+
+Add computed property:
+
+```kotlin
+val isPinnedByBlackIc: Boolean get() = blackIcPin != null
+```
+
+`advanceCombatTurn()` (already defined in `cyberdeck_and_program_mechanics.md`) must also decrement `trackState?.locationCycleTurnsRemaining`, setting `trackState = null` when it reaches 0.
+
+PRD: ICC-10, CC-30.
+
+---
+
+### `ConditionMonitor`
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/decker/ConditionMonitor.kt`
+
+The existing `applyDamage` stub must apply boxes per the SR3 damage scale:
+
+```kotlin
+fun applyDamage(damage: DamageLevel): ConditionMonitor = copy(
+    filledBoxes = minOf(10, filledBoxes + damage.boxes)
+)
+
+val isCrashed: Boolean get() = filledBoxes >= 10
+```
+
+Where `DamageLevel.boxes` is an extension or property: `LIGHT = 1`, `MODERATE = 3`, `SERIOUS = 6`, `DEADLY = 10`.
+
+PRD: CC-27.
+
+---
+
+### `DumpShock`
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/Combat.kt`
+
+Already has `power` and `level` getters. No structural change — `CombatResolver.resolveDumpShock()` calls it directly. PRD: CC-29.
+
+---
+
+## Combat Resolution Object
+
+### `CombatResolver`
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/combat/CombatResolver.kt`
+
+A stateless `object`. All methods are pure — they accept a `DiceRoller` and return new value-type results or updated `Decker` copies via `.copy()`. No shared mutable state.
+
+---
+
+### Initiative
+
+#### `rollDeckerInitiative(decker: Decker, meatworldComm: Boolean, diceRoller: DiceRoller): CombatInitiative`
+
+PRD: CC-04, CC-05.
+
+1. `responseDice = decker.cyberdeck.responseIncrease`
+2. `commPenalty = if (meatworldComm) 1 else 0`
+3. `numDice = max(1, 1 + responseDice - commPenalty)`
+4. Roll `numDice` D6, sum result + `decker.persona!!.reaction` → `score`.
+5. Return `CombatInitiative(score, initiativePasses = numDice)`.
+
+---
+
+#### `rollIcInitiative(ic: IC, securityCode: SecurityCode, diceRoller: DiceRoller): CombatInitiative`
+
+PRD: CC-06.
+
+1. `numDice = ic.initiativeDice(securityCode)` — already implemented on `IC`.
+2. Roll `numDice` D6, sum + `ic.rating` → `score`.
+3. Return `CombatInitiative(score, initiativePasses = numDice)`.
+
+For IC triggered mid-turn (CC-07), the caller subtracts `10 × completedPasses` from `score` before inserting it into the initiative order.
+
+---
+
+### Combat Maneuvers
+
+#### `resolveManeuver(maneuver: CombatManeuverType, mover: ManeuverParticipant, opponent: ManeuverParticipant, diceRoller: DiceRoller): ManeuverResult`
+
+PRD: CC-14–CC-19.
+
+1. `moverTn = max(2, opponent.sensor - mover.cloakRating)`
+2. `opponentTn = max(2, mover.evasion - opponent.lockOnRating)`
+3. Roll `mover.evasion + mover.hackingPool` dice vs. `moverTn` → `moverSuccesses`.
+4. Roll `opponent.sensor + opponent.hackingPool` dice vs. `opponentTn` → `opponentSuccesses`.
+5. `net = moverSuccesses - opponentSuccesses`
+6. Return `ManeuverResult.Success(net)` if `net > 0`, else `ManeuverResult.Failure`.
+
+The caller is responsible for interpreting `netSuccesses` by maneuver type (CC-17, CC-18, CC-19) and for updating `CombatModifiers` accordingly.
+
+---
+
+### Attack Resolution
+
+#### `resolveAttack(attacker: AttackParticipant, defender: DefenderParticipant, diceRoller: DiceRoller): AttackResult`
+
+PRD: CC-20–CC-26.
+
+1. `tn = attackTn(defender.personaStatus, defender.securityCode)` — CC-21 table (see below).
+2. `tn += attacker.modifiers.parryAttackBonus` — from an opponent's prior Parry Attack (CC-18).
+3. `tn -= attacker.modifiers.positionAttackTnBonus` — from own prior Position Attack (CC-19).
+4. `power = attacker.utilityRating + attacker.modifiers.positionAttackPowerBonus`
+5. `effectivePower = max(0, power - defender.armorCurrentRating)`
+6. Roll `attacker.utilityRating + attacker.hackingPool` dice vs. `max(2, tn)` → `attackerSuccesses`.
+7. If `attackerSuccesses == 0` → return `AttackResult.Miss`.
+8. Roll `defender.bod` dice vs. `effectivePower` → `defenderSuccesses`.
+9. `net = attackerSuccesses - defenderSuccesses`
+10. `staged = stage(attacker.rawDamageLevel, net)`
+11. Return `AttackResult.Hit(attackerSuccesses, attacker.rawDamageLevel, staged, effectivePower)`.
+
+**`private fun attackTn(status: PersonaStatus, code: SecurityCode): Int`** encodes the CC-21 table:
+
+| SecurityCode | INTRUDING | LEGITIMATE |
+|---|---|---|
+| BLUE | 6 | 3 |
+| GREEN | 5 | 4 |
+| ORANGE | 4 | 5 |
+| RED | 3 | 6 |
+
+**`private fun stage(base: DamageLevel, net: Int): DamageLevel`** — shift the damage level by `net / 2` (integer division, rounds toward zero), clamped to `[LIGHT, DEADLY]`. Positive net stages up; negative stages down. PRD: CC-26.
+
+---
+
+### Icon Damage and Secondary Effects
+
+#### `applyIcDamage(decker: Decker, attack: AttackResult.Hit, ic: IC, diceRoller: DiceRoller): IcDamageResult`
+
+PRD: CC-27, CC-28, ICC-10.
+
+1. Apply `attack.stagedDamageLevel` to `decker.persona!!.conditionMonitor` via `applyDamage`.
+2. Determine simsense overload:
+   - If `ic is BlackIC` → `simsenseOverload = null` (CC-28 excludes Black IC).
+   - Else if `attack.stagedDamageLevel == DEADLY` → `simsenseOverload = null`; set `dumpShockTriggered = true` (auto-crash, no test).
+   - Else → `overloadTn = when (attack.stagedDamageLevel) { LIGHT → 2; MODERATE → 3; SERIOUS → 5; else → error }`. Roll `decker.willpower` dice vs. `overloadTn`. If `successes == 0`: apply 1 Stun box to Mental Condition Monitor; `stressBoxesApplied = 1`.
+3. If `conditionMonitor.isCrashed` → `dumpShockTriggered = true`.
+4. If `ic is BlackIC && attack.attackerSuccesses > 0` → set `decker.blackIcPin = BlackIcPinState(ic as BlackIC)`.
+5. Return `IcDamageResult(updatedDecker, attack, simsenseOverload, dumpShockTriggered)`.
+
+---
+
+#### `resolveDumpShock(decker: Decker, host: Host, diceRoller: DiceRoller): Decker`
+
+PRD: CC-29.
+
+1. `shock = DumpShock(host.securityRating)` — `shock.power` = Security Value; `shock.level` = Damage Level by Security Code.
+2. Roll `decker.body` dice vs. `shock.power` → `successes`.
+3. `actualLevel = stage(shock.level, -successes)` — defender successes stage down.
+4. Apply `actualLevel` to `decker`'s Physical Condition Monitor.
+5. Return updated `Decker`.
+
+---
+
+### Black IC Pin
+
+#### `resolveJackOutWithPin(decker: Decker, diceRoller: DiceRoller): JackOutPinResult`
+
+PRD: ICC-10.
+
+**Precondition:** `decker.isPinnedByBlackIc == true`.
+
+1. Roll `decker.willpower` dice vs. `decker.blackIcPin!!.pinningIc.rating` → `successes`.
+2. If `successes >= 1` → return `JackOutPinResult(succeeded = true, finalIcAttackTriggered = true)`.
+3. Else → return `JackOutPinResult(succeeded = false, finalIcAttackTriggered = false)`.
+
+On success, the caller resolves one final IC attack (`resolveAttack`) before completing the jack-out.
+
+---
+
+### White IC
+
+#### `resolveCrippler(decker: Decker, ic: Crippler, securityCode: SecurityCode, diceRoller: DiceRoller): CripplerResult`
+
+PRD: ICC-01.
+
+1. `sv = securityValue(securityCode)` — from `SecurityRating.value`.
+2. Roll `sv` dice vs. `decker.detectionFactor` → `icSuccesses`.
+3. Roll `decker.persona!!.attribute(ic.targetAttribute)` dice vs. `ic.rating` → `deckerSuccesses`.
+4. `net = icSuccesses - deckerSuccesses`
+5. `reduction = max(0, net / 2)`
+6. `newValue = max(1, currentAttribute - reduction)`
+7. Return `CripplerResult(updatedDecker, ic.targetAttribute, reduction)`.
+
+Armor and Hardening provide no protection (ICC-01).
+
+---
+
+#### `resolveKiller(attacker: AttackParticipant, defender: DefenderParticipant, diceRoller: DiceRoller): AttackResult`
+
+PRD: ICC-02. Delegates directly to `resolveAttack`. The caller constructs `AttackParticipant` with `rawDamageLevel` determined by host Security Code (Blue/Green = MODERATE, Orange/Red = SERIOUS).
+
+---
+
+#### `resolveProbe(ic: Probe, decker: Decker, diceRoller: DiceRoller): Int`
+
+PRD: ICC-03. Returns the number of security tally points to add immediately.
+
+1. Roll `ic.rating` dice vs. `decker.detectionFactor` → `successes`.
+2. Return `successes`.
+
+Called by the game engine each time the decker performs a System Test while Probe is active.
+
+---
+
+#### `resolveTarBaby(decker: Decker, ic: TarBaby, utility: Utility, diceRoller: DiceRoller): TarBabyResult`
+
+PRD: ICC-05.
+
+1. Roll `ic.rating` dice vs. `utility.currentRating` → `icSuccesses`.
+2. Roll `utility.currentRating` dice vs. `ic.rating` → `utilitySuccesses`.
+3. If `icSuccesses >= utilitySuccesses`:
+   - Remove both `ic` and `utility` from active memory; security tally unchanged.
+   - Return `TarBabyResult(updatedDecker, bothCrashed = true, deckerNoticed = false)`.
+4. Else:
+   - Roll `decker.persona!!.sensor` dice vs. `ic.rating` → `noticed = successes >= 1`.
+   - Return `TarBabyResult(updatedDecker, bothCrashed = false, deckerNoticed = noticed)`.
+
+---
+
+### Gray IC
+
+#### `resolveBlaster(attacker: AttackParticipant, defender: DefenderParticipant, diceRoller: DiceRoller): AttackResult`
+
+PRD: ICC-06. Identical to `resolveKiller`. The caller checks whether the resulting crash triggers the MPCP degradation test.
+
+#### `resolveBlasterMpcpTest(decker: Decker, ic: Blaster, diceRoller: DiceRoller): Decker`
+
+PRD: ICC-06.
+
+1. `tn = decker.cyberdeck.hardening + decker.cyberdeck.mcpRating`
+2. Roll `ic.rating` dice vs. `tn` → `successes`.
+3. `reduction = successes / 2`
+4. Return updated `Decker` with `cyberdeck.mcpRating = max(0, mcpRating - reduction)`.
+
+---
+
+#### `resolveRipper(decker: Decker, ic: Ripper, securityCode: SecurityCode, diceRoller: DiceRoller): CripplerResult`
+
+PRD: ICC-07. Identical algorithm to `resolveCrippler`. The caller checks whether the resulting attribute value is 0 and, if so, calls `resolveRipperMpcpTest`.
+
+#### `resolveRipperMpcpTest(decker: Decker, ic: Ripper, diceRoller: DiceRoller): Decker`
+
+PRD: ICC-07. Identical to `resolveBlasterMpcpTest` except `ic` is `Ripper`.
+
+---
+
+#### `resolveSparky(attacker: AttackParticipant, defender: DefenderParticipant, diceRoller: DiceRoller): AttackResult`
+
+PRD: ICC-08. Identical to `resolveKiller`. On crash, the caller calls both `resolveSparkyMpcpTest` and `resolveSparkyBodyDamage`.
+
+#### `resolveSparkyMpcpTest(decker: Decker, ic: Sparky, diceRoller: DiceRoller): Pair<Decker, Int>`
+
+PRD: ICC-08.
+
+1. `tn = decker.cyberdeck.hardening + decker.cyberdeck.mcpRating + 2`
+2. Roll `ic.rating` dice vs. `tn` → `successes`.
+3. Return updated decker (MPCP reduced by `successes / 2`) and `successes` (needed by body damage step).
+
+#### `resolveSparkyBodyDamage(decker: Decker, ic: Sparky, sparkySuccesses: Int, diceRoller: DiceRoller): Decker`
+
+PRD: ICC-08.
+
+1. `staged = stage(MODERATE, sparkySuccesses)` — Sparky success count stages up the Moderate base.
+2. `effectivePower = max(0, ic.rating - decker.cyberdeck.hardening)` — Hardening reduces Power.
+3. Roll `decker.body` dice vs. `effectivePower` → `bodySuccesses`.
+4. `actual = stage(staged, -bodySuccesses)`
+5. Apply `actual` to Physical Condition Monitor; return updated `Decker`.
+
+---
+
+#### `resolveTarPit(decker: Decker, ic: TarPit, utility: Utility, diceRoller: DiceRoller): TarBabyResult`
+
+PRD: ICC-09. Same resolution as `resolveTarBaby`. On `bothCrashed = true`, the caller additionally calls `resolveTarPitMpcpTest`.
+
+#### `resolveTarPitMpcpTest(decker: Decker, ic: TarPit, utility: Utility, diceRoller: DiceRoller): Decker`
+
+PRD: ICC-09.
+
+1. `tn = decker.cyberdeck.hardening + decker.cyberdeck.mcpRating`
+2. Roll `ic.rating` dice vs. `tn` → `successes`.
+3. If `successes == 0` → same effect as Tar Baby: decker may reload from storage (no further action).
+4. Else → corrupt all copies of `utility` in both `activeUtilities` and `storedUtilities` (remove by type match); decker cannot reload until a clean copy is obtained outside the run.
+5. Return updated `Decker`.
+
+---
+
+### Black IC
+
+#### `resolveLethalBlackIc(decker: Decker, ic: LethalBlackIC, securityCode: SecurityCode, diceRoller: DiceRoller): IcDamageResult`
+
+PRD: ICC-11.
+
+1. Determine Damage Level by `securityCode`: Blue/Green → MODERATE; Orange/Red → SERIOUS. Set `power = ic.rating`.
+2. `effectivePower = max(0, power - decker.cyberdeck.hardening)` — Hardening reduces Power for body test only.
+3. **Icon resistance test**: Roll `decker.persona!!.bod` dice vs. `power` (Armor protects normally, applied before this roll via `DefenderParticipant.armorCurrentRating`).
+4. **Physical body resistance test**: Roll `decker.body` dice vs. `effectivePower` (Hacking Pool may NOT be added; Karma Pool may be used — resolved externally).
+5. Stage both results independently with `stage()`.
+6. Apply icon damage to Condition Monitor; apply physical damage to Physical Condition Monitor.
+7. If icon crashes before decker dies: set IC effective rating to `ic.rating + 2` for all subsequent tests (caller holds this state).
+8. If decker dies (Physical CM full): set `dumpShockTriggered = true`; caller resolves final MPCP attack at `ic.rating * 2` via `resolveBlasterMpcpTest`.
+9. Apply Black IC pin if first hit (ICC-10).
+10. Return `IcDamageResult`. `simsenseOverload = null` (Black IC, CC-28).
+
+#### `resolveNonLethalBlackIc(decker: Decker, ic: NonLethalBlackIC, securityCode: SecurityCode, diceRoller: DiceRoller): IcDamageResult`
+
+PRD: ICC-12. Identical to `resolveLethalBlackIc` except physical body damage is replaced with Mental damage (Willpower resistance tests); unconsciousness triggers auto-disconnect. Mental damage overflow into Physical CM follows standard SR3 rules (handled by `ConditionMonitor`).
+
+---
+
+### Black Hammer and Killjoy
+
+#### `resolveBlackHammer(targetDecker: Decker, attack: AttackResult.Hit, diceRoller: DiceRoller): IcDamageResult`
+
+PRD: ICC-13. Identical to `resolveLethalBlackIc` **except** no final MPCP attack on decker death.
+
+**Precondition:** Caller must verify `!targetDecker.cyberdeck.immuneToDumpShock` before calling; cyberterminal users and hitchers are immune (CT-04, ACC-03).
+
+#### `resolveKilljoy(targetDecker: Decker, attack: AttackResult.Hit, diceRoller: DiceRoller): IcDamageResult`
+
+PRD: ICC-14. Identical to `resolveNonLethalBlackIc` with the same no-MPCP-attack exception as Black Hammer.
+
+---
+
+### Track Utility
+
+#### `resolveTrackLock(attack: AttackResult.Hit, targetDecker: Decker, trackRating: Int, diceRoller: DiceRoller): TrackState?`
+
+PRD: CC-30.
+
+1. Roll `targetDecker.persona!!.evasion` dice vs. `trackRating` → `evadeSuccesses`.
+2. If `evadeSuccesses >= attack.attackerSuccesses` → return `null` (no lock).
+3. `net = attack.attackerSuccesses - evadeSuccesses`
+4. `cycleTurns = ceil(10.0 / net).toInt()`
+5. Return `TrackState(trackRating, cycleTurns)`.
+
+The caller sets `decker.trackState = result`. While `trackState != null`, Graceful Logoff TN is raised by `trackState.trackingIcRating`.
+
+---
+
+### Slow Utility
+
+#### `resolveSlow(ic: IC, slowRating: Int, securityCode: SecurityCode, icInitiative: CombatInitiative, diceRoller: DiceRoller): SlowResult`
+
+PRD: ICC-15.
+
+**Precondition:** `ic.behavior == IcBehavior.PROACTIVE` (reactive IC is immune; return `SlowResult(0, false)` immediately if reactive).
+
+1. `sv = securityValue(securityCode)`
+2. Roll `sv` dice vs. `slowRating` → `icSuccesses`.
+3. Roll `slowRating` dice vs. `sv` → `slowSuccesses`.
+4. `net = slowSuccesses - icSuccesses`
+5. If `net <= 0` → return `SlowResult(0, false)`.
+6. `actionsLost = net / 2`
+7. `icInert = (icInitiative.initiativePasses - actionsLost) <= 0`
+8. Return `SlowResult(actionsLost, icInert)`.
+
+If `icInert`, the IC does not add to the security tally. If not suppressed before the next Combat Turn, the caller re-rolls its initiative and it resumes.
+
+---
+
+## Verification
+
+| Scenario | Expected Result |
+|---|---|
+| Decker Reaction 6, RI 2, no comms | `CombatInitiative(score = 6 + 3D6, initiativePasses = 3)` (CC-04) |
+| Decker RI 2 with meatworld comms | `numDice = max(1, 1+2−1) = 2`; score reduced by ~3.5 average (CC-05) |
+| IC Rating 5 in Orange host | `CombatInitiative(score = 3D6+5, initiativePasses = 3)` (CC-06) |
+| IC triggered after pass 1 completed | Caller subtracts 10 from score; IC acts on next pass (CC-07) |
+| Maneuver: mover 4 successes, opponent 2 | `ManeuverResult.Success(2)` (CC-16) |
+| Maneuver: mover 2, opponent 2 | `ManeuverResult.Failure` — equal successes = fail (CC-16) |
+| Parry Attack 3 net successes | `CombatModifiers(parryAttackBonus = 3)` set on target; next incoming attack TN +3 (CC-18) |
+| Position Attack 2 net successes | Attacker sets TN −2 OR Power +2 on next attack (CC-19) |
+| Attack: Intruding icon in Blue host | TN = 6 (CC-21) |
+| Attack: Legitimate icon in Red host | TN = 6 (CC-21) |
+| Armor-4 vs. Power 7 | `effectivePower = 3`; defender rolls vs. 3 (CC-25) |
+| 4 net attacker successes | Damage stages up by 2 levels (CC-26) |
+| 4 net defender successes | Damage stages down by 2 levels (CC-26) |
+| Moderate damage from White IC, Willpower fails | `stressBoxesApplied = 1` (CC-28) |
+| Deadly damage from Gray IC | `simsenseOverload = null`; `dumpShockTriggered = true`; no Willpower test (CC-28) |
+| Black IC damage | `simsenseOverload = null`; pin state set after first hit (CC-28, ICC-10) |
+| Dump shock in Orange host (SV 5, Security Rating = Orange) | `DumpShock(level = SERIOUS, power = 5)`; body resistance test applied (CC-29) |
+| Black IC first successful hit | `decker.isPinnedByBlackIc == true` (ICC-10) |
+| Pin Willpower test succeeds | `JackOutPinResult(succeeded = true, finalIcAttackTriggered = true)` (ICC-10) |
+| Pin Willpower test fails | `JackOutPinResult(succeeded = false, finalIcAttackTriggered = false)` (ICC-10) |
+| Crippler (Bod) 4 net IC successes | Bod reduced by 2, floor 1; Armor/Hardening not applied (ICC-01) |
+| Ripper reduces attribute to 0 | Caller triggers `resolveRipperMpcpTest`; 2 successes → MPCP −1 (ICC-07) |
+| Sparky post-crash, 4 successes, Rating 6 | MPCP −2; then 6M physical damage staged up 2× before body resist (ICC-08) |
+| Tar Baby wins opposed test | Both programs removed from active memory; tally unchanged (ICC-05) |
+| Tar Pit wins + MPCP test 2 successes | Utility corrupted in all memory; decker cannot reload during run (ICC-09) |
+| Tar Pit wins + MPCP test 0 successes | Same as Tar Baby result; decker may reload from storage (ICC-09) |
+| Track: 5 attacker successes, 2 evade successes | `TrackState(cycleTurns = ceil(10/3) = 4)` (CC-30) |
+| Track: evader matches attacker successes | `null` returned — no lock (CC-30) |
+| Slow on Reactive IC | Precondition check fails; `SlowResult(0, false)` (ICC-15) |
+| Slow: 4 net successes, IC has 2 passes | `SlowResult(actionsLost = 2, icInert = true)` (ICC-15) |
+| Black Hammer vs. Cyberterminal user | Caller checks `immuneToDumpShock = true`; does not call `resolveBlackHammer` (ICC-13) |

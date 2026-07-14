@@ -331,3 +331,125 @@ Each operation entry: **Test** (subsystem), **Utility** (reduces TN), **Action t
 | Swap Memory | None | None | Simple | Loads a utility from storage into active memory. Free Action to unload first if needed. Upload countdown begins immediately (see CD-10). No System Test. |
 | Tap Comcall | Special | Commlink | Complex | Locates active commcodes (Index Test), traces calls (Control Test), taps and records (Files Test). Scrambled lines require Opposed Computer vs. Device Rating decrypt test. Dataline scanners trigger Opposed Computer vs. scanner Device Rating test. Monitored operation. |
 | Upload Data | Files | Read/Write | Simple | Transmits data from deck storage to the Matrix at I/O speed. Does not consume active memory. For modifying existing host files, an Edit File operation is required afterward. Ongoing operation. |
+
+## Cybercombat
+
+### Combat Sequence and Timing
+
+- CC-01: Combat turns are 3 seconds. Within an Initiative Pass, resolve actions in order: astral → Matrix → physical.
+- CC-02: A Delayed Action waiting for a physical-world event resolves alongside physical actions, even if the decker had a higher Initiative slot.
+- CC-03: Direct meatworld communication (voice, datascreen) during a Combat Turn pins the decker's actions to the physical segment. Hitcher electrodes and intra-Matrix comms are exempt.
+
+### Initiative
+
+- CC-04: Decker Initiative = Persona Reaction + 1D6 + (Response Increase × 1D6). Physical enhancements (wired reflexes, etc.) do **not** affect Matrix Initiative.
+- CC-05: Direct meatworld communication reduces a decker's Initiative by –1D6 until the link is dropped (hitcher exempt).
+- CC-06: IC Initiative by host Security Code: Blue = 1D6 + IC Rating; Green = 2D6 + IC Rating; Orange = 3D6 + IC Rating; Red = 4D6 + IC Rating.
+- CC-07: IC triggered mid-turn loses 10 Initiative per completed Initiative Pass. It acts on its next Initiative Pass.
+
+### Actions per Combat Phase
+
+- CC-08: Per Combat Phase: one Free Action AND either two Simple Actions OR one Complex Action.
+- CC-09: **Free Actions** in combat: Analyze IC, Analyze Icon, Delay Action, Jack Out (if not pinned by Black IC), Speak a Word, Terminate Download/Upload, Unload Program, Unsuppress IC.
+- CC-10: **Simple Actions** in combat: Attack, Combat Maneuver, and all Simple system operations.
+- CC-11: **Complex Actions** in combat: Jack Out while pinned by Black IC (Willpower test required), and all Complex system operations.
+
+### Initiating Combat
+
+- CC-12: A decker may attack any visible or located icon. Any icon that attacks automatically becomes visible unless it immediately succeeds at an Evade Detection maneuver.
+- CC-13: Proactive IC initiates combat with any decker whose security tally triggers it; it continues attacking until the decker logs off or evades detection.
+
+### Combat Maneuvers
+
+- CC-14: All combat maneuvers are Simple Actions. Opposed Test: maneuvering icon's Evasion vs. opposing icon's Sensor Rating. IC substitutes the host's Security Value for both Evasion and Sensor.
+- CC-15: Cloak reduces the TN for the maneuvering icon by its rating; Lock-On reduces the TN for the opposing icon by its rating. Hacking Pool may be added to these tests.
+- CC-16: Net successes = maneuvering icon's successes minus opposing icon's successes. Equal or more opposing successes = maneuver fails.
+- CC-17: **Evade Detection** — on success, the opposing icon loses track of the evading icon for a number of Combat Turns equal to net successes. This evasion period is shortened by 1 turn for each security tally point added while evading. IC reappears ready for Initiative at the end of the last evasion turn. The decker must use Locate IC / Locate Decker to re-detect.
+- CC-18: **Parry Attack** — on success, all attacks against the maneuvering icon have their TN raised by net successes until the opposing icon's next attack. The bonus is retained if the opposing icon performs a Position Attack, but is lost if either icon performs a successful Evade Detection.
+- CC-19: **Position Attack** — on success, the maneuvering icon may reduce the TN of its next attack by net successes OR increase the Power of its next attack by net successes. Bonus lasts until the next attack. If the opposing icon wins the contest, it receives the bonus instead.
+
+### Resolving Attacks
+
+- CC-20: Attack is a Simple Action. The attacker makes an Attack Test using the offensive utility's rating (Hacking Pool may be added).
+- CC-21: Target number for the Attack Test by target status and host Security Code:
+
+  | Security Code | vs. Intruding icon | vs. Legitimate icon |
+  | --- | --- | --- |
+  | Blue | 6 | 3 |
+  | Green | 5 | 4 |
+  | Orange | 4 | 5 |
+  | Red | 3 | 6 |
+
+  An icon is **Legitimate** if it logged on with a valid passcode; all others are **Intruding**.
+
+- CC-22: A decker who exploits Legitimate status in combat against the host's own security programs has that passcode devalidated at logoff/jackout (cover blown). Using the passcode against intruding deckers does not blow cover.
+- CC-23: Record the number of attack successes — they determine Damage Level staging and trigger special per-IC effects.
+
+### Icon Damage
+
+- CC-24: Damage Code — Power = program/IC rating. Damage Level for IC by host Security Code: Blue/Green = Moderate; Orange/Red = Serious. Attack utility Damage Level is fixed at creation (Light / Moderate / Serious / Deadly).
+- CC-25: **Damage Resistance Test**: target icon rolls Bod Rating dice vs. TN = Power. For IC taking damage, the GM rolls host Security Value dice. The Armor utility reduces Power before this test.
+- CC-26: **Staging** — for every 2 net attacker successes stage the Damage Level up by 1; for every 2 net defender successes stage it down by 1.
+- CC-27: **Condition Monitor** — icons use a single 10-box physical damage track (no Stun track). Standard SR3 TN modifiers apply for filled boxes. When all 10 boxes are filled the icon crashes; if the icon is a persona the decker is dumped.
+
+### Simsense Overload
+
+- CC-28: When a decker's icon takes damage from **white or gray IC**, the decker makes a Willpower Test to avoid 1 box of Stun damage to the Mental Condition Monitor. TNs: Light damage → TN 2; Moderate → TN 3; Serious → TN 5. Deadly damage auto-crashes the icon and triggers dump shock (no Willpower test for overload). Simsense overload does **not** apply to Black IC damage.
+
+### Dump Shock Resolution
+
+- CC-29: When dump shock occurs (M-17 / M-18), the decker makes a Body Damage Resistance Test vs. TN = Security Value of the last active host/grid. Damage Level by Security Code: Blue = Light; Green = Moderate; Orange = Serious; Red = Deadly. This is Stun damage applied to the Mental Condition Monitor.
+
+### Track Utility in Combat
+
+- CC-30: After each successful Attack Test against a target decker, the target makes an Evasion (Track Rating) Test. If the target achieves fewer successes than the attacker, the Track utility locks onto the target's datatrail. Location cycle duration (in full Combat Turns) = 10 ÷ net attacker successes (round up). The target may escape by logging off or jacking out; Graceful Logoff TN is raised by the Track Rating while the location cycle is running. Crashing the attacker's persona stops all its running programs, including Track.
+
+## Intrusion Countermeasures
+
+### White IC
+
+- ICC-01: **Crippler** (proactive) — targets one persona attribute (subtype determines which: Acid → Bod, Binder → Evasion, Jammer → Sensor, Marker → Masking). The host makes an Attack Test (Security Value dice vs. Detection Factor); the decker defends with the targeted attribute vs. TN = IC Rating. Every 2 net IC successes reduces the targeted attribute by 1. The attribute cannot be reduced below 1. Neither Armor nor Hardening protect against Cripplers.
+
+- ICC-02: **Killer** (proactive) — Power = IC Rating; Damage Level by host Security Code (Blue/Green = Moderate; Orange/Red = Serious). Follows standard Icon Damage rules (CC-24–CC-26). Armor reduces Power. Filling the persona's Condition Monitor dumps the decker.
+
+- ICC-03: **Probe** (reactive) — every time the decker performs a System Test, the GM makes a Probe Test (IC Rating dice) vs. the decker's Detection Factor. Every success is added to the security tally immediately.
+
+- ICC-04: **Scramble** (reactive) — guards a specified element of the Access, Files, or Slave subsystem. The protected element cannot be accessed until defeated via the appropriate Decrypt operation. If the decker fails a Decrypt attempt, the GM makes a Scramble Test (IC Rating dice) vs. TN = decker's Computer Skill. If the Scramble Test succeeds, the protected data is destroyed; if it fails, the destruct code is suppressed. Scramble IC can be crashed with an attack utility but doing so raises the security tally unless the IC is suppressed afterward.
+
+- ICC-05: **Tar Baby** (reactive) — pre-programmed to target one utility category (operational / offensive / defensive / special). Passive utilities (Armor, Sleaze) are not trigger targets. When the decker uses any trigger-category utility: Opposed Test — Tar Baby Test (TN = utility rating) vs. Utility Test (TN = Tar Baby rating). If Tar Baby wins: both programs crash; security tally is **not** raised. If the utility wins: the GM secretly checks whether the decker notices the IC (Sensor Test per MP-07/MP-08).
+
+### Gray IC
+
+- ICC-06: **Blaster** (proactive) — attacks like Killer IC; Armor reduces Power. If Blaster dumps the decker (crashes the persona), the GM makes a Blaster Test (IC Rating dice) vs. TN = deck's MPCP Rating; Hardening increases TN. Every 2 successes permanently reduces the MPCP Rating by 1. The decker must reduce persona programs if their total would exceed the new MPCP × 3 cap.
+
+- ICC-07: **Ripper** (proactive) — gray version of Crippler (ICC-01); attacks one persona attribute via the same mechanics. Subtypes: Acid-Rip → Bod, Bind-Rip → Evasion, Jam-Rip → Sensor, Mark-Rip → Masking. If the attribute is reduced to 0: GM makes a Ripper Test (IC Rating dice) vs. TN = deck's MPCP Rating; Hardening increases TN. Every 2 successes permanently reduces MPCP Rating by 1.
+
+- ICC-08: **Sparky** (proactive) — attacks like Killer IC. If Sparky crashes the persona: GM makes a Sparky Test (IC Rating dice) vs. TN = MPCP Rating + 2; Hardening increases TN. Every 2 successes permanently reduces MPCP Rating by 1. Additionally, Sparky causes (IC Rating)M physical damage to the decker's meatbody; stage the Damage Level up by 1 for every 2 successes on the Sparky Test. The decker resists this with Body; Hardening reduces the Power.
+
+- ICC-09: **Tar Pit** (reactive) — attacks like Tar Baby (ICC-05). If Tar Pit wins and crashes the utility, the GM makes a Tar Pit Test (IC Rating dice) vs. TN = MPCP Rating; Hardening increases TN. If no successes: same effect as Tar Baby (decker may reload from storage). If any successes: all copies of that utility in active memory **and** storage memory are corrupted. The decker cannot reload the utility until jacking out and obtaining a clean copy from an external source.
+
+### Black IC
+
+- ICC-10: **Black IC — Pin Mechanic** — from the moment Black IC scores its first successful hit (even with zero net damage), the ASIST interface begins to be subverted. Before the first hit: Jack Out is a Free Action. After any successful Black IC hit: the decker must spend a Complex Action and succeed at a Willpower (Black IC Rating) Test to jack out. If the test succeeds, the decker may jack out, but Black IC makes one final cybercombat attack before the connection drops. If a companion at the jackpoint manually pulls the plug while Black IC is active, Black IC also gets one automatic final attack.
+
+- ICC-11: **Lethal Black IC** (proactive) — attacks like Killer IC. Damage Code: (IC Rating)M for Blue/Green hosts; (IC Rating)S for Orange/Red hosts. Each successful hit requires **two separate Damage Resistance Tests**:
+  - *Decker's body*: Body dice vs. TN = Power (Hardening reduces Power; Hacking Pool may **not** be used; Karma Pool may be used).
+  - *Icon*: icon's Bod dice vs. TN = Power (Armor protects normally).
+
+  If the icon crashes before the decker dies: the decker cannot fight back; the IC's effective rating increases by 2 for all subsequent tests against the decker.
+
+  If the decker dies: the connection drops; Black IC immediately makes one final attack against the MPCP at **double its rating** (resolved as Blaster IC, ICC-06). If the MPCP is destroyed (Rating → 0), all data downloaded during the run and all data in connected storage memory is deleted.
+
+  Any Deadly wound may produce permanent neurological aftereffects per standard SR3 Deadly-wound rules.
+
+- ICC-12: **Non-Lethal Black IC** (proactive) — identical to ICC-11 with these differences: inflicts Mental damage (not Physical); decker resists with Willpower Tests. If rendered unconscious, the Matrix connection automatically breaks. The final MPCP attack and data deletion still occur. Mental damage can overflow into the Physical Condition Monitor.
+
+### Black Hammer and Killjoy Utilities
+
+- ICC-13: **Black Hammer** — functions identically to Lethal Black IC (ICC-11), with one exception: it does **not** make a final attack against the MPCP on decker death (no blaster-like capability). Hardening reduces the Power of damage. Cyberterminal users and hitchers are immune (CT-04, ACC-03).
+
+- ICC-14: **Killjoy** — functions identically to Non-Lethal Black IC (ICC-12), with the same MPCP exception as ICC-13. Hardening reduces the Power of damage. Cyberterminal users and hitchers are immune (CT-04, ACC-03).
+
+### Slow Utility vs. IC
+
+- ICC-15: **Slow** — when a decker attacks a **proactive** IC with the Slow utility: Opposed Test — host's Security Value vs. Slow Rating. If IC wins: no effect. If Slow wins: IC loses 1 action per 2 net successes. An IC with no actions remaining hangs (goes inert for that turn). While inert the IC does not add to the security tally. Suppressing the inert IC costs 1 Detection Factor point (see Suppressing IC). If the IC is not suppressed at the start of the next Combat Turn, the GM rolls normal Initiative for it and it resumes immediately. **Reactive IC is not vulnerable to Slow.**
