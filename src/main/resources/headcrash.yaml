@@ -20,8 +20,10 @@ cyberdeck:
   utilities:
     - type: Deception          # operational, multiplier 2;  Mp = 4^2 * 2 = 32
       rating: 4
+      active: true             # pre-loaded at jack-in; no upload delay
     - type: Sleaze             # special,      multiplier 3;  Mp = 5^2 * 3 = 75
       rating: 5
+      active: true             # pre-loaded at jack-in; no upload delay
     - type: Analyze            # operational, multiplier 3;  Mp = 4^2 * 3 = 48
       rating: 4
     - type: Attack             # offensive,   multiplier 4;  Mp = 6^2 * 4 = 144

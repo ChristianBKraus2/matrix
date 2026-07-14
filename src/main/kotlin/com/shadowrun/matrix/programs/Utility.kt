@@ -36,7 +36,9 @@ enum class UtilityType(val multiplier: Int, val category: UtilityCategory) {
 class Utility(
     val type: UtilityType,
     rating: Int,
-    val attackDamageLevel: DamageLevel? = null
+    val attackDamageLevel: DamageLevel? = null,
+    val currentRating: Int = rating,
+    val sourceCode: Boolean = false
 ) : Program(
     name = type.name,
     rating = rating,

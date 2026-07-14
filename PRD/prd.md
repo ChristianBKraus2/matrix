@@ -115,7 +115,95 @@ The following persona values are **calculated by the application** and must not 
 ### Integration Tests
 
 - A decker logs on to an LTG, switches to the RTG, moves to a different RTG and one of the LTGs. There, he logs on to a host. Afterwards, he logs of.
+- A decker logs on to an LTG, tries to logon to an host, but fails.
+
+#### Additional Information
+
+- It should be possible to control, which test fails ad which test succeeds.
+
+## Cyberdeck and Program Mechanics
+
+### Validation Rules
+
+- CD-01: Every utility's rating must not exceed the deck's MPCP Rating. The application rejects any configuration where a utility rating > MPCP, producing a descriptive load error naming the offending utility. This constraint mirrors the existing persona-program cap.
+- CD-02: Response Increase obeys two simultaneous constraints: (a) ≤ floor(MPCP ÷ 4) and (b) ≤ 3 absolute hard cap. The following persona attributes are **calculated by the application** and must not appear in the decker YAML (extending the existing calculated-values list):
+
+  | Field | Formula |
+  | --- | --- |
+  | Persona Reaction | base Reaction + (Response Increase × 2) |
+  | Initiative dice | Persona Reaction + (1 + Response Increase) D6 |
+
+  Example: Reaction 5, Response Increase 2 → Persona Reaction 9, initiative = 9 + 3D6.
+
+- CD-03: A utility entry in the decker YAML may carry an optional `source_code: true` field (default: `false`). The application stores this flag on the Utility object. Upgrade and modification operations (out of scope for this milestone) are restricted to source-code copies; regular copies may be run but not altered.
+
+### Cyberdeck Initialization
+
+- CD-04: The four persona programs (Bod, Evasion, Masking, Sensors) are firmware-resident. They are active from the moment the decker jacks in, require no upload countdown, and do **not** consume Active Memory. No persona-program entry appears in the runtime active-utilities list.
+- CD-05: A utility entry in the decker YAML may carry `active: true` to mark it as pre-loaded at the start of a run. The loader validates that the total Mp of all `active: true` utilities fits within Active Memory; violation is a configuration error. Pre-loaded utilities are immediately usable at jack-in with no upload delay.
+- CD-06: The initialization sequence loads each `active: true` utility into active memory with `currentRating = storedRating` and `turnsRemaining = 0` (fully uploaded).
+
+### Active Memory Management
+
+- CD-07: **Load Utility** is a Simple Action; no System Test is required. Preconditions: the utility is in storage memory, not already loaded in active memory, and remaining active memory capacity ≥ utility Mp size. On success the utility enters the pending-upload state (see CD-10).
+- CD-08: If remaining active memory < utility Mp size, the Load Utility action is rejected before any action economy is spent. The application reports the shortfall in Mp. The decker must unload one or more utilities before retrying.
+- CD-09: **Unload Utility** is a Free Action; no System Test is required. The utility reverts to stored state, retaining its `currentRating`. Active memory is freed immediately.
+- CD-10: **Upload Time.** After entering the pending-upload state a utility is not yet usable. Upload time (in whole Combat Turns, rounded up) = ⌈utility Mp size ÷ cyberdeck I/O speed⌉. The utility becomes fully active only after that many Combat Turns have elapsed.
+- CD-11: **Upload Progress Tracking.** The application tracks each in-flight upload as `{utility, turnsRemaining}`, initialized per CD-10. At the start of each Combat Turn all `turnsRemaining` counters decrement by 1. When a counter reaches 0 the utility transitions from pending to active. The Mp of a pending utility counts against Active Memory from the moment the load action is accepted.
+- CD-12: A utility in the pending-upload state provides **no game-mechanical effect**: it does not reduce target numbers, does not contribute to Detection Factor, and is not considered "loaded in active memory" for any rule. It is visible in the active-memory list as uploading.
+- CD-13: **Swap Memory** sequence: Unload (Free Action, absorbed into the swap) → Load (Simple Action, this is the action cost). The application frees the old utility's capacity before validating the new load.
+
+### Operational Utility Effects on System Tests
+
+- CD-14: **General rule.** When a System Test is resolved for a named operation, if the associated utility (per CD-15) is fully active in active memory at that moment, subtract its `currentRating` from the base target number. The target number floor is **2**; no reduction may bring the effective target number below 2.
+- CD-15: **Utility-to-operation mapping.** The table below is the authoritative mapping. Each operation has at most one associated utility type; only that utility type reduces the TN.
+
+  | Utility | Operations whose TN is reduced |
+  | --- | --- |
+  | Analyze | Analyze Host, Analyze IC, Analyze Icon, Analyze Security, Analyze Subsystem, Locate IC |
+  | Browse | Locate Access Node, Locate File, Locate Slave |
+  | Commlink | Make Comcall, Tap Comcall |
+  | Deception | Logon to Host, Logon to LTG, Logon to RTG, Graceful Logoff |
+  | Decrypt | Decrypt Access, Decrypt File, Decrypt Slave |
+  | Read/Write | Download Data, Edit File, Upload Data |
+  | Relocate | Relocate Icon |
+  | Scanner | Locate Decker |
+  | Spoof | Control Slave, Edit Slave, Monitor Slave |
+
+- CD-16: Add **Relocate Icon** to the set of named system operations: Simple Action, Control Test, Standard category. The Relocate utility reduces its TN per CD-14.
+
+### Passive Program Behavior
+
+- CD-17: Sleaze is a passive program. Once fully uploaded into active memory (not pending), it contributes automatically to the Detection Factor for every subsequent System Test during that run. No explicit activation is required.
+- CD-18: The Detection Factor is recalculated at the moment each System Test is resolved, not cached at jack-in. If a Sleaze utility is fully active: DF = ⌈(Masking + Sleaze.currentRating) ÷ 2⌉; otherwise DF = ⌈Masking ÷ 2⌉. Loading or unloading Sleaze mid-run changes the Detection Factor for all tests resolved after that action.
+
+### Utility Degradation
+
+- CD-19: **Armor degradation.** Each time an Armor utility fails to fully absorb incoming damage — meaning damage bleeds through to the persona's condition monitor — the Armor utility's `currentRating` decreases by 1. The stored copy retains its original rating; only the in-memory instance degrades.
+- CD-20: **Medic degradation.** Each time the Medic utility is invoked, its `currentRating` decreases by 1, regardless of whether the repair attempt succeeded or failed.
+- CD-21: **Current vs. stored rating.** Every active utility instance carries two distinct values: `storedRating` (immutable at runtime, from the YAML) and `currentRating` (starts equal; decrements on degradation per CD-19/CD-20). All game-mechanical effects use `currentRating`.
+- CD-22: **Zero-rating auto-unload.** When a utility's `currentRating` reaches 0 it immediately ceases to provide any effect. The application auto-unloads it from active memory, marks it depleted in the storage inventory, and logs the event. A depleted utility cannot be re-loaded.
+- CD-23: **Restoring a degraded utility.** To restore a depleted or degraded utility, the decker loads a fresh instance from the stored copy via the normal Load Utility procedure (CD-07/CD-10); the fresh instance starts with `currentRating = storedRating`. If the only copy is already in active memory in a degraded state, no fresh instance is available and the utility is lost for the remainder of the run.
+
+### Cyberdeck Catalog (Data Seeding)
+
+- CD-24: A `decks.yaml` configuration file is loaded at application startup, before any decker YAML is parsed. Each entry specifies: `model` (unique name string), `mpcp`, `hardening`, `active_memory` (Mp), `storage_memory` (Mp), `io_speed` (Mp per Combat Turn), and `cost_nuyen`. Response Increase is a decker-configuration value and must **not** appear in `decks.yaml`.
+- CD-25: The following deck models must be seeded in `decks.yaml` with hardware values taken verbatim from the SR3 equipment tables:
+
+  | Model | MPCP | Hardening | Active Mem (Mp) | Storage Mem (Mp) | I/O (Mp/Turn) | Cost (¥) |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | Allegiance Sigma | 3 | 1 | 200 | 500 | 100 | 14,000 |
+  | Sony CTY-360-D | 5 | 3 | 300 | 600 | 200 | 70,000 |
+  | Novatech Hyperdeck-6 | 6 | 4 | 500 | 1,000 | 240 | 125,000 |
+  | CMT Avatar | 7 | 4 | 700 | 1,400 | 300 | 250,000 |
+  | Renraku Kraftwerk-8 | 8 | 4 | 1,000 | 2,000 | 360 | 400,000 |
+  | Transys Highlander | 9 | 4 | 1,500 | 2,500 | 400 | 600,000 |
+  | Novatech Slimcase-10 | 10 | 5 | 2,000 | 2,500 | 480 | 960,000 |
+  | Fairlight Excalibur | 12 | 6 | 3,000 | 5,000 | 600 | 1,500,000 |
+
+- CD-26: When a decker YAML specifies `model: <name>` and the named model exists in `decks.yaml`, the loader uses the catalog's hardware values as defaults for all deck hardware fields. Any field explicitly set in the decker YAML overrides the corresponding catalog value. If the model name is not found, the loader emits a warning and uses all inline values.
 
 ### Non functional Requirements
 
 - Every public method of the decker, i.e. every action that is triggered from the user, should be logged at the start (describing the intention) and at the end (describing the outcome incl. success or failure)
+- Every Test (set of dice rolls of both parties) should be logged

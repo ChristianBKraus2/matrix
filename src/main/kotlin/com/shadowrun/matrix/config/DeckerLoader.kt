@@ -7,22 +7,25 @@ import com.shadowrun.matrix.decker.Decker
 import com.shadowrun.matrix.programs.PersonaProgram
 import com.shadowrun.matrix.programs.Utility
 import com.shadowrun.matrix.programs.UtilityType
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.yaml.snakeyaml.Yaml
 import java.io.InputStream
 
 object DeckerLoader {
 
-    fun load(input: InputStream): Decker {
+    private val logger = KotlinLogging.logger {}
+
+    fun load(input: InputStream, catalog: List<DeckCatalogEntry> = emptyList()): Decker {
         val yaml = Yaml()
         @Suppress("UNCHECKED_CAST")
         val data = yaml.load<Map<String, Any>>(input)
-        return buildDecker(data)
+        return buildDecker(data, catalog)
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun buildDecker(data: Map<String, Any>): Decker {
+    private fun buildDecker(data: Map<String, Any>, catalog: List<DeckCatalogEntry>): Decker {
         val deckData = data["cyberdeck"] as Map<String, Any>
-        val cyberdeck = buildCyberdeck(deckData)
+        val cyberdeck = buildCyberdeck(deckData, catalog)
         return Decker(
             name           = data["name"] as String,
             intelligence   = (data["intelligence"] as Int),
@@ -36,24 +39,41 @@ object DeckerLoader {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun buildCyberdeck(data: Map<String, Any>): Cyberdeck {
+    private fun buildCyberdeck(data: Map<String, Any>, catalog: List<DeckCatalogEntry>): Cyberdeck {
+        val modelName = data["model"] as? String
+        val entry = modelName?.let { name ->
+            catalog.firstOrNull { it.model == name }.also { found ->
+                if (found == null && name.isNotBlank()) {
+                    logger.warn { "DeckerLoader: model '$name' not found in catalog — using inline values" }
+                }
+            }
+        }
+
         val ppData   = data["persona_programs"] as Map<String, Int>
         val utilData = (data["utilities"] as? List<Map<String, Any>>) ?: emptyList()
 
         val personaPrograms = buildPersonaPrograms(ppData)
         val utilities       = utilData.map { buildUtility(it) }
 
+        // Partition utilities by active flag; pre-loaded ones go into activeUtilities.
+        val (activeUtils, storedOnly) = utilities.partition { u ->
+            utilData.firstOrNull { m ->
+                (m["type"] as? String)?.uppercase()?.replace(' ', '_')?.replace('/', '_') == u.type.name
+            }?.get("active") as? Boolean ?: false
+        }
+
         return Cyberdeck(
-            name              = (data["model"] as? String) ?: "Unknown",
-            mcpRating         = data["mpcp"] as Int,
-            hardening         = (data["hardening"] as? Int) ?: 0,
-            activeMemoryMp    = data["active_memory"] as Int,
-            storageMemoryMp   = data["storage_memory"] as Int,
-            ioSpeedMpPerTurn  = data["io_speed"] as Int,
-            responseIncrease  = (data["response_increase"] as? Int) ?: 0,
-            costNuyen         = (data["cost_nuyen"] as? Int) ?: 0,
-            personaPrograms   = personaPrograms,
-            storedUtilities   = utilities
+            name             = modelName ?: "Unknown",
+            mcpRating        = (data["mpcp"] as? Int) ?: entry?.mpcp ?: error("mpcp required"),
+            hardening        = (data["hardening"] as? Int) ?: entry?.hardening ?: 0,
+            activeMemoryMp   = (data["active_memory"] as? Int) ?: entry?.activeMemoryMp ?: error("active_memory required"),
+            storageMemoryMp  = (data["storage_memory"] as? Int) ?: entry?.storageMemoryMp ?: error("storage_memory required"),
+            ioSpeedMpPerTurn = (data["io_speed"] as? Int) ?: entry?.ioSpeedMpPerTurn ?: error("io_speed required"),
+            responseIncrease = (data["response_increase"] as? Int) ?: 0,
+            costNuyen        = (data["cost_nuyen"] as? Int) ?: entry?.costNuyen ?: 0,
+            personaPrograms  = personaPrograms,
+            activeUtilities  = activeUtils,
+            storedUtilities  = utilities  // all utilities live in storage
         )
     }
 
@@ -72,6 +92,7 @@ object DeckerLoader {
         val dmgLevel = (data["damage_level"] as? String)?.let {
             DamageLevel.valueOf(it.uppercase())
         }
-        return Utility(type, rating, dmgLevel)
+        val sourceCode = (data["source_code"] as? Boolean) ?: false
+        return Utility(type, rating, dmgLevel, sourceCode = sourceCode)
     }
 }

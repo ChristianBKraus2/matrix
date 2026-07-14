@@ -1,0 +1,57 @@
+decks:
+  - model: Allegiance Sigma
+    mpcp: 3
+    hardening: 1
+    active_memory: 200
+    storage_memory: 500
+    io_speed: 100
+    cost_nuyen: 14000
+  - model: Sony CTY-360-D
+    mpcp: 5
+    hardening: 3
+    active_memory: 300
+    storage_memory: 600
+    io_speed: 200
+    cost_nuyen: 70000
+  - model: Novatech Hyperdeck-6
+    mpcp: 6
+    hardening: 4
+    active_memory: 500
+    storage_memory: 1000
+    io_speed: 240
+    cost_nuyen: 125000
+  - model: CMT Avatar
+    mpcp: 7
+    hardening: 4
+    active_memory: 700
+    storage_memory: 1400
+    io_speed: 300
+    cost_nuyen: 250000
+  - model: Renraku Kraftwerk-8
+    mpcp: 8
+    hardening: 4
+    active_memory: 1000
+    storage_memory: 2000
+    io_speed: 360
+    cost_nuyen: 400000
+  - model: Transys Highlander
+    mpcp: 9
+    hardening: 4
+    active_memory: 1500
+    storage_memory: 2500
+    io_speed: 400
+    cost_nuyen: 600000
+  - model: Novatech Slimcase-10
+    mpcp: 10
+    hardening: 5
+    active_memory: 2000
+    storage_memory: 2500
+    io_speed: 480
+    cost_nuyen: 960000
+  - model: Fairlight Excalibur
+    mpcp: 12
+    hardening: 6
+    active_memory: 3000
+    storage_memory: 5000
+    io_speed: 600
+    cost_nuyen: 1500000

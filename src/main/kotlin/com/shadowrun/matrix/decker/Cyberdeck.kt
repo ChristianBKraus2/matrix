@@ -16,13 +16,21 @@ data class Cyberdeck(
     val costNuyen: Int,
     // The four persona programs (Bod, Evasion, Masking, Sensors); may be empty when not yet configured
     val personaPrograms: List<PersonaProgram> = emptyList(),
-    // Utilities currently loaded into active memory
+    // Utilities currently loaded into active memory (fully uploaded)
     val activeUtilities: List<Utility> = emptyList(),
     // All utilities held in storage memory (must include every active utility)
     val storedUtilities: List<Utility> = emptyList(),
-    val accessories: List<Accessory> = emptyList()
+    val accessories: List<Accessory> = emptyList(),
+    // Utilities accepted into active memory but not yet fully uploaded
+    val pendingUploads: List<PendingUpload> = emptyList()
 ) {
     val maxResponseIncrease: Int get() = mcpRating / 4
+
+    val usedActiveMemoryMp: Int
+        get() = activeUtilities.sumOf { it.mpSize } + pendingUploads.sumOf { it.utility.mpSize }
+
+    val freeActiveMemoryMp: Int
+        get() = activeMemoryMp - usedActiveMemoryMp
 
     init {
         require(responseIncrease <= maxResponseIncrease) {
@@ -40,6 +48,18 @@ data class Cyberdeck(
         val totalPersonaRatings = personaPrograms.sumOf { it.rating }
         require(totalPersonaRatings <= mcpRating * 3) {
             "Total persona program ratings $totalPersonaRatings exceed MPCP×3 = ${mcpRating * 3}"
+        }
+
+        // No utility rating may exceed MPCP
+        activeUtilities.forEach { u ->
+            require(u.rating <= mcpRating) {
+                "Active utility ${u.type} rating ${u.rating} exceeds MPCP $mcpRating"
+            }
+        }
+        storedUtilities.forEach { u ->
+            require(u.rating <= mcpRating) {
+                "Stored utility ${u.type} rating ${u.rating} exceeds MPCP $mcpRating"
+            }
         }
 
         // Active memory capacity

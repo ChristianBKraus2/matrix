@@ -8,6 +8,7 @@ import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.network.PLTG
 import com.shadowrun.matrix.network.RTG
+import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.operations.SystemTestResolver
 import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.utility.DiceRoller
@@ -30,13 +31,14 @@ data class Decker(
 ) {
     val hackingPool: Int get() = (intelligence + cyberdeck.mcpRating) / 3
 
-    /** Detection Factor = (Masking + Sleaze) / 2 rounded up; or Masking / 2 if no Sleaze loaded. */
+    /** Detection Factor = ceil((Masking + Sleaze.currentRating) / 2); or ceil(Masking / 2) if no Sleaze active.
+     *  Recalculated dynamically — Sleaze in pendingUploads does not count. PRD: CD-17, CD-18 */
     val detectionFactor: Int get() {
         val masking = cyberdeck.personaPrograms
             .firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.MASKING }
             ?.rating ?: 0
         val sleaze = cyberdeck.activeUtilities
-            .firstOrNull { it.type == UtilityType.SLEAZE }?.rating
+            .firstOrNull { it.type == UtilityType.SLEAZE }?.currentRating
         return cyberdeck.detectionFactor(masking, sleaze)
     }
 
@@ -55,6 +57,7 @@ data class Decker(
             "Jackpoint type ${jp.type} cannot be used to jack in to an LTG"
         }
         return performLogon(
+            operation = SystemOperation.LOGON_TO_LTG,
             accessRating = ltg.subsystemRatings.access,
             securityValue = ltg.securityRating.value,
             diceRoller = diceRoller,
@@ -86,6 +89,7 @@ data class Decker(
             "Jackpoint connects to a different host"
         }
         return performLogon(
+            operation = SystemOperation.LOGON_TO_HOST,
             accessRating = host.subsystemRatings.access,
             securityValue = host.securityRating.value,
             diceRoller = diceRoller,
@@ -122,6 +126,7 @@ data class Decker(
             else -> throw IllegalStateException("Cannot logon to RTG from $currentLocation")
         }
         return performLogon(
+            operation = SystemOperation.LOGON_TO_RTG,
             accessRating = rtg.subsystemRatings.access,
             securityValue = rtg.securityRating.value,
             diceRoller = diceRoller,
@@ -153,6 +158,7 @@ data class Decker(
             else -> throw IllegalStateException("Cannot logon to LTG from $currentLocation")
         }
         return performLogon(
+            operation = SystemOperation.LOGON_TO_LTG,
             accessRating = ltg.subsystemRatings.access,
             securityValue = ltg.securityRating.value,
             diceRoller = diceRoller,
@@ -186,6 +192,7 @@ data class Decker(
             else -> throw IllegalStateException("Cannot logon to PLTG from $currentLocation")
         }
         return performLogon(
+            operation = SystemOperation.LOGON_TO_LTG,
             accessRating = pltg.subsystemRatings.access,
             securityValue = pltg.securityRating.value,
             diceRoller = diceRoller,
@@ -223,6 +230,7 @@ data class Decker(
             else -> throw IllegalStateException("Cannot logon to a host from $currentLocation")
         }
         return performLogon(
+            operation = SystemOperation.LOGON_TO_HOST,
             accessRating = host.subsystemRatings.access,
             securityValue = host.securityRating.value,
             diceRoller = diceRoller,
@@ -249,7 +257,7 @@ data class Decker(
         logger.info { "[$name] gracefulLogoff attempt from ${currentLocation.label()}" }
         requireJackedIn()
         val (accessRating, securityValue) = accessRatingAndSecurityValue()
-        val outcome = SystemTestResolver.resolve(this, accessRating, securityValue, diceRoller)
+        val outcome = SystemTestResolver.resolve(this, SystemOperation.GRACEFUL_LOGOFF, accessRating, securityValue, diceRoller)
         return if (outcome.deckerWins) {
             LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null)).also {
                 logger.info { "[$name] gracefulLogoff succeeded: traces cleared, no dump shock" }
@@ -275,7 +283,94 @@ data class Decker(
         }
     }
 
-    // ── Private helpers ──────────────────────────────────────────────────────────
+    // ── Active memory management ──────────────────────────────────────────────────
+
+    /**
+     * Load a utility from storage into active memory (Simple Action, no test).
+     * The utility enters a pending-upload state; it becomes effective only after the upload
+     * countdown completes via [advanceCombatTurn]. PRD: CD-07, CD-08, CD-10, CD-12
+     */
+    fun loadUtility(utility: com.shadowrun.matrix.programs.Utility): LoadUtilityResult {
+        logger.info { "[$name] loadUtility → ${utility.type} (rating=${utility.rating}, ${utility.mpSize} Mp)" }
+        check(persona != null) { "Decker is not jacked in" }
+        require(cyberdeck.storedUtilities.any { it.type == utility.type && it.rating == utility.rating }) {
+            "Utility ${utility.type} is not in storage"
+        }
+        require(cyberdeck.activeUtilities.none { it.type == utility.type } &&
+                cyberdeck.pendingUploads.none { it.utility.type == utility.type }) {
+            "Utility ${utility.type} is already loaded or uploading"
+        }
+        if (cyberdeck.freeActiveMemoryMp < utility.mpSize) {
+            logger.warn { "[$name] loadUtility ${utility.type}: insufficient memory (need=${utility.mpSize}, free=${cyberdeck.freeActiveMemoryMp})" }
+            return LoadUtilityResult.InsufficientMemory(this, utility.mpSize, cyberdeck.freeActiveMemoryMp)
+        }
+        val turnsRequired = Math.ceil(utility.mpSize.toDouble() / cyberdeck.ioSpeedMpPerTurn).toInt()
+        val updatedDeck = if (turnsRequired == 0) {
+            cyberdeck.copy(activeUtilities = cyberdeck.activeUtilities + utility)
+        } else {
+            cyberdeck.copy(pendingUploads = cyberdeck.pendingUploads + PendingUpload(utility, turnsRequired))
+        }
+        val result = LoadUtilityResult.Success(copy(cyberdeck = updatedDeck))
+        logger.info { "[$name] loadUtility ${utility.type}: accepted (uploadTurns=$turnsRequired)" }
+        return result
+    }
+
+    /**
+     * Unload a utility from active memory or cancel a pending upload (Free Action, no test).
+     * Memory is freed immediately; the stored copy retains its currentRating. PRD: CD-09
+     */
+    fun unloadUtility(utility: com.shadowrun.matrix.programs.Utility): Decker {
+        logger.info { "[$name] unloadUtility → ${utility.type}" }
+        check(persona != null) { "Decker is not jacked in" }
+        val newActive = cyberdeck.activeUtilities.filterNot { it.type == utility.type }
+        val newPending = cyberdeck.pendingUploads.filterNot { it.utility.type == utility.type }
+        require(newActive.size < cyberdeck.activeUtilities.size || newPending.size < cyberdeck.pendingUploads.size) {
+            "Utility ${utility.type} is not loaded or uploading"
+        }
+        return copy(cyberdeck = cyberdeck.copy(activeUtilities = newActive, pendingUploads = newPending)).also {
+            logger.info { "[$name] unloadUtility ${utility.type}: removed" }
+        }
+    }
+
+    /**
+     * Swap [toUnload] out and [toLoad] in (Simple Action total; the unload is absorbed).
+     * Frees [toUnload]'s memory before checking capacity for [toLoad]. PRD: CD-13
+     */
+    fun swapUtility(
+        toUnload: com.shadowrun.matrix.programs.Utility,
+        toLoad: com.shadowrun.matrix.programs.Utility
+    ): LoadUtilityResult {
+        logger.info { "[$name] swapUtility: unload ${toUnload.type} → load ${toLoad.type}" }
+        val afterUnload = unloadUtility(toUnload)
+        return afterUnload.loadUtility(toLoad)
+    }
+
+    /**
+     * Advance the game clock by one Combat Turn: decrement all upload countdowns and promote
+     * completed uploads to active memory. Auto-unloads depleted utilities. PRD: CD-11, CD-22
+     * This is not a player action; it is called by the game engine at the start of each turn.
+     */
+    fun advanceCombatTurn(): Decker {
+        logger.info { "[$name] advanceCombatTurn" }
+        val decremented = cyberdeck.pendingUploads.map { it.copy(turnsRemaining = it.turnsRemaining - 1) }
+        val nowActive = decremented.filter { it.turnsRemaining <= 0 }.map { it.utility }
+        val stillPending = decremented.filter { it.turnsRemaining > 0 }
+
+        val allActive = cyberdeck.activeUtilities + nowActive
+        val (live, depleted) = allActive.partition { it.currentRating > 0 }
+        depleted.forEach { logger.warn { "[$name] advanceCombatTurn: utility ${it.type} depleted and auto-unloaded" } }
+        val newStored = cyberdeck.storedUtilities.filterNot { su -> depleted.any { it.type == su.type } }
+
+        val updatedDeck = cyberdeck.copy(
+            activeUtilities = live,
+            pendingUploads = stillPending,
+            storedUtilities = newStored
+        )
+        nowActive.forEach { logger.info { "[$name] advanceCombatTurn: ${it.type} upload complete, now active" } }
+        return copy(cyberdeck = updatedDeck)
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────────
 
     private fun requireJackpoint(): Jackpoint =
         checkNotNull(jackpoint) { "Decker has no jackpoint set" }
@@ -288,12 +383,13 @@ data class Decker(
 
     /** Run the System Test and return a LogonResult; [buildLocation] maps host tally delta → new MatrixLocation. */
     private fun performLogon(
+        operation: SystemOperation,
         accessRating: Int,
         securityValue: Int,
         diceRoller: DiceRoller,
         buildLocation: (Int) -> MatrixLocation
     ): LogonResult {
-        val outcome = SystemTestResolver.resolve(this, accessRating, securityValue, diceRoller)
+        val outcome = SystemTestResolver.resolve(this, operation, accessRating, securityValue, diceRoller)
         val newLocation = buildLocation(outcome.hostSuccesses)
         return if (outcome.deckerWins) {
             val newPersona = persona ?: Persona(
