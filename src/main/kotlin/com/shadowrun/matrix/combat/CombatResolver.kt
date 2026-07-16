@@ -303,8 +303,24 @@ object CombatResolver {
         )
 
         val dumpShockTriggered = newCm.isCrashed || newPhysicalCm.isCrashed
+
+        // Rules p. 230: on kill, Black IC makes a final Blaster attack on MPCP at double rating.
+        var mpcpReduction = 0
+        if (dumpShockTriggered) {
+            val mpcpTn = updatedDecker.cyberdeck.hardening + updatedDecker.cyberdeck.mcpRating
+            val mpcpSuccesses = diceRoller.roll(ic.rating * 2, max(2, mpcpTn)).successes
+            mpcpReduction = mpcpSuccesses / 2
+            if (mpcpReduction > 0) {
+                updatedDecker = updatedDecker.copy(
+                    cyberdeck = updatedDecker.cyberdeck.copy(
+                        mcpRating = max(0, updatedDecker.cyberdeck.mcpRating - mpcpReduction)
+                    )
+                )
+            }
+        }
+
         val attack = AttackResult.Hit(1, rawLevel, iconStaged, power)
-        return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered)
+        return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered, mpcpReductionOnKill = mpcpReduction)
     }
 
     fun resolveNonLethalBlackIc(
@@ -328,15 +344,31 @@ object CombatResolver {
         val mentalStaged = stage(rawLevel, -mentalSuccesses)
         val newMentalCm = decker.mentalConditionMonitor.applyDamage(mentalStaged)
 
-        val updatedDecker = decker.copy(
+        var updatedDecker = decker.copy(
             persona = persona.copy(conditionMonitor = newCm),
             mentalConditionMonitor = newMentalCm,
             blackIcPin = BlackIcPinState(ic)
         )
 
         val dumpShockTriggered = newCm.isCrashed || newMentalCm.isCrashed
+
+        // Rules p. 230: on unconsciousness, non-lethal Black IC gets a final shot at the MPCP at double rating.
+        var mpcpReduction = 0
+        if (dumpShockTriggered) {
+            val mpcpTn = updatedDecker.cyberdeck.hardening + updatedDecker.cyberdeck.mcpRating
+            val mpcpSuccesses = diceRoller.roll(ic.rating * 2, max(2, mpcpTn)).successes
+            mpcpReduction = mpcpSuccesses / 2
+            if (mpcpReduction > 0) {
+                updatedDecker = updatedDecker.copy(
+                    cyberdeck = updatedDecker.cyberdeck.copy(
+                        mcpRating = max(0, updatedDecker.cyberdeck.mcpRating - mpcpReduction)
+                    )
+                )
+            }
+        }
+
         val attack = AttackResult.Hit(1, rawLevel, iconStaged, power)
-        return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered)
+        return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered, mpcpReductionOnKill = mpcpReduction)
     }
 
     // ── Black Hammer and Killjoy ──────────────────────────────────────────────────
@@ -390,8 +422,10 @@ object CombatResolver {
      * The tally increase for the crash is NOT applied; the IC is held in the suppressed list.
      * The decker's effective Detection Factor drops by 1 for each suppressed IC.
      * Returns the updated Decker (does NOT modify tally).
+     * Requires the decker to be jacked in — a decker who has left the system cannot suppress IC.
      */
     fun suppressIc(decker: Decker, ic: IC): Decker {
+        require(decker.persona != null) { "Cannot suppress IC after leaving the system" }
         val state = IcSuppressionState(ic, ic.rating)
         return decker.copy(suppressedIc = decker.suppressedIc + state)
     }
@@ -416,10 +450,10 @@ object CombatResolver {
      * The IC's rating is the weapon (determines Power and base DamageLevel).
      */
     fun icAttackParticipant(ic: IC, securityCode: SecurityCode): AttackParticipant {
+        // CC-27: Blue/Green = Moderate; Orange/Red = Serious
         val rawLevel = when (securityCode) {
-            SecurityCode.BLUE, SecurityCode.GREEN -> DamageLevel.LIGHT
-            SecurityCode.ORANGE                   -> DamageLevel.MODERATE
-            SecurityCode.RED                      -> DamageLevel.SERIOUS
+            SecurityCode.BLUE, SecurityCode.GREEN -> DamageLevel.MODERATE
+            SecurityCode.ORANGE, SecurityCode.RED -> DamageLevel.SERIOUS
         }
         return AttackParticipant(
             utilityRating = ic.rating,

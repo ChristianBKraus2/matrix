@@ -426,6 +426,37 @@ fun locateFile(
 
 ---
 
+### Locate Decker
+
+**PRD:** MP-10, SO individual table
+**Action:** Complex (two-step: Index Test then open-ended Sensor Test)
+
+```kotlin
+fun locateDecker(
+    host: Host,
+    targetPersona: Persona,
+    diceRoller: DiceRoller
+): LocateDeckerResult
+```
+
+```kotlin
+data class LocateDeckerResult(
+    val decker: Decker,
+    val outcome: SystemTestOutcome,
+    val located: Boolean,
+    val targetNotified: Boolean   // always true when located == true (MP-10)
+)
+```
+
+**Algorithm:**
+1. Resolve Index Test: `SystemTestResolver.resolve(this, LOCATE_DECKER, host.indexRating, host.securityValue, diceRoller)`.
+2. If Index Test fails: return `LocateDeckerResult(decker, outcome, located = false, targetNotified = false)`.
+3. On success, resolve open-ended Sensor Test: roll `persona!!.sensor` dice vs. TN = `targetPersona.masking + (targetPersona.sleaze?.currentRating ?: 0)`. If Sensor Test achieves ≥ 1 success: decker is located.
+4. If located: `targetNotified = true` — the game engine must fire a notification event to the target decker (MP-10). The target does not learn *who* performed the operation.
+5. Return `LocateDeckerResult(updatedDecker, outcome, located, targetNotified)`.
+
+---
+
 ### Download Data
 
 **PRD:** SO individual table, SO-10–SO-12  
@@ -524,9 +555,10 @@ Uses `SystemTestResolver.resolveNullOperation(...)` which applies the inactivity
 
 ### Make Comcall / Tap Comcall
 
-Both are monitored operations. Their multi-step resolution (Index Test to find commcode, Control Test to trace, Files Test to tap) uses standard `SystemTestResolver.resolve()` calls sequenced by the caller. `Tap Comcall` dataline scanner detection uses an opposed `Computer Skill vs. Device Rating` test with the Commlink utility reducing the decker's TN.
+Both are monitored operations. Their multi-step resolution (Index Test to find commcode, Control Test to trace, Files Test to tap) uses standard `SystemTestResolver.resolve()` calls sequenced by the caller. **Tap Comcall — dataline scanner mechanics (PRD: Tap Comcall):**
+If the target phone has one or more dataline scanners, resolve an Opposed Computer Skill vs. scanner Device Rating test. When multiple scanners are present, use only the **highest** Device Rating (not the sum). The Commlink utility reduces the decker's TN on this test (floor 2). The decker needs at least 1 success; failure means the scanner detects the tap. These scanner tests do **not** affect the decker's RTG security tally — they are resolved entirely outside the normal security-tally system.
 
-The encrypt/decrypt sub-test in `Tap Comcall` is an opposed `Computer Skill vs. Device Rating` test with the Decrypt utility reducing the decker's TN. Each failed attempt adds +2 to the TN for subsequent tries. These sub-tests do **not** affect the decker's RTG security tally.
+The encrypt/decrypt sub-test in `Tap Comcall` is an opposed `Computer Skill vs. Device Rating` test with the Decrypt utility reducing the decker's TN. Each failed attempt adds +2 to the TN for subsequent tries. These sub-tests also do **not** affect the decker's RTG security tally.
 
 **Make Comcall — additional rules (PRD: Make Comcall table):**
 
@@ -544,6 +576,106 @@ Once a commcode has been successfully tapped, the decker does **not** need a new
 ### Relocate Icon
 
 Already registered in `cyberdeck_and_program_mechanics.md` as `RELOCATE_ICON`. The operation is a Success Contest: decker makes a Computer Test (TN = opponent's Sensor − Relocate utility rating); tracker makes an MPCP Test vs. Relocate utility rating. Relocating decker wins → track fails; the tracker must successfully attack again before relaunching the Track utility.
+
+---
+
+### Decrypt Operations
+
+**PRD:** SO individual table (`Decrypt Access`, `Decrypt File`, `Decrypt Slave`)
+**Action:** Simple
+**Test type:** varies by target subsystem (Access / Files / Slave respectively)
+
+Each Decrypt operation resolves as a standard System Test. On success, the encrypted element is decrypted and the decker may proceed normally.
+
+**Scramble IC destruct test on failed decrypt (rules p. 228):** If a decker attempts to decrypt an item that is protected by Scramble IC and **fails** the Decrypt System Test, the GM immediately makes a counter-test on behalf of the Scramble IC:
+
+1. Roll `ic.rating` dice vs. TN = `decker.computerSkill` → `scrambleSuccesses`.
+2. If `scrambleSuccesses == 0`: the decker has suppressed the Scramble IC's destruct code — the data is safe, and the Scramble IC is effectively defused for this attempt.
+3. If `scrambleSuccesses >= 1`: the destruct code fires and the data is destroyed. The GM removes the `DataFile` from the host permanently.
+
+This counter-test is made secretly by the GM engine; the decker is not informed of the Scramble IC's presence until it fires (unless previously detected via `noticeIcon`). The test does not generate a security tally increment — it is handled entirely outside the normal System Test flow.
+
+```kotlin
+fun resolveScrambleDestructTest(ic: Scramble, decker: Decker, file: DataFile, diceRoller: DiceRoller): ScrambleDestructResult
+```
+
+```kotlin
+data class ScrambleDestructResult(
+    val dataDestroyed: Boolean,
+    val icRating: Int
+)
+```
+
+**Algorithm:**
+
+1. Roll `ic.rating` dice vs. TN = `decker.computerSkill` → `successes`.
+2. Return `ScrambleDestructResult(dataDestroyed = successes >= 1, icRating = ic.rating)`.
+
+The caller removes `file` from the host when `dataDestroyed == true`.
+
+---
+
+### Buffered Messages (Free Action)
+
+**PRD:** rules p. 224
+
+A decker may spend a Free Action to compose a message of up to 100 words and queue it for delivery to any character linked to them via hitcher electrodes, radiolink, datascreen, or equivalent device.
+
+```kotlin
+fun bufferMessage(text: String, recipient: LinkedObserver): BufferedMessage
+```
+
+```kotlin
+data class BufferedMessage(
+    val text: String,
+    val recipient: LinkedObserver,
+    val deliverAtEndOfTurn: Boolean = true
+)
+```
+
+The recipient receives the message at the **end of the Combat Turn** (not immediately). This is a Free Action — it does not count against the decker's Simple or Complex Action budget for the Initiative Pass.
+
+**Second-character icon control:** A character receiving a buffered message via hitcher jack may also, at the GM's discretion, operate an icon that the decker can currently "see" (is aware of in the current area). This is a narrative mechanic; the GM resolves the hitcher's action as a directed action using the decker's active persona. No additional System Test is required beyond whatever the operated icon's action would normally require.
+
+**Scope note:** `LinkedObserver` represents any entity connected by hitcher jack, radiolink, or datascreen. It is a lightweight reference type; the full `HitcherObserver` type defined in `cyberdeck_and_program_mechanics.md` is a subtype.
+
+---
+
+## Alert State Transitions
+
+**PRD:** AL-01, AL-02
+
+Called by the game engine whenever the security tally crosses a trigger step that carries an `AlertTransition`.
+
+```kotlin
+fun applyAlertTransition(host: Host, newAlertStatus: AlertStatus): Host
+```
+
+**AL-01 — Passive Alert:** When `newAlertStatus == PASSIVE_ALERT`, return a new `Host` with all five subsystem ratings incremented by 2. The increment is permanent for this session — it is not reversed if the tally later drops below the Passive Alert trigger step:
+
+```kotlin
+host.copy(
+    accessRating  = host.accessRating  + 2,
+    controlRating = host.controlRating + 2,
+    indexRating   = host.indexRating   + 2,
+    filesRating   = host.filesRating   + 2,
+    slaveRating   = host.slaveRating   + 2,
+    alertStatus   = AlertStatus.PASSIVE_ALERT
+)
+```
+
+**AL-02 — Active Alert:** When `newAlertStatus == ACTIVE_ALERT`, set `alertStatus = ACTIVE_ALERT` and additionally spawn security decker NPCs if the triggering `TriggerStep` specifies them. `TriggerStep` gains an optional field:
+
+```kotlin
+data class TriggerStep(
+    val tallyThreshold: Int,
+    val icActivations: List<IC> = emptyList(),
+    val alertTransition: AlertStatus? = null,
+    val securityDeckerCount: Int = 0          // AL-02: number of NPC deckers to spawn
+)
+```
+
+The game engine calls `spawnSecurityDeckers(host, count, diceRoller)` which creates `count` NPC `Decker` instances, assigns each a `Persona`, and places them on the host. These NPC personas act as hostile proactive combatants — they roll initiative and attack the intruding persona using standard cybercombat rules (CC-05/CC-07).
 
 ---
 
@@ -606,6 +738,13 @@ Each 3-second game turn the decker may perform `actionsPerTurn` actions. Free Ac
 | `downloadData` aborted mid-transfer | Corrupted file copy (worthless unless GM rules otherwise) |
 | Monitored operation: missing one Free Action | `MonitoredOperationHandle.active = false`; operation aborts |
 | `controlSlave` on medical lab, Computer 5, Biotech 4 | Effective skill = (5+4)/2 = 4 (rounded down) |
+| `locateDecker` succeeds (Sensor Test ≥ 1 success) | `LocateDeckerResult(located = true, targetNotified = true)`; notification event fired (MP-10) |
+| `locateDecker` Index Test fails | `LocateDeckerResult(located = false, targetNotified = false)`; no notification |
+| Tally crosses Passive Alert step | `applyAlertTransition` returns host with all five ratings +2; `alertStatus = PASSIVE_ALERT` (AL-01) |
+| Tally crosses Active Alert step with `securityDeckerCount = 2` | `alertStatus = ACTIVE_ALERT`; 2 NPC decker personas spawned on host (AL-02) |
+| Tally drops below Passive Alert step after transition | Ratings remain at +2; effect is permanent for the session (AL-01) |
+| Tap Comcall with 3 scanners (ratings 4, 6, 7) | Only rating 7 used for the opposed test |
+| Decker rolls 0 successes on scanner test | Tap detected; scanner test failure does not increment RTG tally |
 | `tapComcall` decrypt fails twice | TN +4 cumulative on third attempt |
 | Tap Comcall: commcode already tapped | No new Index Test; trace/tap steps still required for new call on same commcode |
 | Make Comcall: licensed decker with valid passcode | All System Tests skipped; proceed directly to call |
@@ -614,3 +753,7 @@ Each 3-second game turn the decker may perform `actionsPerTurn` actions. Free Ac
 | Edit File: no authentication, checker rolls 1 | Tampering detected on any success |
 | `noticeIcon` with `friendlyReveal = true` | Sensor Test bypassed; `Detected(icon, 1)` returned immediately (MP-09) |
 | Pointer chain: `isPointer == true` | `resolvePointerChain` called; 1D6 intermediate hosts to traverse |
+| Decrypt fails; Scramble IC present; `ic.rating` 0 successes vs. Computer Skill | Destruct suppressed; data safe; no tally increment |
+| Decrypt fails; Scramble IC present; `ic.rating` ≥ 1 success vs. Computer Skill | `dataDestroyed = true`; file removed from host |
+| Scramble destruct counter-test | Does not affect RTG/host security tally |
+| Buffered message composed (Free Action) | Delivered to linked recipient at end of Combat Turn; no action budget consumed |

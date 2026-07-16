@@ -882,9 +882,15 @@ class CyberdeckAndProgramMechanicsTest {
 
     @Test
     fun `invokeMediac TN is 6 for 7-9 filled boxes`() {
-        // 9 boxes → TN 6; face=6 → all succeed (4 dice) → 4 successes but only 9 boxes filled → repairs 4
+        // 9 boxes → TN 6; roll exploding 6s: face=6 then face=1 → total=7 ≥ TN 6 → success
+        // 4 medic dice each need [6,1] to explode past TN 6 → 4 successes, repair 4 of 9 boxes
         val d = deckerWithMedic(medicRating = 4, damage = 9)
-        val result = d.invokeMediac(fixedRoller(6))
+        val roller = DiceRoller(object : Random() {
+            private val values = ArrayDeque(listOf(6, 1, 6, 1, 6, 1, 6, 1)) // 4 dice each explode once
+            override fun nextBits(bitCount: Int) = 0
+            override fun nextInt(from: Int, until: Int) = values.removeFirst().coerceIn(from, until - 1)
+        })
+        val result = d.invokeMediac(roller)
         assertEquals(4, result.boxesRepaired)
         assertEquals(5, result.updatedDecker.persona!!.conditionMonitor.damage)
     }

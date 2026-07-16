@@ -157,13 +157,19 @@ All seven methods are **pure**: they take immutable inputs and return new `Decke
 **Preconditions:**
 - `persona == null`
 - `jackpoint != null`
-- `jackpoint.type` ∈ `{WORKSTATION, CONSOLE, REMOTE_DEVICE}` (M-02)
-- `jackpoint.connectsToHost == host` (can only log onto the controlling host)
+- `jackpoint.type` ∈ `{WORKSTATION, CONSOLE, REMOTE_DEVICE, ILLEGAL_JUNCTION_BOX}` (M-02, M-03)
+- `jackpoint.connectsToHost == host` (can only log onto the host the trunk is connected to)
 
 **Logic:**
 1. Run `SystemTestResolver.resolve(decker, host.subsystemRatings.access, host.securityRating.value, diceRoller)`.
 2. Increment `host.securityTally` by `outcome.hostSuccesses`.
-3. If `outcome.deckerWins`: create persona, set `currentLocation = OnHost(updatedHost)` → `LogonResult.Success`.
+3. If `outcome.deckerWins`: create persona; set `persona.currentNode` based on jackpoint type (M-02, M-03):
+   - `WORKSTATION` → the host's Access node (I/O port)
+   - `REMOTE_DEVICE` → the host's Slave node (slave controller)
+   - `CONSOLE` → the host's Control node (CPU node)
+   - `ILLEGAL_JUNCTION_BOX` → the host's Access node (default entry point; trunk connects to the host's SAN)
+
+   Set `currentLocation = OnHost(updatedHost)` → `LogonResult.Success`.
 4. Otherwise: `LogonResult.Failure`.
 
 ---
@@ -205,6 +211,8 @@ Covers both public LTG (from RTG) and PLTG (from LTG/RTG, using `Logon to LTG` o
 5. If `outcome.deckerWins`: `currentLocation = OnLTG(updatedLtg)` (or `OnPLTG` if the type is `PLTG`) → `LogonResult.Success`.
 6. Otherwise: `LogonResult.Failure` (M-12: tally on target LTG persists for memory window; callers manage the timer outside this method).
 
+**LTG failed-logon tally memory window (rules p. 218):** Public LTGs retain the accumulated security tally from a failed logon attempt for `1D3 × 5` minutes. If the decker attempts to log on again from the **same jackpoint** before this window expires, the tally continues from its current value (it is not reset to 0). If the decker switches to a **different jackpoint** before the next attempt, the LTG starts a fresh security tally at 0 for that attempt — the prior tally is not carried over. The timer and jackpoint identity are held by the caller (game engine); this method does not track them internally.
+
 ---
 
 ### 5. `logonToHost(host: Host, diceRoller: DiceRoller): LogonResult`
@@ -235,9 +243,12 @@ Covers both public LTG (from RTG) and PLTG (from LTG/RTG, using `Logon to LTG` o
 
 **Logic:**
 1. Resolve the current grid/host's Access Rating and Security Value from `currentLocation`.
-2. Run `SystemTestResolver.resolve(decker, accessRating, securityValue, diceRoller)`.
-3. If `outcome.deckerWins`: clear persona, set `currentLocation = null` → `LogoffResult.GracefulSuccess`. (Traces cleared — security tally conceptually expunged; the caller discards the grid/host object or resets its tally.)
-4. If not: decker must fall back to jack out → return `LogoffResult.JackOut(decker, dumpShock = true)`.
+2. Determine effective TN = `accessRating`. If `decker.trackState != null`, add `trackState.trackingIcRating` to TN (CC-33: Graceful Logoff TN is raised by Track Rating while a location cycle is running).
+3. Run `SystemTestResolver.resolve(decker, effectiveTn, securityValue, diceRoller)`.
+4. If `outcome.deckerWins`: clear persona, set `currentLocation = null` → `LogoffResult.GracefulSuccess`. (Traces cleared — security tally conceptually expunged; the caller discards the grid/host object or resets its tally.)
+5. If not: decker must fall back to jack out → return `LogoffResult.JackOut(decker, dumpShock = true)`.
+
+**Passcode devalidation (rules p. 226):** If the decker's `PersonaStatus` is `LEGITIMATE` (acquired via a planted or stolen host passcode), the host devalidates that passcode upon successful logoff — the decker's cover is blown. The caller must set `decker.hasValidPasscode(host) = false` after a `GracefulSuccess`. The passcode is **not** devalidated if the decker used Legitimate status only against other intruding deckers (i.e., never exploited it against the host's own IC); the GM tracks this distinction narratively.
 
 ---
 
@@ -255,6 +266,8 @@ Covers both public LTG (from RTG) and PLTG (from LTG/RTG, using `Logon to LTG` o
 
 Dump shock damage (Power = host Security Value, damage level from Security Code) is applied separately by the caller using the existing combat/damage infrastructure.
 
+**Passcode devalidation (rules p. 226):** Same rule as `gracefulLogoff` applies on jack-out: if `PersonaStatus == LEGITIMATE`, the host devalidates the passcode. The caller must mark the passcode invalid after jack-out completes.
+
 ---
 
 ## Security Tally Summary
@@ -268,6 +281,30 @@ Dump shock damage (Power = host Security Value, damage level from Security Code)
 | Logon to Host | Add `hostSuccesses` to host tally (separate from grid tally) |
 | Graceful Logoff (success) | System tally cleared (caller responsibility) |
 | New decker logs on while host is mid-reset | Tally starts at the current reduced value at time of intrusion (not at 0) |
+| Failed LTG logon; retry from same jackpoint within memory window | LTG tally continues from current value; not reset to 0 |
+| Failed LTG logon; retry from different jackpoint | LTG tally reset to 0 for the new attempt |
+
+---
+
+## System Reset Mechanics
+
+After a decker logs off (gracefully or by jack-out), grids and hosts reset their security tallies on the following schedule (rules p. 212):
+
+**Blue systems:** Reset completely in 2D6 minutes; security tally drops to 0.
+
+**Green / Orange / Red systems (no alert triggered):** Begin to reset after 3D6 minutes, provided no Passive or Active Alert was triggered during the run.
+
+**Green / Orange / Red systems (alert was triggered):** Roll 1D6 every:
+
+- **Green:** 5 minutes
+- **Orange:** 10 minutes
+- **Red:** 15 minutes
+
+Reduce the security tally by the roll result each interval. Any IC that was still running when the decker logged off remains active until the tally drops below the trigger step that activated it.
+
+If a new decker logs on illegally **before** the reset finishes, that decker's initial tally is the current reduced value (not 0). This is already captured in the Security Tally Summary table above.
+
+The reset timer and interval logic are held entirely by the game engine (caller); no `Host` or `LTG` method is responsible for self-decrementing the tally over time.
 
 ---
 
@@ -289,6 +326,10 @@ The `logonToHost` method enforces topology by validating that `host` appears in 
 | Scenario | Expected Result |
 |---|---|
 | Telecom jackpoint calls `jackInToLtg` | Precondition OK; dice rolled |
+| Workstation jackpoint calls `jackInToHost` | `LogonResult.Success`; `persona.currentNode` = Access node |
+| Remote-device jackpoint calls `jackInToHost` | `LogonResult.Success`; `persona.currentNode` = Slave node |
+| Console jackpoint calls `jackInToHost` | `LogonResult.Success`; `persona.currentNode` = Control node |
+| Illegal junction-box jackpoint calls `jackInToHost` | `LogonResult.Success`; `persona.currentNode` = Access node |
 | Telecom jackpoint calls `jackInToHost` | `IllegalStateException` (jackpoint type not allowed) |
 | Workstation jackpoint calls `jackInToLtg` | `IllegalStateException` |
 | Successful `jackInToLtg` | `LogonResult.Success`, `currentLocation = OnLTG`, tally incremented |
@@ -298,6 +339,11 @@ The `logonToHost` method enforces topology by validating that `host` appears in 
 | `logonToLtg` targeting PLTG | PLTG tally initialized from RTG tally |
 | `logonToHost` from second-tier to sibling second-tier | Precondition violation returned |
 | `gracefulLogoff` success | `GracefulSuccess`, `currentLocation = null`, no dump shock |
+| `gracefulLogoff` with Track rating 4 active | Effective TN = `accessRating + 4`; standard test otherwise (CC-33) |
 | `gracefulLogoff` failure | `JackOut(dumpShock = true)` |
 | `jackOut()` with no graceful logoff | `JackOut(dumpShock = true)` |
 | `jackOut()` pinned by Black IC | `IllegalStateException` |
+| `gracefulLogoff` with Legitimate passcode | Caller marks passcode invalid after `GracefulSuccess` |
+| `jackOut()` with Legitimate passcode | Caller marks passcode invalid after jack-out |
+| Failed LTG logon; retry same jackpoint within 1D3×5 min | LTG tally continues from current value |
+| Failed LTG logon; retry from different jackpoint | LTG tally reset to 0 for new attempt |

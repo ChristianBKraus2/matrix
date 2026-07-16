@@ -47,12 +47,46 @@ rtgs:
             security: Orange-6
             ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
             sculpt: medieval_japanese
+            topology: open-access
+            security_sheaf:
+              - tally: 3
+                ic: [Probe-5]
+              - tally: 7
+                ic: [Probe-7]
+              - tally: 10
+                ic: [Killer-8]
+                alert: passive
+              - tally: 13
+                ic: [Killer-10]
+                alert: active
+                security_deckers: 1
           - name: Lone Star GridSec Seattle
             security: Orange-7
             ratings: { access: 9, control: 9, index: 8, files: 8, slave: 8 }
+            topology: open-access
+            security_sheaf:
+              - tally: 3
+                ic: [Probe-6]
+              - tally: 6
+                ic: [Killer-7]
+              - tally: 10
+                ic: [Killer-9]
+                alert: passive
+              - tally: 13
+                ic: [Killer-10]
+                alert: active
+                security_deckers: 2
           - name: Renraku Public Relations
             security: Green-5
             ratings: { access: 7, control: 8, index: 7, files: 7, slave: 7 }
+            topology: open-access
+            security_sheaf:
+              - tally: 4
+                ic: [Probe-4]
+              - tally: 8
+                ic: [Probe-6]
+              - tally: 12
+                alert: passive
       - id: UCAS-CHI
         region: Chicago
         hosts:
@@ -233,6 +267,38 @@ rtgs:
   # Remaining RTGs (Caribbean League sub-nations, NAN nations) follow the same pattern.
   # Ratings taken verbatim from the North American RTG System Ratings table (rules p. 203).
 ```
+
+---
+
+## Host Rating Random Generation
+
+When a GM wants to generate a host procedurally rather than specifying ratings by hand, use the following table (rules p. 205):
+
+| Intrusion Difficulty | Security Value | Subsystem Ratings (Access/Control/Index/Files/Slave) |
+|---|---|---|
+| Easy | 1D3 + 3 | 1D3 + 7 |
+| Average | 1D3 + 6 | 2D3 + 9 |
+| Hard | 2D3 + 6 | 1D6 + 12 |
+
+Each subsystem is rolled independently. The resulting ratings are placed directly into the YAML as explicit values — the random generation is a design-time tool, not a runtime mechanic.
+
+---
+
+## Security Sheaf Random Generation
+
+Trigger step intervals are also generated randomly when not specified by hand (rules p. 211):
+
+1. Roll 1D6 ÷ 2 (round down, minimum 1).
+2. Add a Security Code modifier:
+   - **Blue:** +4 (result range 5–7)
+   - **Green:** +3 (result range 4–6)
+   - **Orange:** +2 (result range 3–5)
+   - **Red:** +1 (result range 2–4)
+3. Add the result cumulatively to the previous trigger step threshold.
+
+Repeat for each desired trigger step. For tighter security (more trigger steps at lower tally values) use the minimum of the range; for looser security use the maximum.
+
+These threshold values are written directly into the `security_sheaf` YAML once generated — they are static configuration, not rolled at runtime.
 
 ---
 

@@ -826,13 +826,84 @@ class CombatResolverTest {
     @Test
     fun `resolveLethalBlackIc sets dumpShockTriggered on persona crash`() {
         // persona CM nearly full; one Moderate hit fills it
+        // Dice: icon bod(6) + body(4) + MPCP shot(12) = 22 total when kill fires
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6,
             conditionMonitor = ConditionMonitor(damage = 8))
-        val roller = allFaces(1)  // no defense succeeds
+        val roller = allFaces(1, 30)  // no defense, no MPCP successes
         val d = decker(persona = persona)
         val ic = LethalBlackIC(rating = 6)
         val result = CombatResolver.resolveLethalBlackIc(d, ic, SecurityCode.BLUE, roller)
         assertTrue(result.dumpShockTriggered)
+    }
+
+    @Test
+    fun `resolveLethalBlackIc no MPCP reduction when kill not triggered`() {
+        // Persona CM has plenty of room; MODERATE hit won't crash it → no MPCP shot fires
+        val roller = allFaces(1, 30)
+        val d = decker()
+        val ic = LethalBlackIC(rating = 6)
+        val result = CombatResolver.resolveLethalBlackIc(d, ic, SecurityCode.BLUE, roller)
+        assertFalse(result.dumpShockTriggered)
+        assertEquals(0, result.mpcpReductionOnKill)
+        assertEquals(8, result.updatedDecker.cyberdeck.mcpRating)
+    }
+
+    @Test
+    fun `resolveLethalBlackIc MPCP death blow reduces mcpRating on kill`() {
+        // Persona CM = 8 → MODERATE (3 boxes) crashes it → kill fires
+        // MPCP shot: ic.rating*2=12 dice vs TN hardening(0)+mcpRating(6)=6 → 4 hits via [6,1]×4 → reduction=2
+        // Programs rating=1 each; after reduction: sum=4 ≤ 4*3=12, each=1 ≤ 4 ✓
+        val lowPrograms = listOf(
+            PersonaProgram(PersonaAttributeType.BOD, 1),
+            PersonaProgram(PersonaAttributeType.EVASION, 1),
+            PersonaProgram(PersonaAttributeType.MASKING, 1),
+            PersonaProgram(PersonaAttributeType.SENSORS, 1)
+        )
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6,
+            conditionMonitor = ConditionMonitor(damage = 8))
+        val roller = DiceRoller(stubRandom(
+            *IntArray(10) { 1 },                         // iconDef(6) + body(4) — all fail
+            6, 1, 6, 1, 6, 1, 6, 1,                     // 4 of 12 MPCP dice hit via [6,1] pairs
+            *IntArray(8) { 1 }                           // remaining 8 MPCP dice fail
+        ))
+        val d = decker(
+            cyberdeck = Cyberdeck(
+                name = "TestDeck", mcpRating = 6, hardening = 0,
+                activeMemoryMp = 2000, storageMemoryMp = 5000, ioSpeedMpPerTurn = 500, costNuyen = 0,
+                personaPrograms = lowPrograms
+            ),
+            persona = persona
+        )
+        val ic = LethalBlackIC(rating = 6)
+        val result = CombatResolver.resolveLethalBlackIc(d, ic, SecurityCode.BLUE, roller)
+        assertTrue(result.dumpShockTriggered)
+        assertEquals(2, result.mpcpReductionOnKill)
+        assertEquals(4, result.updatedDecker.cyberdeck.mcpRating)  // 6 - 2
+    }
+
+    @Test
+    fun `resolveLethalBlackIc MPCP floors at 0`() {
+        // Persona CM = 8 → kill fires; MPCP shot has many successes; mcpRating=2 → floors at 0
+        // No persona programs so that copy(mcpRating=0) doesn't violate sum ≤ 0*3=0
+        // ic.rating=6 → MPCP dice=12, TN=max(2, 0+2)=2; face=5 hits TN 2 without exploding → 12 successes → reduction=6 → max(0,2-6)=0
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6,
+            conditionMonitor = ConditionMonitor(damage = 8))
+        val roller = DiceRoller(stubRandom(
+            *IntArray(10) { 1 },    // iconDef(6) + body(4) — all fail
+            *IntArray(12) { 5 }     // all 12 MPCP dice succeed at TN 2 (no exploding)
+        ))
+        val d = decker(
+            cyberdeck = Cyberdeck(
+                name = "TestDeck", mcpRating = 2, hardening = 0,
+                activeMemoryMp = 2000, storageMemoryMp = 5000, ioSpeedMpPerTurn = 500, costNuyen = 0,
+                personaPrograms = emptyList()
+            ),
+            persona = persona
+        )
+        val ic = LethalBlackIC(rating = 6)
+        val result = CombatResolver.resolveLethalBlackIc(d, ic, SecurityCode.BLUE, roller)
+        assertTrue(result.dumpShockTriggered)
+        assertEquals(0, result.updatedDecker.cyberdeck.mcpRating)
     }
 
     // ── resolveNonLethalBlackIc ───────────────────────────────────────────────────
@@ -840,12 +911,72 @@ class CombatResolverTest {
     @Test
     fun `resolveNonLethalBlackIc applies mental damage via Willpower resist`() {
         // willpower=5 all fail → full MODERATE mental damage = 3 boxes
-        val roller = allFaces(1)
+        // effectivePower = max(0, 8-8) = 0 → no mental roll → no MPCP shot (no crash from 3 boxes on fresh CM)
+        val roller = allFaces(1, 30)
         val d = decker(willpower = 5, cyberdeck = deck(hardening = 8))
         val ic = NonLethalBlackIC(rating = 8)
         val result = CombatResolver.resolveNonLethalBlackIc(d, ic, SecurityCode.BLUE, roller)
         assertTrue(result.updatedDecker.mentalConditionMonitor.damage > 0)
         assertNull(result.simsenseOverload)
+    }
+
+    @Test
+    fun `resolveNonLethalBlackIc no MPCP reduction when kill not triggered`() {
+        // Fresh CMs — MODERATE hit (3 boxes) won't crash either → no MPCP shot
+        val roller = allFaces(1, 30)
+        val d = decker(willpower = 5)
+        val ic = NonLethalBlackIC(rating = 6)
+        val result = CombatResolver.resolveNonLethalBlackIc(d, ic, SecurityCode.BLUE, roller)
+        assertFalse(result.dumpShockTriggered)
+        assertEquals(0, result.mpcpReductionOnKill)
+        assertEquals(8, result.updatedDecker.cyberdeck.mcpRating)
+    }
+
+    @Test
+    fun `resolveNonLethalBlackIc MPCP death blow fires on mental CM crash`() {
+        // Mental CM = 8 → MODERATE mental hit crashes it → kill fires
+        // Dice order: iconDef(bod=6) + mental(willpower=5) + MPCP(ic.rating*2=12)
+        // 4 MPCP dice use (6,1) → 4 successes → reduction=2; remaining 8 fail
+        // Programs rating=1 each; after reduction: sum=4 ≤ 4*3=12, each=1 ≤ 4 ✓
+        val lowPrograms = listOf(
+            PersonaProgram(PersonaAttributeType.BOD, 1),
+            PersonaProgram(PersonaAttributeType.EVASION, 1),
+            PersonaProgram(PersonaAttributeType.MASKING, 1),
+            PersonaProgram(PersonaAttributeType.SENSORS, 1)
+        )
+        val roller = DiceRoller(stubRandom(
+            *IntArray(11) { 1 },                         // iconDef(6) + mental(5) — all fail
+            6, 1, 6, 1, 6, 1, 6, 1,                     // 4 of 12 MPCP dice hit via [6,1] pairs
+            *IntArray(8) { 1 }                           // remaining 8 MPCP dice fail
+        ))
+        val d = decker(
+            willpower = 5,
+            cyberdeck = Cyberdeck(
+                name = "TestDeck", mcpRating = 6, hardening = 0,
+                activeMemoryMp = 2000, storageMemoryMp = 5000, ioSpeedMpPerTurn = 500, costNuyen = 0,
+                personaPrograms = lowPrograms
+            ),
+            mentalCm = ConditionMonitor(damage = 8)
+        )
+        val ic = NonLethalBlackIC(rating = 6)
+        val result = CombatResolver.resolveNonLethalBlackIc(d, ic, SecurityCode.BLUE, roller)
+        assertTrue(result.dumpShockTriggered)
+        assertEquals(2, result.mpcpReductionOnKill)
+        assertEquals(4, result.updatedDecker.cyberdeck.mcpRating)  // 6 - 2
+    }
+
+    @Test
+    fun `resolveNonLethalBlackIc MPCP death blow fires on icon CM crash`() {
+        // Icon CM = 8 → MODERATE icon hit crashes it → kill fires; MPCP shot all fails → reduction=0
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6,
+            conditionMonitor = ConditionMonitor(damage = 8))
+        val roller = allFaces(1, 30)  // all fail, including MPCP shot
+        val d = decker(willpower = 5, cyberdeck = deck(mcpRating = 8, hardening = 0), persona = persona)
+        val ic = NonLethalBlackIC(rating = 6)
+        val result = CombatResolver.resolveNonLethalBlackIc(d, ic, SecurityCode.BLUE, roller)
+        assertTrue(result.dumpShockTriggered)
+        assertEquals(0, result.mpcpReductionOnKill)
+        assertEquals(8, result.updatedDecker.cyberdeck.mcpRating)  // no successes, unchanged
     }
 
     // ── resolveBlackHammer ────────────────────────────────────────────────────────
@@ -991,6 +1122,14 @@ class CombatResolverTest {
     }
 
     @Test
+    fun `suppressIc throws when decker has no persona (already left system)`() {
+        val ic = Probe(rating = 4)
+        val d = decker(persona = null)
+        val result = runCatching { CombatResolver.suppressIc(d, ic) }
+        assertTrue(result.isFailure)
+    }
+
+    @Test
     fun `unsuppressIc removes IC from suppressedIc list`() {
         val ic = Probe(rating = 4)
         val withSuppressed = CombatResolver.suppressIc(decker(), ic)
@@ -1031,27 +1170,30 @@ class CombatResolverTest {
     // ── icAttackParticipant (CC-23) ───────────────────────────────────────────────
 
     @Test
-    fun `icAttackParticipant Blue host gives LIGHT damage and SV=3`() {
+    fun `icAttackParticipant Blue host gives MODERATE damage and SV=3`() {
+        // CC-27: Blue/Green = Moderate damage level
         val ic = Killer(rating = 5)
         val p = CombatResolver.icAttackParticipant(ic, SecurityCode.BLUE)
-        assertEquals(DamageLevel.LIGHT, p.rawDamageLevel)
+        assertEquals(DamageLevel.MODERATE, p.rawDamageLevel)
         assertEquals(3, p.hackingPool)
         assertEquals(5, p.utilityRating)
     }
 
     @Test
-    fun `icAttackParticipant Green host gives LIGHT damage and SV=4`() {
+    fun `icAttackParticipant Green host gives MODERATE damage and SV=4`() {
+        // CC-27: Blue/Green = Moderate damage level
         val ic = Killer(rating = 4)
         val p = CombatResolver.icAttackParticipant(ic, SecurityCode.GREEN)
-        assertEquals(DamageLevel.LIGHT, p.rawDamageLevel)
+        assertEquals(DamageLevel.MODERATE, p.rawDamageLevel)
         assertEquals(4, p.hackingPool)
     }
 
     @Test
-    fun `icAttackParticipant Orange host gives MODERATE damage and SV=5`() {
+    fun `icAttackParticipant Orange host gives SERIOUS damage and SV=5`() {
+        // CC-27: Orange/Red = Serious damage level
         val ic = Killer(rating = 6)
         val p = CombatResolver.icAttackParticipant(ic, SecurityCode.ORANGE)
-        assertEquals(DamageLevel.MODERATE, p.rawDamageLevel)
+        assertEquals(DamageLevel.SERIOUS, p.rawDamageLevel)
         assertEquals(5, p.hackingPool)
     }
 
@@ -1087,6 +1229,53 @@ class CombatResolverTest {
         )
         // Both should produce the same structural result (roller is deterministic).
         assertEquals(baseline.reduction, withSuppression.reduction)
+    }
+
+    // ── resolveRipperMpcpTest ─────────────────────────────────────────────────────
+
+    @Test
+    fun `resolveRipperMpcpTest reduces MPCP by half IC successes`() {
+        // tn = hardening(0) + mcpRating(6) = 6; IC 8 dice, each pair (6,1)=7≥6 → 4 hits → reduction=2
+        // Programs(1) so that sum=4 ≤ 4*3=12 after reduction
+        val lowPrograms = listOf(
+            PersonaProgram(PersonaAttributeType.BOD, 1),
+            PersonaProgram(PersonaAttributeType.EVASION, 1),
+            PersonaProgram(PersonaAttributeType.MASKING, 1),
+            PersonaProgram(PersonaAttributeType.SENSORS, 1)
+        )
+        val roller = DiceRoller(stubRandom(6, 1, 6, 1, 6, 1, 6, 1, 1, 1, 1, 1))
+        val d = decker(cyberdeck = Cyberdeck(
+            name = "TestDeck", mcpRating = 6, hardening = 0,
+            activeMemoryMp = 2000, storageMemoryMp = 5000, ioSpeedMpPerTurn = 500,
+            costNuyen = 0, personaPrograms = lowPrograms
+        ))
+        val ic = Ripper(rating = 8, targetAttribute = PersonaAttributeType.EVASION)
+        val result = CombatResolver.resolveRipperMpcpTest(d, ic, roller)
+        assertEquals(4, result.cyberdeck.mcpRating)  // 6 - (4/2) = 4
+    }
+
+    @Test
+    fun `resolveRipperMpcpTest with no IC successes leaves MPCP unchanged`() {
+        // tn = 8; IC 6 dice all show 5 → 0 successes at TN 8
+        val roller = allFaces(5)
+        val d = decker(cyberdeck = deck(mcpRating = 8, hardening = 0))
+        val ic = Ripper(rating = 6, targetAttribute = PersonaAttributeType.BOD)
+        val result = CombatResolver.resolveRipperMpcpTest(d, ic, roller)
+        assertEquals(8, result.cyberdeck.mcpRating)
+    }
+
+    @Test
+    fun `resolveRipperMpcpTest floors MPCP at 0`() {
+        // tn = max(2, 0+1) = 2; IC 12 dice all show 5 → 12 successes → reduction=6 → max(0,1-6)=0
+        val roller = allFaces(5, 30)
+        val d = decker(cyberdeck = Cyberdeck(
+            name = "TestDeck", mcpRating = 1, hardening = 0,
+            activeMemoryMp = 2000, storageMemoryMp = 5000, ioSpeedMpPerTurn = 500,
+            costNuyen = 0, personaPrograms = emptyList()
+        ))
+        val ic = Ripper(rating = 12, targetAttribute = PersonaAttributeType.BOD)
+        val result = CombatResolver.resolveRipperMpcpTest(d, ic, roller)
+        assertEquals(0, result.cyberdeck.mcpRating)
     }
 
     // ── Persona attribute helpers ─────────────────────────────────────────────────

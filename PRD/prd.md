@@ -13,7 +13,10 @@ This document focuses on the various use cases.
 #### Jacking In (Initial Entry)
 
 - M-01: A decker using a telecom or illegal-telecom jackpoint may only perform **Logon to LTG** as the first operation; the persona appears on the LTG connected to that jackpoint.
-- M-02: A decker using a workstation, console, or remote-device jackpoint may only perform **Logon to Host** as the first operation, and only to the host that controls that device; the persona appears inside that host.
+- M-02: A decker using a workstation, console, or remote-device jackpoint may only perform **Logon to Host** as the first operation, and only to the host that controls that device; the persona appears inside that host at a location determined by jackpoint type:
+  - Workstation jackpoint → persona appears at the I/O port node (Access subsystem).
+  - Remote-device jackpoint → persona appears at the slave controller (Slave node).
+  - Console jackpoint → persona appears at the CPU node (Control node).
 - M-03: A decker using an illegal junction-box jackpoint may perform either **Logon to LTG** or **Logon to Host** as the first operation, depending on where the fiber-optic trunk is connected.
 - M-04: A logon attempt requires a System Test (Computer Skill vs. Access Rating in a Success Contest); the host/grid simultaneously makes a Security Test (Security Value dice vs. the decker's Detection Factor). The decker succeeds when achieving at least as many successes as the host/grid.
 - M-05: Each System Test result (host/grid successes) is added to the decker's **security tally** on that system, regardless of who won the contest.
@@ -247,6 +250,7 @@ Cyberterminals are legal Matrix access devices used by ordinary corporate worker
 - MP-05: If the Sensor Test fails, the decker is **unaware** of the icon's presence until the icon chooses to reveal itself or attacks the decker.
 - MP-06: If a decker **suspects** the presence of another icon, she may perform a **Locate Decker** or **Locate IC** operation to verify that suspicion.
 - MP-09: Friendly deckers who wish to make their presences known to each other may do so automatically, without requiring a Sensor Test.
+- MP-10: When a Locate Decker operation succeeds, the targeted decker is **automatically informed** that their location has been traced. The target does not learn who performed the operation or where the attacker is.
 
 ### Noticing Triggered Reactive IC
 
@@ -334,7 +338,7 @@ Each operation entry: **Test** (subsystem), **Utility** (reduces TN), **Action t
 | Null Operation | Control | Deception | Complex | Required when decker is inactive. GM applies TN modifier to host's Security Value: <10 s base; 10 s–1 min +1; 1–60 min +2; 1–12 hr +4; +1 per additional 12 hr. |
 | Relocate Icon | Control | Relocate | Simple | Used to evade a Track utility. Decker makes Computer Test (TN = opponent's Sensor − Relocate rating); tracker makes MPCP Test vs. Relocate rating. Relocating decker wins → track fails completely. |
 | Swap Memory | None | None | Simple | Loads a utility from storage into active memory. Free Action to unload first if needed. Upload countdown begins immediately (see CD-10). No System Test. |
-| Tap Comcall | Special | Commlink | Complex | Locates active commcodes (Index Test), traces calls (Control Test), taps and records (Files Test). Scrambled lines require Opposed Computer vs. Device Rating decrypt test. Dataline scanners trigger Opposed Computer vs. scanner Device Rating test. Once a commcode has been tapped, the decker does not need a new Index Test to detect future activity on that same commcode; new trace and tap tests are still required for each subsequent call. Monitored operation. |
+| Tap Comcall | Special | Commlink | Complex | Locates active commcodes (Index Test), traces calls (Control Test), taps and records (Files Test). Scrambled lines require Opposed Computer vs. Device Rating decrypt test. **Dataline scanner mechanics:** if the target phone has one or more dataline scanners (Rating 1–10), the decker must make an Opposed Computer vs. scanner Device Rating test (Commlink reduces TN). When multiple scanners are present, use only the highest rating. The decker needs at least 1 success on this test; failure means the scanner detects the tap. These Tap Comcall tests do **not** affect the RTG security tally. Once a commcode has been tapped, the decker does not need a new Index Test to detect future activity on that same commcode; new trace and tap tests are still required for each subsequent call. Monitored operation. |
 | Upload Data | Files | Read/Write | Simple | Transmits data from deck storage to the Matrix at I/O speed. Does not consume active memory. For modifying existing host files, an Edit File operation is required afterward. **Cannot** be used to upload utility programs — use Swap Memory for that. Ongoing operation. |
 
 ## Cybercombat
@@ -419,9 +423,12 @@ Each operation entry: **Test** (subsystem), **Utility** (reduces TN), **Action t
 
 - CC-33: After each successful Attack Test against a target decker, the target makes an Evasion (Track Rating) Test. If the target achieves fewer successes than the attacker, the Track utility locks onto the target's datatrail. Location cycle duration (in full Combat Turns) = 10 ÷ net attacker successes (round up). The target may escape by logging off or jacking out; Graceful Logoff TN is raised by the Track Rating while the location cycle is running. Crashing the attacker's persona stops all its running programs, including Track.
 
-## Intrusion Countermeasures
+## Alert State Effects
 
-### White IC
+- AL-01: When the host transitions to **Passive Alert** (via an AlertTransition on a TriggerStep), all five subsystem ratings (Access, Control, Index, Files, Slave) are immediately raised by +2. This increase applies to all subsequent System Tests for the remainder of the decker's current session on that host. The increase is **not** reversed if the security tally later drops below the Passive Alert trigger step.
+- AL-02: When the host transitions to **Active Alert**, any TriggerStep at or above the Active Alert threshold may specify one or more **security decker NPCs** to spawn. Each security decker NPC persona enters the host and operates as a hostile proactive combatant — it rolls for Initiative and attacks the intruding persona using standard cybercombat rules.
+
+## Intrusion Countermeasures
 
 - ICC-01: **Crippler** (proactive) — targets one persona attribute (subtype determines which: Acid → Bod, Binder → Evasion, Jammer → Sensor, Marker → Masking). The host makes an Attack Test (Security Value dice vs. Detection Factor); the decker defends with the targeted attribute vs. TN = IC Rating. Every 2 net IC successes reduces the targeted attribute by 1. The attribute cannot be reduced below 1. Neither Armor nor Hardening protect against Cripplers.
 

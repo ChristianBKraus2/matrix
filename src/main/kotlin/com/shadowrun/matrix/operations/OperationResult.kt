@@ -68,3 +68,24 @@ sealed class LocateResult {
     /** Host confirmed the queried data does not exist (≥ 3 successes with no data present). */
     object NotFound : LocateResult()
 }
+
+/**
+ * Result of a Locate Decker operation (MP-10, SO individual table).
+ * When [located] is true, the target decker is automatically notified (but not who did it).
+ */
+data class LocateDeckerResult(
+    val decker: Decker,
+    val outcome: SystemTestOutcome,
+    val located: Boolean,
+    /** Always true when located == true (MP-10). The target learns they were traced, not by whom. */
+    val targetNotified: Boolean
+)
+
+/**
+ * Result of a Scramble IC destruct test on a failed Decrypt.
+ * PRD: operations.md Decrypt operations section, rules p. 228.
+ */
+data class ScrambleDestructResult(
+    val dataDestroyed: Boolean,
+    val icRating: Int
+)

@@ -367,6 +367,12 @@ PRD: CC-04, CC-05.
 4. Roll `numDice` D6, sum result + `decker.persona!!.reaction` → `score`.
 5. Return `CombatInitiative(score, initiativePasses = numDice)`.
 
+**Physical enhancements do not affect Matrix initiative (rules p. 223):** Wired reflexes, magical augmentation, vehicle-control rigs, and any other enhancement that increases the decker's physical-world Reaction Attribute have no effect on Matrix Initiative. `decker.persona!!.reaction` is the *Persona* Reaction (base Reaction + Response Increase × 2), not the physical Reaction. The `rollDeckerInitiative` method must never read from a physical-augmentation attribute.
+
+**Meatworld communications — action-timing displacement (rules p. 222–223):** A decker communicating directly by voice or datascreen with the meatworld not only rolls one fewer initiative die (the `commPenalty` above), but also has their Matrix actions resolved along with the *physical* actions of each Initiative Pass — even if the decker's initiative score would normally let them act earlier in the pass. The exception is communication via hitcher electrodes (`HitcherJackType.ELECTRODE_NET`) or datascreen-only contact with other personas on the same system; those do not impose the timing displacement. When `meatworldComm == true` and the decker's comms type is not an exempt channel, the game engine must insert the decker into the physical-action slot of the pass rather than the Matrix-action slot.
+
+**Delayed Action with meatworld synchronization (rules p. 222):** If a decker declares a Delayed Action to wait for a physical-world event, their action is resolved in the physical-action slot of the pass in which the triggering event occurs. Matrix actions (including any IC acting in that pass) still precede physical actions, so the decker's delayed action fires *after* any IC that acts in the same pass.
+
 ---
 
 #### `rollIcInitiative(ic: IC, securityCode: SecurityCode, diceRoller: DiceRoller): CombatInitiative`
@@ -397,6 +403,8 @@ PRD: CC-14–CC-19.
 6. Return `ManeuverResult.Success(net)` if `net > 0`, else `ManeuverResult.Failure`.
 
 The caller is responsible for interpreting `netSuccesses` by maneuver type (CC-17, CC-18, CC-19) and for updating `CombatModifiers` accordingly.
+
+**Evade Detection — IC re-detection countdown (rules p. 224–225):** On a successful Evade Detection (`ManeuverResult.Success`), the evading icon is hidden from the IC for a number of Combat Turns equal to `netSuccesses`. The game engine holds this countdown. The countdown is shortened by 1 turn for each point added to the icon's security tally during the hidden period (e.g. from Probe IC or failed System Tests). When the countdown reaches 0, the IC detects the icon again automatically — no new Sensor Test is required. The `ManeuverResult.Success(netSuccesses)` return value provides the raw countdown; the engine applies tally-shortening externally.
 
 ---
 
@@ -488,7 +496,10 @@ PRD: CC-21, CC-22. Called on the decker at the moment an IC is crashed and the d
 2. Do **not** add `ic.rating` to the security tally (suppression prevents this).
 3. Return updated `Decker`. The Detection Factor is now effectively reduced by 1 (via `suppressionDfPenalty`).
 
-**Precondition:** May only be called in the same action that crashed the IC; the decker must still be on the system where the IC was active.
+**Preconditions:**
+
+- May only be called in the same action that crashed the IC.
+- The decker must still be on the system where the IC was active. A decker who has left a system (logged off, jacked out, or moved to a different host) **cannot** suppress IC from that system. The game engine must enforce this: if `decker.currentLocation` no longer contains the system the IC belongs to, `suppressIc` must not be called and the tally increment is applied immediately.
 
 ---
 
@@ -632,13 +643,15 @@ PRD: ICC-11.
 5. Stage both results independently with `stage()`.
 6. Apply icon damage to Condition Monitor; apply physical damage to Physical Condition Monitor.
 7. If icon crashes before decker dies: set IC effective rating to `ic.rating + 2` for all subsequent tests (caller holds this state).
-8. If decker dies (Physical CM full): set `dumpShockTriggered = true`; caller resolves final MPCP attack at `ic.rating * 2` via `resolveBlasterMpcpTest`.
+8. If decker dies (Physical CM full): set `dumpShockTriggered = true`; caller resolves final MPCP attack at `ic.rating * 2` via `resolveBlasterMpcpTest`. **If this MPCP attack reduces `cyberdeck.mcpRating` to 0**, the caller must additionally delete all data files downloaded by the decker during the run from both `cyberdeck.storedUtilities`/download handles and any connected offline storage. The MPCP rating is explicitly set to 0 (not clamped to a floor above 0).
 9. Apply Black IC pin if first hit (ICC-10).
 10. Return `IcDamageResult`. `simsenseOverload = null` (Black IC, CC-28).
 
 #### `resolveNonLethalBlackIc(decker: Decker, ic: NonLethalBlackIC, securityCode: SecurityCode, diceRoller: DiceRoller): IcDamageResult`
 
 PRD: ICC-12. Identical to `resolveLethalBlackIc` except physical body damage is replaced with Mental damage (Willpower resistance tests); unconsciousness triggers auto-disconnect. Mental damage overflow into Physical CM follows standard SR3 rules (handled by `ConditionMonitor`).
+
+**Final MPCP attack on unconsciousness (rules p. 230):** When the decker is rendered unconscious (Mental CM full), the non-lethal Black IC still makes one final MPCP attack before the auto-disconnect completes. The caller must invoke `resolveBlasterMpcpTest(decker, ic, diceRoller)` at `ic.rating` (standard rating, not doubled) immediately before clearing the connection. If this attack reduces `cyberdeck.mcpRating` to 0, all data downloaded during the run is deleted, identical to the lethal Black IC rule (ICC-11).
 
 ---
 
@@ -699,6 +712,10 @@ If `icInert`, the IC does not add to the security tally. If not suppressed befor
 |---|---|
 | Decker Reaction 6, RI 2, no comms | `CombatInitiative(score = 6 + 3D6, initiativePasses = 3)` (CC-05) |
 | Decker RI 2 with meatworld comms | `numDice = max(1, 1+2−1) = 2`; score reduced by ~3.5 average (CC-06) |
+| Meatworld comms (non-exempt channel) | Decker inserted into physical-action slot of pass; not Matrix-action slot |
+| Meatworld comms via hitcher electrodes | No action-timing displacement; only −1D6 initiative penalty applies |
+| Decker declares Delayed Action for physical event | Action resolves in physical-action slot; after any IC acting in same pass |
+| Physical Reaction-boosting ware on decker | Does not affect `rollDeckerInitiative`; only Persona Reaction used |
 | IC Rating 5 in Orange host | `CombatInitiative(score = 3D6+5, initiativePasses = 3)` (CC-07) |
 | IC triggered after pass 1 completed | Caller subtracts 10 from score; IC acts on next pass (CC-08) |
 | Reactive IC callback queued mid-turn | Caller waits until all decker actions complete before resolving (CC-02) |
@@ -714,6 +731,12 @@ If `icInert`, the IC does not add to the security tally. If not suppressed befor
 | IC crashes; decker declares suppression | `suppressIc()` called; tally NOT raised; DF −1 (CC-21, CC-22) |
 | IC crashes; no suppression declared | Caller adds `ic.rating` to tally immediately (CC-21) |
 | Decker unsuppresses held IC | `unsuppressIc()` called; tally raised by held IC rating; DF +1 (CC-22) |
+| `suppressIc` called after decker left system | Precondition violated; tally increment applied instead; `suppressIc` not called |
+| Evade Detection: 3 net successes | Hidden for 3 Combat Turns; countdown held by game engine |
+| Evade Detection: tally gains 2 points while hidden | Countdown reduced by 2 (from 3 to 1 turn remaining) |
+| Lethal Black IC kills decker; MPCP → 0 | All downloaded data deleted from deck and offline storage |
+| Lethal Black IC kills decker; MPCP survives | No data deletion; only decker death effects apply |
+| Non-lethal Black IC renders decker unconscious | Final MPCP attack at `ic.rating` before disconnect; data deleted if MPCP → 0 |
 | Moderate damage from White IC, Willpower fails | `stressBoxesApplied = 1` (CC-31) |
 | Deadly damage from Gray IC | `simsenseOverload = null`; `dumpShockTriggered = true`; no Willpower test (CC-31) |
 | Black IC damage | `simsenseOverload = null`; pin state set after first hit (CC-31, ICC-10) |

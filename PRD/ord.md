@@ -47,11 +47,20 @@
 - Type: legal-access | illegal-access | workstation | console | remote-device | telecom | illegal junction-box
 - Connects to: an LTG or directly to a Host
 
-**RemoteDevice** — a slave-controlled physical device (camera, door, elevator, factory system, medical lab).
+**RemoteDevice** — a slave-controlled physical device connected to a host's Slave subsystem.
 
-- System address within the Slave subsystem
+- Name
+- DeviceType: Camera | Door | Elevator | FactorySystem | MedicalScanner | Other
+- SystemAddress within the Slave subsystem
 
-**DataFile** — stored data on a host; may be scramble-protected or may be a pointer (reference) to data on another host.
+**DataFile** — stored data on a host; may be encoded, scramble-protected, or a pointer to data on another host.
+
+- Name
+- IsEncoded: bool — file is encrypted; decker must succeed at Decrypt File before downloading or editing
+- ScrambleProtected: bool — file is guarded by a Scramble IC program
+- IsPointer: bool — file contains only a reference to data stored on another host
+- PointerTargetHost: Host? — the host where the actual data resides (non-null when IsPointer = true)
+- PointerTargetFile: DataFile? — the specific file on the target host (may be another pointer, forming a chain)
 
 ---
 
@@ -131,15 +140,43 @@
 
 **White IC** — attacks the persona icon only; cannot permanently damage the decker or deck.
 
-- Subtypes: Crippler (variants: Acid→Bod, Binder→Evasion, Jammer→Sensor, Marker→Masking), Killer, Probe, Scramble, Tar Baby
+**Crippler** (extends WhiteIC) — degrades one specific persona attribute rather than dealing condition monitor damage.
+
+- TargetAttribute: Bod (Acid variant) | Evasion (Binder variant) | Sensor (Jammer variant) | Masking (Marker variant)
+
+**Killer** (extends WhiteIC) — standard attack IC; inflicts damage on the persona's condition monitor.
+
+**Probe** (extends WhiteIC) — reactive, non-combat; tests for illegal icons and raises the security tally when it detects an intruder.
+
+**Scramble** (extends WhiteIC) — reactive, placement IC; encrypts and guards a protected resource; destroys guarded data rather than allowing unauthorized access.
+
+- ProtectionScope: SAN | DataFile | DataStore | FilesSubsystem | RemoteDevice | SlaveSubsystem | AccessEntry
+
+**TarBaby** (extends WhiteIC) — reactive; pre-programmed against one utility category; locks the targeted utility, preventing the decker from using it until the IC is defeated.
+
+- TargetCategory: Operational | Offensive | Defensive | Special
 
 **Gray IC** — attacks the cyberdeck and utilities; causes permanent deck damage.
 
-- Subtypes: Blaster, Ripper (variants: Acid-Rip, Bind-Rip, Jam-Rip, Mark-Rip), Sparky, Tar Pit
+**Blaster** (extends GrayIC) — standard attack IC; damages cyberdeck hardware (permanent equipment damage).
 
-**Black IC** — attacks the decker's physical body via ASIST biofeedback.
+**Ripper** (extends GrayIC) — degrades one specific persona attribute and permanently damages the corresponding persona program on the deck.
 
-- Subtypes: Lethal Black IC (Physical damage), Non-Lethal Black IC (Stun/Mental damage)
+- TargetAttribute: Bod (Acid-Rip variant) | Evasion (Bind-Rip variant) | Sensor (Jam-Rip variant) | Masking (Mark-Rip variant)
+
+**Sparky** (extends GrayIC) — delivers electrical feedback through the ASIST link; damages cyberdeck hardware and may fry utilities.
+
+**TarPit** (extends GrayIC) — reactive; pre-programmed against one utility category; locks the targeted utility and causes permanent program damage.
+
+- TargetCategory: Operational | Offensive | Defensive | Special
+
+**Black IC** — attacks the decker's physical body via ASIST biofeedback; can kill or permanently injure.
+
+**LethalBlackIC** (extends BlackIC) — inflicts Physical damage directly on the decker's body; resisted by Body + Hardening.
+
+**NonLethalBlackIC** (extends BlackIC) — inflicts Stun/Mental damage on the decker; resisted by Willpower + Hardening.
+
+> Note: `Black Hammer` and `Killjoy` are Offensive Utility programs wielded by deckers, not IC programs.
 
 ---
 
@@ -226,6 +263,7 @@ Named operations (~25 total): Analyze Host, Analyze IC, Analyze Icon, Analyze Se
 
 - **Node → Host** (many:1) — Each node belongs to exactly one host.
 - **Node → IC** (0:many, reactive guard) — Reactive IC may be bound to a specific node/subsystem; it triggers when a decker accesses that node.
+- **Node → ScrambleIC** (0:1) — A Scramble IC program may guard an entire subsystem node; it then blocks all operations targeting that subsystem (e.g., all Files operations, all Slave operations, or logons from specific Access entry points) until decrypted.
 - **Node → DataFile** (0:many) — Files are logically stored within the Files node (accessible via the Files subsystem).
 - **Node → RemoteDevice** (0:many) — Remote devices are accessed through the Slave node.
 - **Persona ↔ Node (current location)** — An active persona is always located in exactly one node of the currently accessed host (or on the grid); cybercombat and IC interactions occur at this location.
@@ -274,6 +312,7 @@ Named operations (~25 total): Analyze Host, Analyze IC, Analyze Icon, Analyze Se
 
 - **RemoteDevice → Host** (many:1) — A remote device is owned by the host whose Slave subsystem controls it.
 - **RemoteDevice → Node** (many:1) — Remote devices are accessed and controlled through the host's Slave node.
+- **RemoteDevice → ScrambleIC** (0:1) — A specific remote device may be individually protected by a Scramble IC; the decker must succeed at Decrypt Slave before controlling, editing, or monitoring that device.
 
 ### SystemOperation
 
@@ -306,6 +345,10 @@ classDiagram
         class SecuritySheaf
         class TriggerStep {
             +TallyThreshold int
+            +SecurityDeckerCount int
+        }
+        class AlertTransition {
+            +NewAlertStatus
         }
     }
 
@@ -319,10 +362,16 @@ classDiagram
             +SubsystemType
         }
         class DataFile {
+            +Name string
+            +IsEncoded bool
             +ScrambleProtected bool
             +IsPointer bool
+            +PointerTargetHost Host
+            +PointerTargetFile DataFile
         }
         class RemoteDevice {
+            +Name string
+            +DeviceType
             +SystemAddress
         }
         class Jackpoint {
@@ -339,6 +388,27 @@ classDiagram
         class WhiteIC
         class GrayIC
         class BlackIC
+        class Crippler {
+            +TargetAttribute
+        }
+        class Killer
+        class Probe
+        class Scramble {
+            +ProtectionScope
+        }
+        class TarBaby {
+            +TargetCategory
+        }
+        class Blaster
+        class Ripper {
+            +TargetAttribute
+        }
+        class Sparky
+        class TarPit {
+            +TargetCategory
+        }
+        class LethalBlackIC
+        class NonLethalBlackIC
         class ConditionMonitor {
             +Boxes int
         }
@@ -401,6 +471,17 @@ classDiagram
     IC <|-- WhiteIC
     IC <|-- GrayIC
     IC <|-- BlackIC
+    WhiteIC <|-- Crippler
+    WhiteIC <|-- Killer
+    WhiteIC <|-- Probe
+    WhiteIC <|-- Scramble
+    WhiteIC <|-- TarBaby
+    GrayIC <|-- Blaster
+    GrayIC <|-- Ripper
+    GrayIC <|-- Sparky
+    GrayIC <|-- TarPit
+    BlackIC <|-- LethalBlackIC
+    BlackIC <|-- NonLethalBlackIC
     Cyberdeck <|-- Cyberterminal
 
     %% Network
@@ -411,6 +492,7 @@ classDiagram
     Grid "1" --> "1" SecuritySheaf
     SecuritySheaf "1" --> "*" TriggerStep
     TriggerStep "1" --> "*" IC : activates
+    TriggerStep "0..1" --> "1" AlertTransition : alert transition
 
     %% Host / Nodes
     PLTG "1" --> "*" Host
@@ -423,6 +505,8 @@ classDiagram
     SAN "0..1" --> "1" IC : ScrambleIC guard
     Node "1" --> "*" DataFile
     Node "1" --> "*" RemoteDevice
+    Node "0..1" --> "1" IC : ScrambleIC subsystem guard
+    RemoteDevice "0..1" --> "1" IC : ScrambleIC device guard
     DataFile "0..1" --> "1" DataFile : pointer chain
     DataFile "0..1" --> "1" IC : ScrambleIC guard
 
@@ -461,6 +545,8 @@ flowchart TD
         PLTG -.->|"extends"| Grid
         Grid -->|"1"| SecuritySheaf
         SecuritySheaf -->|"1..*"| TriggerStep
+        TriggerStep -->|"activates"| IC_NET[IC]
+        TriggerStep -.->|"0..1 alert transition"| AlertTransition
     end
 
     subgraph HOST["Host / Nodes / LTG-entry"]
@@ -468,14 +554,18 @@ flowchart TD
         Host -.->|"extends"| Grid
         Host -->|"1"| SecuritySheaf2[SecuritySheaf]
         SecuritySheaf2 -->|"1..*"| TriggerStep2[TriggerStep]
+        TriggerStep2 -->|"activates"| IC2[IC]
+        TriggerStep2 -.->|"0..1 alert transition"| AlertTransition2[AlertTransition]
         Host -->|"1..*"| SAN
         Host -->|"5"| Node
         Host -->|"1..*"| DataFile
         Host -->|"1..*"| RemoteDevice
         Host -->|"tiered / host-host via SAN"| Host
-        SAN -.->|"0..1 ScrambleIC guard"| IC2[IC]
+        SAN -.->|"0..1 ScrambleIC guard"| IC2
         Node -->|"0..*"| DataFile
         Node -->|"0..*"| RemoteDevice
+        Node -.->|"0..1 ScrambleIC subsystem guard"| IC2
+        RemoteDevice -.->|"0..1 ScrambleIC device guard"| IC2
         DataFile -.->|"pointer chain"| DataFile
         DataFile -.->|"ScrambleIC guard"| IC2
     end
@@ -484,12 +574,20 @@ flowchart TD
         Host -->|"1..*"| IC
         IC -->|"1"| ConditionMonitorIC[ConditionMonitor]
         IC -.->|"bound to"| Node
-        TriggerStep2 -->|"activates"| IC
-        TriggerStep -->|"activates"| IC
-        Node -.->|"reactive guard"| IC
         IC -.->|"extends"| WhiteIC
         IC -.->|"extends"| GrayIC
         IC -.->|"extends"| BlackIC
+        WhiteIC -.->|"extends"| Crippler
+        WhiteIC -.->|"extends"| Killer
+        WhiteIC -.->|"extends"| Probe
+        WhiteIC -.->|"extends"| Scramble
+        WhiteIC -.->|"extends"| TarBaby
+        GrayIC -.->|"extends"| Blaster
+        GrayIC -.->|"extends"| Ripper
+        GrayIC -.->|"extends"| Sparky
+        GrayIC -.->|"extends"| TarPit
+        BlackIC -.->|"extends"| LethalBlackIC
+        BlackIC -.->|"extends"| NonLethalBlackIC
     end
 
     subgraph DECKER["Decker / Cyberdeck / Persona"]

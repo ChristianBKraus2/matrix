@@ -12,19 +12,24 @@ import com.shadowrun.matrix.network.PLTG
 import com.shadowrun.matrix.network.RTG
 import com.shadowrun.matrix.network.RemoteDevice
 import com.shadowrun.matrix.ic.IC
+import com.shadowrun.matrix.ic.Scramble
 import com.shadowrun.matrix.operations.AnalyzeHostResult
+import com.shadowrun.matrix.operations.BufferedMessage
 import com.shadowrun.matrix.operations.HostInfoItem
 import com.shadowrun.matrix.operations.AnalyzeSecurityResult
 import com.shadowrun.matrix.operations.DownloadHandle
 import com.shadowrun.matrix.operations.EditFileResult
 import com.shadowrun.matrix.operations.IcDetectionResult
 import com.shadowrun.matrix.operations.InterrogationState
+import com.shadowrun.matrix.operations.LinkedObserver
+import com.shadowrun.matrix.operations.LocateDeckerResult
 import com.shadowrun.matrix.operations.LocateResult
 import com.shadowrun.matrix.operations.MatrixIcon
 import com.shadowrun.matrix.operations.MonitoredOperationHandle
 import com.shadowrun.matrix.operations.OperationResult
 import com.shadowrun.matrix.operations.PointerChain
 import com.shadowrun.matrix.operations.QueryPrecision
+import com.shadowrun.matrix.operations.ScrambleDestructResult
 import com.shadowrun.matrix.operations.SensorTestResult
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.operations.SystemTestOutcome
@@ -291,7 +296,11 @@ data class Decker(
         logger.info { "[$name] gracefulLogoff attempt from ${currentLocation.label()}" }
         requireJackedIn()
         val (accessRating, securityValue) = accessRatingAndSecurityValue()
-        val outcome = SystemTestResolver.resolve(this, SystemOperation.GRACEFUL_LOGOFF, accessRating, securityValue, diceRoller)
+        // CC-33: Graceful Logoff TN is raised by Track utility rating while a location cycle is running
+        val trackPenalty = trackState?.trackingIcRating ?: 0
+        val effectiveTn = accessRating + trackPenalty
+        if (trackPenalty > 0) logger.info { "[$name] gracefulLogoff: Track penalty +$trackPenalty applied to TN" }
+        val outcome = SystemTestResolver.resolve(this, SystemOperation.GRACEFUL_LOGOFF, effectiveTn, securityValue, diceRoller)
         return if (outcome.deckerWins) {
             LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null)).also {
                 logger.info { "[$name] gracefulLogoff succeeded: traces cleared, no dump shock" }
@@ -501,6 +510,21 @@ data class Decker(
         }
         return AnalyzeHostResult(updatedDecker, outcome, secRating, subsystems).also {
             logger.info { "[$name] analyzeHost: net=$net successes, revealed security=${secRating != null}, subsystems=${subsystems.keys}" }
+        }
+    }
+
+    /**
+     * Identifies type, rating, and options/defenses of a located IC program (Free Action).
+     * Uses Control Test reduced by Analyze utility. PRD: SO individual table
+     */
+    fun analyzeIc(ic: IC, host: Host, diceRoller: DiceRoller): OperationResult {
+        logger.info { "[$name] analyzeIc on ${host.name}: IC=${ic.name} rating=${ic.rating}" }
+        requireJackedIn()
+        val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_IC, host.subsystemRatings.control, host.securityRating.value, diceRoller)
+        val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
+        return if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome)
+        else OperationResult.Failure(updatedDecker, outcome).also {
+            logger.info { "[$name] analyzeIc: ${if (outcome.deckerWins) "success" else "failure"}" }
         }
     }
 
@@ -871,6 +895,157 @@ data class Decker(
         return PointerChain(links, finalFile)
     }
 
+    // ── Locate Decker / Locate IC ────────────────────────────────────────────────
+
+    /**
+     * Two-step operation: Index Test to find deckers, then open-ended Sensor Test to lock on.
+     * On success the target decker is automatically notified (MP-10).
+     * PRD: MP-10, SO individual table
+     */
+    fun locateDecker(
+        host: Host,
+        targetPersona: Persona,
+        diceRoller: DiceRoller,
+        targetSleazeRating: Int = 0
+    ): LocateDeckerResult {
+        logger.info { "[$name] locateDecker on ${host.name}" }
+        requireJackedIn()
+        val outcome = SystemTestResolver.resolve(this, SystemOperation.LOCATE_DECKER, host.subsystemRatings.index, host.securityRating.value, diceRoller)
+        val updated = withUpdatedTally(outcome.hostSuccesses)
+        if (!outcome.deckerWins) {
+            logger.warn { "[$name] locateDecker: Index Test failed" }
+            return LocateDeckerResult(updated, outcome, located = false, targetNotified = false)
+        }
+        val sensorTn = maxOf(2, targetPersona.masking + targetSleazeRating)
+        val sensorResult = diceRoller.roll(persona!!.sensor, sensorTn)
+        val located = sensorResult.successes >= 1
+        logger.info { "[$name] locateDecker: sensor vs TN=$sensorTn (masking=${targetPersona.masking} sleaze=$targetSleazeRating) → ${sensorResult.successes} successes, located=$located" }
+        return LocateDeckerResult(updated, outcome, located, targetNotified = located)
+    }
+
+    /**
+     * Locate a specific IC program on the host — auto-locates on System Test success (no Sensor Test).
+     * PRD: SO individual table
+     */
+    fun locateIc(host: Host, diceRoller: DiceRoller): OperationResult {
+        logger.info { "[$name] locateIc on ${host.name}" }
+        requireJackedIn()
+        val outcome = SystemTestResolver.resolve(this, SystemOperation.LOCATE_IC, host.subsystemRatings.index, host.securityRating.value, diceRoller)
+        val updated = withUpdatedTally(outcome.hostSuccesses)
+        return if (outcome.deckerWins) OperationResult.Success(updated, outcome)
+        else OperationResult.Failure(updated, outcome)
+    }
+
+    // ── Comcall operations (Monitored) ────────────────────────────────────────────
+
+    /**
+     * Place a commcode call or link multiple RTG calls into a conference.
+     * Licensed deckers with a valid RTG passcode skip all System Tests.
+     * Monitored operation. PRD: SO individual table
+     */
+    fun makeComcall(host: Host, diceRoller: DiceRoller, hasValidPasscode: Boolean = false): Pair<OperationResult, MonitoredOperationHandle?> {
+        logger.info { "[$name] makeComcall on ${host.name} (hasValidPasscode=$hasValidPasscode)" }
+        requireJackedIn()
+        if (hasValidPasscode) {
+            logger.info { "[$name] makeComcall: licensed decker with valid passcode — System Test skipped" }
+            val fakeOutcome = SystemTestOutcome(1, 0, true)
+            return Pair(OperationResult.Success(this, fakeOutcome), MonitoredOperationHandle(SystemOperation.MAKE_COMCALL, host))
+        }
+        val outcome = SystemTestResolver.resolve(this, SystemOperation.MAKE_COMCALL, host.subsystemRatings.files, host.securityRating.value, diceRoller)
+        val updated = withUpdatedTally(outcome.hostSuccesses)
+        return if (outcome.deckerWins) Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.MAKE_COMCALL, host))
+        else Pair(OperationResult.Failure(updated, outcome), null)
+    }
+
+    /**
+     * Tap an active commcall: Index Test to find commcode, Control Test to trace, Files Test to tap.
+     * Does not affect the RTG security tally. Monitored operation.
+     * [scannerDeviceRating] is the highest dataline scanner rating on the target phone (0 if none).
+     * PRD: SO individual table
+     */
+    fun tapComcall(
+        host: Host,
+        scannerDeviceRating: Int = 0,
+        diceRoller: DiceRoller
+    ): Pair<OperationResult, MonitoredOperationHandle?> {
+        logger.info { "[$name] tapComcall on ${host.name} (scannerRating=$scannerDeviceRating)" }
+        requireJackedIn()
+        val outcome = SystemTestResolver.resolve(this, SystemOperation.TAP_COMCALL, host.subsystemRatings.files, host.securityRating.value, diceRoller)
+        val updated = withUpdatedTally(outcome.hostSuccesses)
+        if (!outcome.deckerWins) {
+            logger.warn { "[$name] tapComcall: System Test failed" }
+            return Pair(OperationResult.Failure(updated, outcome), null)
+        }
+        // Dataline scanner check: scanner test does NOT affect RTG tally (PRD: Tap Comcall)
+        if (scannerDeviceRating > 0) {
+            val commlink = cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.COMMLINK }
+            val scannerTn = maxOf(2, scannerDeviceRating - (commlink?.currentRating ?: 0))
+            val scannerResult = diceRoller.roll(computerSkill, scannerTn)
+            logger.info { "[$name] tapComcall: scanner test TN=$scannerTn → ${scannerResult.successes} successes" }
+            if (scannerResult.successes == 0) {
+                logger.warn { "[$name] tapComcall: scanner detected the tap" }
+                return Pair(OperationResult.Failure(updated, outcome), null)
+            }
+        }
+        return Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.TAP_COMCALL, host))
+    }
+
+    // ── Relocate Icon ─────────────────────────────────────────────────────────────
+
+    /**
+     * Evade a Track utility by relocating the decker's datatrail (Simple Action).
+     * Success Contest: decker Computer Test (TN = opponent Sensor − Relocate rating) vs.
+     * tracker MPCP Test (TN = Relocate rating). Decker wins → track fails completely.
+     * PRD: SO individual table, CD-16
+     */
+    fun relocateIcon(
+        opponentSensor: Int,
+        trackerMcpRating: Int,
+        diceRoller: DiceRoller
+    ): OperationResult {
+        logger.info { "[$name] relocateIcon: opponentSensor=$opponentSensor trackerMcp=$trackerMcpRating" }
+        requireJackedIn()
+        val relocate = cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.RELOCATE }
+        val relocateRating = relocate?.currentRating ?: 0
+        val deckerTn = maxOf(2, opponentSensor - relocateRating)
+        val trackerTn = maxOf(2, relocateRating)
+        val deckerResult = diceRoller.roll(computerSkill, deckerTn)
+        val trackerResult = diceRoller.roll(trackerMcpRating, trackerTn)
+        logger.info { "[$name] relocateIcon: decker ${computerSkill}d vs TN=$deckerTn → ${deckerResult.successes}; tracker ${trackerMcpRating}d vs TN=$trackerTn → ${trackerResult.successes}" }
+        val deckerWins = deckerResult.successes > trackerResult.successes
+        val fakeOutcome = SystemTestOutcome(deckerResult.successes, trackerResult.successes, deckerWins)
+        return if (deckerWins) OperationResult.Success(this, fakeOutcome)
+        else OperationResult.Failure(this, fakeOutcome)
+    }
+
+    // ── Scramble IC destruct test ─────────────────────────────────────────────────
+
+    /**
+     * Called by the GM engine when a decker fails a Decrypt attempt on a Scramble-protected item.
+     * The IC rolls its Rating vs. TN = decker's Computer Skill; success destroys the data.
+     * This test does NOT generate a security tally increment. PRD: operations.md, rules p. 228.
+     */
+    fun resolveScrambleDestructTest(ic: Scramble, file: com.shadowrun.matrix.network.DataFile, diceRoller: DiceRoller): ScrambleDestructResult {
+        logger.info { "[$name] resolveScrambleDestructTest: IC rating=${ic.rating} vs computerSkill=$computerSkill" }
+        val successes = diceRoller.roll(ic.rating, maxOf(2, computerSkill)).successes
+        val destroyed = successes >= 1
+        logger.info { "[$name] resolveScrambleDestructTest: successes=$successes destroyed=$destroyed" }
+        return ScrambleDestructResult(dataDestroyed = destroyed, icRating = ic.rating)
+    }
+
+    // ── Buffered Message ──────────────────────────────────────────────────────────
+
+    /**
+     * Compose a message (up to 100 words) for delivery at end of Combat Turn (Free Action).
+     * PRD: operations.md Buffered Messages section, rules p. 224.
+     */
+    fun bufferMessage(text: String, recipient: LinkedObserver): BufferedMessage {
+        check(persona != null) { "bufferMessage requires a jacked-in persona" }
+        require(text.split("\\s+".toRegex()).size <= 100) { "Buffered message exceeds 100 words" }
+        logger.info { "[$name] bufferMessage → ${recipient.name}: \"${text.take(40)}${if (text.length > 40) "..." else ""}\"" }
+        return BufferedMessage(text, recipient)
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────────
 
     /** Returns the current security tally for [host] from currentLocation, or 0 if not on that host. */
@@ -920,7 +1095,8 @@ data class Decker(
                     .firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.MASKING }?.rating ?: 0,
                 sensor = cyberdeck.personaPrograms
                     .firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.SENSORS }?.rating ?: 0,
-                reaction = reaction + cyberdeck.responseIncrease * 2
+                reaction = reaction + cyberdeck.responseIncrease * 2,
+                status = com.shadowrun.matrix.common.PersonaStatus.INTRUDING
             )
             LogonResult.Success(copy(persona = newPersona, currentLocation = newLocation), newLocation)
         } else {
