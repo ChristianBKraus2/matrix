@@ -40,6 +40,9 @@ import com.shadowrun.matrix.utility.DiceRoller
 import com.shadowrun.matrix.combat.BlackIcPinState
 import com.shadowrun.matrix.combat.IcSuppressionState
 import com.shadowrun.matrix.combat.TrackState
+import com.shadowrun.matrix.game.ActionResult
+import com.shadowrun.matrix.game.ActiveIcon
+import com.shadowrun.matrix.game.GameContext
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.math.ceil
 
@@ -60,7 +63,9 @@ data class Decker(
     val blackIcPin: BlackIcPinState? = null,
     val trackState: TrackState? = null,
     val suppressedIc: List<IcSuppressionState> = emptyList()
-) {
+) : ActiveIcon {
+    override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = ActionResult.DeckerAction
+
     val hackingPool: Int get() = (intelligence + cyberdeck.mcpRating) / 3
     val isPinnedByBlackIc: Boolean get() = blackIcPin != null
 
