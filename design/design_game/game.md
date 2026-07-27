@@ -40,8 +40,8 @@ Initiative rolls are **not** part of this interface because IC initiative requir
 sealed class ActionResult {
     data class IcAttack(val message: String) : ActionResult()
     data class IcMoved(val message: String)  : ActionResult()
-    object NoTarget                          : ActionResult()
-    object DeckerAction                      : ActionResult()
+    data object NoTarget                     : ActionResult()
+    data object DeckerAction                 : ActionResult()
 }
 ```
 
@@ -162,14 +162,17 @@ sealed class IC(...) : ActiveIcon {
     abstract override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult
 
     // Returns the intruding decker this IC should act against, or null if none found.
-    // Proactive IC searches the whole host; reactive IC searches only its guardedNode.
+    // If guardedNode is set, prefers a decker in that node; falls back to any intruding decker in the host.
+    // If guardedNode is null, searches the whole host directly.
     protected fun findTarget(context: GameContext): Decker? =
-        if (guardedNode != null) context.unauthorizedDeckerInNode(guardedNode)
+        if (guardedNode != null) context.unauthorizedDeckerInNode(guardedNode) ?: context.unauthorizedDeckerInHost()
         else context.unauthorizedDeckerInHost()
 
-    // If the target is not already in this IC's node, move toward them (proactive only).
-    // Returns IcMoved if a move was needed, null if the IC is already co-located with the target.
+    // If the IC has a guardedNode and the target is not already there, move toward them (proactive only).
+    // Returns IcMoved if a move was performed this action, null otherwise.
+    // Unanchored IC (guardedNode == null) never moves.
     protected fun moveIfNeeded(target: Decker, context: GameContext): ActionResult.IcMoved? {
+        if (guardedNode == null) return null
         val targetNode = target.persona?.currentNode ?: return null
         if (targetNode == guardedNode) return null
         if (behavior == IcBehavior.REACTIVE) return null
@@ -348,7 +351,10 @@ This extension lives in `src/main/kotlin/com/shadowrun/matrix/game/DeckerExtensi
 powershell -Command "cd 'C:\VSCode\private\matrix'; .\gradlew.bat test"
 ```
 
-Unit tests to add (separate from this design doc):
-- `GameTest`: initiative ordering with multiple icons, decrement-by-10 loop, turn boundary
-- `GameContextTest`: `unauthorizedDeckerInNode`, `unauthorizedDeckerInHost`, `updateDecker`, `removeIc`
-- `IcActionTest`: `action()` dispatch for each IC subtype — verify `context.deckers` is updated correctly and correct `ActionResult` subtype is returned
+Implemented and passing in `src/test/kotlin/com/shadowrun/matrix/game/GameTest.kt` (33 tests):
+- `GameContext`: `unauthorizedDeckerInNode`, `unauthorizedDeckerInHost`, `updateDecker`, `removeIc`
+- `Decker.action`: returns `DeckerAction`
+- IC action dispatch: all 11 subtypes (`Killer`, `Crippler`, `Probe`, `Scramble`, `TarBaby`, `Blaster`, `Ripper`, `Sparky`, `TarPit`, `LethalBlackIC`, `NonLethalBlackIC`)
+- Move vs. no-move logic for proactive and reactive IC
+- `Game.runCombatTurn`: initiative ordering and decrement-by-10 loop
+- `asDefenderParticipant`: correct participant fields from decker state

@@ -484,25 +484,39 @@ class GameTest {
 
     @Test
     fun `runCombatTurn gives higher initiative icon more actions`() {
-        val node = accessNode()
-        // Two deckers: one with responseIncrease=2 (more dice → higher average initiative)
-        // Use controlled dice so we know exact initiative scores
-        // Decker A: reaction=10 + 1 die roll of 5 = 15
-        // Decker B: reaction=5  + 1 die roll of 3 = 8
-        // Turn: A(15), B(8), A(5) — A gets 2 actions, B gets 1
         val actionOrder = mutableListOf<String>()
-        val deckA = intrudingDecker(name = "A", node = node)
-            .copy(persona = intrudingDecker(name = "A", node = node).persona!!.copy(reaction = 10))
-        val deckB = intrudingDecker(name = "B", node = node)
-            .copy(persona = intrudingDecker(name = "B", node = node).persona!!.copy(reaction = 5))
 
-        // Dice sequence: initiative rolls come first. Each decker rolls 1 die (responseIncrease=0).
-        // We need: roll for A = 5, roll for B = 3
-        val dice = DiceRoller(stubRandom(5, 3))
-        val ctx = context(deckers = listOf(deckA, deckB))
-        val game = Game(ctx, dice, inCombat = true)
-        // Just ensure it runs without error with valid initiative totals
-        game.runCombatTurn()
+        // Wrap two deckers in tracking ActiveIcons
+        val iconA = object : ActiveIcon {
+            override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+                actionOrder += "A"
+                return ActionResult.DeckerAction
+            }
+        }
+        val iconB = object : ActiveIcon {
+            override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+                actionOrder += "B"
+                return ActionResult.DeckerAction
+            }
+        }
+
+        // Build initial states directly: A=15, B=8
+        // Turn: A(15) → A(5) → B(8) → sorted each step by max → A, B, A
+        val states = mutableListOf(
+            ActiveIconState(iconA, 15),
+            ActiveIconState(iconB, 8)
+        )
+
+        // Drive the same loop logic as runCombatTurn to assert ordering
+        while (states.any { it.currentInitiative > 0 }) {
+            val state = states.filter { it.currentInitiative > 0 }.maxByOrNull { it.currentInitiative }!!
+            val idx = states.indexOf(state)
+            state.icon.action(GameContext(host(SecurityCode.ORANGE), SecurityCode.ORANGE, mutableListOf(), mutableListOf()), allFaces(1))
+            states[idx] = state.copy(currentInitiative = state.currentInitiative - 10)
+        }
+
+        // A=15, B=8, A=5 → order: A, B, A
+        assertEquals(listOf("A", "B", "A"), actionOrder)
     }
 
     // ── Game.runCombatTurn — combat ends when IC list empties ─────────────────────

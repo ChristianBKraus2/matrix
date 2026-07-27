@@ -21,4 +21,10 @@ There are two modes:
 
 ## IC Actions
 
-When an IC takes an action the it uses its appropriate method of CombatResolver. The action is taken against the unauthorized decker in the same node (if there are more then one take an arbitrary one). If there is no unauthorized decker in the same node, look for any unauthorized deckers in the same host and move to the corresponding node (if you mode do not attack).
+When an IC takes an action it uses its appropriate method of CombatResolver. The target is selected as follows:
+
+- If the IC has a `guardedNode`, first look for an unauthorized decker in that node. If none, fall back to any unauthorized decker in the same host.
+- If the IC has no `guardedNode`, look for any unauthorized decker in the host.
+- If no unauthorized decker is found anywhere in the host, the IC takes no action.
+
+If a target is found but is not in the IC's current node, a proactive IC moves to the target's node (returning `IcMoved` this action instead of attacking). A reactive IC does not move; it attacks regardless of which node the target is in.

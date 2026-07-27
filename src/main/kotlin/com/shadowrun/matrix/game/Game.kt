@@ -19,9 +19,8 @@ class Game(
     fun runCombatTurn() {
         val states = buildInitiativeList().toMutableList()
         while (states.any { it.currentInitiative > 0 }) {
-            val idx = states.indexOfFirst { it.currentInitiative > 0 }
-            if (idx < 0) break
-            val state = states[idx]
+            val state = states.filter { it.currentInitiative > 0 }.maxByOrNull { it.currentInitiative } ?: break
+            val idx = states.indexOf(state)
             state.icon.action(context, diceRoller)
             states[idx] = state.copy(currentInitiative = state.currentInitiative - 10)
         }
