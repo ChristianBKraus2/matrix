@@ -6,9 +6,12 @@ import com.shadowrun.matrix.game.ActionResult
 import com.shadowrun.matrix.game.ActiveIcon
 import com.shadowrun.matrix.game.ActiveIconState
 import com.shadowrun.matrix.game.GameContext
+import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.utility.DiceRoller
 import kotlin.random.Random
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 // Receiver for step lambdas — provides the decker helpers and roller, keeping step bodies param-free
@@ -24,12 +27,8 @@ open class IntegrationTestBase {
     val matrix = GridMock.matrix
 
     protected fun winRoller() = DiceRoller(object : Random() {
-        private var call = 0
         override fun nextBits(bitCount: Int) = 0
-        override fun nextInt(from: Int, until: Int): Int {
-            call++
-            return if (call <= 6) 5 else 0
-        }
+        override fun nextInt(from: Int, until: Int) = 0
     })
 
     protected fun failRoller() = DiceRoller(object : Random() {
@@ -63,10 +62,11 @@ open class IntegrationTestBase {
     protected fun scenario(
         jackpointPath: String = "UCAS/UCAS-SEA",
         diceRoller: DiceRoller = winRoller(),
+        deckerTier: String = DeckerMock.HIGH_END,
         init: ScenarioBuilder.() -> Unit
     ): ScriptedDeckerIcon {
         val (rtg, ltg) = jackpointPath.split("/")
-        val decker = DeckerMock.build(GridMock.jackpoint(rtg, ltg))
+        val decker = DeckerMock.build(GridMock.jackpoint(rtg, ltg), deckerTier)
         val context = buildDefaultContext(decker)
         val steps = ScenarioBuilder(matrix).apply(init).build()
         val icon = ScriptedDeckerIcon(decker, context, steps)
@@ -84,6 +84,21 @@ open class IntegrationTestBase {
             state.icon.action(context, diceRoller)
             states[idx] = state.copy(currentInitiative = state.currentInitiative - 10)
         }
+    }
+
+    protected fun ScriptedDeckerIcon.assertOnHost(name: String) {
+        val loc = assertIs<MatrixLocation.OnHost>(currentDecker().currentLocation)
+        assertEquals(name, loc.host.name)
+    }
+
+    protected fun ScriptedDeckerIcon.assertOnLtg(name: String) {
+        val loc = assertIs<MatrixLocation.OnLTG>(currentDecker().currentLocation)
+        assertEquals(name, loc.ltg.name)
+    }
+
+    protected fun ScriptedDeckerIcon.assertLoggedOff() {
+        assertNull(currentDecker().persona,         "Persona should be null after logoff")
+        assertNull(currentDecker().currentLocation, "Location should be null after logoff")
     }
 
     protected inner class ScriptedDeckerIcon(
