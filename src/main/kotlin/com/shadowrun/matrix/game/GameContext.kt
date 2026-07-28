@@ -57,7 +57,8 @@ class GameContext(
         val newTally = (new.currentLocation as? MatrixLocation.OnHost)?.host?.securityTally ?: 0
         updateDecker(old, new)
         if (newTally > oldTally) {
-            updateHost(host.copy(securityTally = newTally))
+            val newHost = (new.currentLocation as? MatrixLocation.OnHost)?.host ?: host.copy(securityTally = newTally)
+            updateHost(newHost)
             checkTriggers(oldTally, newTally)
         }
     }

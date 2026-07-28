@@ -26,7 +26,7 @@ class MovementTest : IntegrationTestBase() {
 
     @Test
     fun `jack into UCAS-SEA and fail to logon to Renraku Public Relations`() {
-        val icon = scenario(diceRoller = winThenFailRoller()) {
+        val icon = scenario(diceRoller = winThenRoller(zeroCalls = 12, thenValue = 3)) {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Renraku Public Relations", succeed = false)
         }

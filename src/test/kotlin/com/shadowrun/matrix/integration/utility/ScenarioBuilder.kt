@@ -1,5 +1,6 @@
 package com.shadowrun.matrix.integration.utility
 
+import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.decker.LogoffResult
 import com.shadowrun.matrix.decker.LogonResult
 import com.shadowrun.matrix.network.Host
@@ -8,6 +9,7 @@ import com.shadowrun.matrix.network.Matrix
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.network.PLTG
 import com.shadowrun.matrix.network.RTG
+import com.shadowrun.matrix.operations.OperationResult
 import kotlin.test.assertIs
 
 @DslMarker
@@ -85,6 +87,20 @@ class ScenarioBuilder(private val matrix: Matrix) {
         val r = currentDecker().gracefulLogoff(roller)
         assertIs<LogoffResult.GracefulSuccess>(r, "$name failed")
         updateCurrentDecker(r.decker)
+    }
+
+    fun analyzeSubsystem(
+        subsystem: SubsystemType,
+        name: String = "analyzeSubsystem $subsystem",
+        succeed: Boolean = true
+    ) = step(name) {
+        val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
+        val old = currentDecker()
+        val result = old.analyzeSubsystem(host, subsystem, roller)
+        if (succeed) assertIs<OperationResult.Success>(result, "$name should succeed")
+        else assertIs<OperationResult.Failure>(result, "$name should fail")
+        updateCurrentDecker(result.decker)
+        context.applyDeckerOperationResult(old, result.decker)
     }
 
     internal fun build(): List<StepAction> = steps.toList()
