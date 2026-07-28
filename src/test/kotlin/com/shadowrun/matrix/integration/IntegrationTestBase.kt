@@ -1,0 +1,81 @@
+package com.shadowrun.matrix.integration
+
+import com.shadowrun.matrix.common.SecurityCode
+import com.shadowrun.matrix.decker.Decker
+import com.shadowrun.matrix.game.ActionResult
+import com.shadowrun.matrix.game.ActiveIcon
+import com.shadowrun.matrix.game.ActiveIconState
+import com.shadowrun.matrix.game.GameContext
+import com.shadowrun.matrix.integration.utility.GridMock
+import com.shadowrun.matrix.integration.utility.HostMock
+import com.shadowrun.matrix.utility.DiceRoller
+import kotlin.random.Random
+
+// Receiver for step lambdas — provides the decker helpers and roller, keeping step bodies param-free
+class StepContext(val context: GameContext, val roller: DiceRoller) {
+    fun currentDecker() = context.deckers.first()
+    fun updateCurrentDecker(d: Decker) = context.updateDecker(context.deckers.first(), d)
+}
+
+typealias StepAction = StepContext.() -> Unit
+
+open class IntegrationTestBase {
+
+    val matrix = GridMock.matrix
+
+    protected fun winRoller() = DiceRoller(object : Random() {
+        private var call = 0
+        override fun nextBits(bitCount: Int) = 0
+        override fun nextInt(from: Int, until: Int): Int {
+            call++
+            return if (call <= 6) 5 else 0
+        }
+    })
+
+    protected fun failRoller() = DiceRoller(object : Random() {
+        private var call = 0
+        override fun nextBits(bitCount: Int) = 0
+        override fun nextInt(from: Int, until: Int): Int {
+            call++
+            return if (call <= 8) 0 else 3
+        }
+    })
+
+    protected fun buildDefaultContext(decker: Decker) = GameContext(
+        host = HostMock.build("placeholder"),
+        securityCode = SecurityCode.GREEN,
+        deckers = mutableListOf(decker),
+        activeIc = mutableListOf()
+    )
+
+    protected fun runActions(icon: ActiveIcon, context: GameContext, count: Int, diceRoller: DiceRoller) {
+        val states = mutableListOf(ActiveIconState(icon, count * 10))
+        while (states.any { it.currentInitiative > 0 }) {
+            val state = states.filter { it.currentInitiative > 0 }.maxByOrNull { it.currentInitiative }!!
+            val idx = states.indexOf(state)
+            state.icon.action(context, diceRoller)
+            states[idx] = state.copy(currentInitiative = state.currentInitiative - 10)
+        }
+    }
+
+    protected inner class ScriptedDeckerIcon(
+        initialDecker: Decker,
+        private val context: GameContext,
+        private val steps: List<StepAction>
+    ) : ActiveIcon {
+
+        val stepResults = mutableListOf<ActionResult>()
+        private var step = 0
+
+        init {
+            context.deckers.clear()
+            context.deckers.add(initialDecker)
+        }
+
+        override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+            if (step < steps.size) steps[step].invoke(StepContext(context, diceRoller))
+            step++
+            return ActionResult.DeckerAction.also { stepResults += it }
+        }
+    }
+}
