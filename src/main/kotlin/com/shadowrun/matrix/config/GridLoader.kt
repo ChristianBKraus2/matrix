@@ -1,16 +1,13 @@
 package com.shadowrun.matrix.config
 
-import com.shadowrun.matrix.common.IntrusionDifficulty
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.common.SecurityRating
 import com.shadowrun.matrix.common.SubsystemRatings
-import com.shadowrun.matrix.common.TopologyType
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.Matrix
 import com.shadowrun.matrix.network.PLTG
 import com.shadowrun.matrix.network.RTG
-import com.shadowrun.matrix.network.SecuritySheaf
 import org.yaml.snakeyaml.Yaml
 import java.io.InputStream
 
@@ -126,24 +123,13 @@ object GridLoader {
     }
 
     private fun buildHost(data: Map<String, Any>): Host {
-        val secRating = parseSecurityRating(data["security"] as String)
-        val ratings = parseSubsystemRatings(data["ratings"])
-        val difficulty = IntrusionDifficulty.valueOf(
-            (data["intrusion_difficulty"] as? String ?: "AVERAGE").uppercase()
-        )
-        val topology = TopologyType.valueOf(
-            (data["topology"] as? String ?: "OPEN_ACCESS").uppercase()
-        )
-        val offline = (data["offline"] as? Boolean) ?: false
-        return Host(
-            name = data["name"] as String,
-            securityRating = secRating,
-            subsystemRatings = ratings,
-            intrusionDifficulty = difficulty,
-            topologyType = topology,
-            offline = offline,
-            securitySheaf = SecuritySheaf()
-        )
+        val configPath = data["config"] as? String
+        if (configPath != null) {
+            val stream = GridLoader::class.java.classLoader.getResourceAsStream(configPath)
+                ?: error("Host config not found on classpath: $configPath")
+            return HostLoader.load(stream)
+        }
+        return HostLoader.buildFromMap(data)
     }
 
     private fun parseSecurityRating(value: String): SecurityRating {

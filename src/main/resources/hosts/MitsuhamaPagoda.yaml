@@ -1,0 +1,67 @@
+name: Mitsuhama Pagoda
+security: Orange-6
+ratings:
+  access: 8
+  control: 8
+  index: 8
+  files: 8
+  slave: 8
+intrusion_difficulty: AVERAGE
+topology: OPEN_ACCESS
+
+nodes:
+  - type: ACCESS
+    description: Corporate access control system
+  - type: CONTROL
+    description: Facility management and automation
+  - type: INDEX
+    description: Employee and resource directory
+  - type: FILES
+    description: Corporate document archive
+  - type: FILES
+    description: Research and development archive
+  - type: SLAVE
+    description: Physical security and sensor network
+
+sans:
+  - name: Main SAN
+    scramble_protected: false
+
+ic_programs:
+  - type: Probe
+    rating: 5
+  - type: Killer
+    rating: 6
+    guarded_node: FILES
+
+data_files:
+  - name: Personnel Records
+    scramble_protected: true
+    size_mp: 10
+  - name: Project Dossiers
+    scramble_protected: true
+    size_mp: 20
+
+remote_devices:
+  - name: Security Camera Network
+    system_address: cam-net-01
+  - name: Access Door Controllers
+    system_address: door-ctrl-01
+
+security_sheaf:
+  trigger_steps:
+    - tally_threshold: 5
+      description: Probe IC deployed to locate intruder
+      activated_ic:
+        - type: Probe
+          rating: 5
+    - tally_threshold: 10
+      description: Passive alert triggered; Killer IC deployed
+      alert_transition: PASSIVE_ALERT
+      activated_ic:
+        - type: Killer
+          rating: 6
+    - tally_threshold: 20
+      description: Active alert; security decker dispatched
+      alert_transition: ACTIVE_ALERT
+      security_decker_count: 1

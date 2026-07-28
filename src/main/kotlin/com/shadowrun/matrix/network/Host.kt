@@ -22,7 +22,7 @@ data class Host(
     val resetTimeMinutes: Int? = null,
     // One SAN per connection point (to a grid or to another host)
     val sans: List<SAN> = emptyList(),
-    // Exactly one Node per subsystem type; default to five empty nodes
+    // At least one Node per subsystem type; default to five empty nodes
     val nodes: List<Node> = SubsystemType.entries.map { Node(it) },
     val icPrograms: List<IC> = emptyList(),
     val dataFiles: List<DataFile> = emptyList(),
@@ -31,8 +31,9 @@ data class Host(
     val connectedHosts: List<Host> = emptyList()
 ) {
     init {
-        require(nodes.map { it.subsystemType }.toSet().size == 5) {
-            "Host must have exactly one node per subsystem type"
+        val coveredTypes = nodes.map { it.subsystemType }.toSet()
+        require(coveredTypes == SubsystemType.entries.toSet()) {
+            "Host must have at least one node per subsystem type"
         }
     }
 }

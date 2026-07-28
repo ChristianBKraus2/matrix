@@ -4,7 +4,7 @@ import com.shadowrun.matrix.integration.utility.DeckerMock
 import com.shadowrun.matrix.integration.utility.IntegrationTestBase
 import kotlin.test.Test
 
-class GameMovementIntegrationTest : IntegrationTestBase() {
+class MovementTest : IntegrationTestBase() {
 
     @Test
     fun `jack into UCAS-SEA and logon to Renraku Public Relations`() {

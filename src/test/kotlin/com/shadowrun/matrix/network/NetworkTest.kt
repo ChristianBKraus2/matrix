@@ -117,7 +117,7 @@ class NetworkTest {
     }
 
     @Test
-    fun `Host rejects duplicate node subsystem types`() {
+    fun `Host rejects missing subsystem type`() {
         assertFailsWith<IllegalArgumentException> {
             Host(
                 "Bad Host", secRating(), ratings(), IntrusionDifficulty.EASY, TopologyType.OPEN_ACCESS,
@@ -125,6 +125,20 @@ class NetworkTest {
                     Node(SubsystemType.CONTROL), Node(SubsystemType.INDEX), Node(SubsystemType.FILES))
             )
         }
+    }
+
+    @Test
+    fun `Host allows multiple nodes of the same subsystem type`() {
+        val h = Host(
+            "Multi-Files Host", secRating(), ratings(), IntrusionDifficulty.EASY, TopologyType.OPEN_ACCESS,
+            nodes = listOf(
+                Node(SubsystemType.ACCESS), Node(SubsystemType.CONTROL), Node(SubsystemType.INDEX),
+                Node(SubsystemType.FILES, "Archive A"), Node(SubsystemType.FILES, "Archive B"),
+                Node(SubsystemType.SLAVE)
+            )
+        )
+        assertEquals(6, h.nodes.size)
+        assertEquals(2, h.nodes.count { it.subsystemType == SubsystemType.FILES })
     }
 
     @Test

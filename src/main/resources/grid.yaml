@@ -9,10 +9,7 @@ rtgs:
         region: Seattle
         hosts:
           - name: Mitsuhama Pagoda
-            security: Orange-6
-            ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
-            intrusion_difficulty: AVERAGE
-            topology: OPEN_ACCESS
+            config: hosts/MitsuhamaPagoda.yaml
           - name: Lone Star GridSec Seattle
             security: Orange-7
             ratings: { access: 9, control: 9, index: 8, files: 8, slave: 8 }
