@@ -65,15 +65,20 @@ class ScenarioBuilder(private val matrix: Matrix) {
         updateCurrentDecker(r.decker)
     }
 
-    fun logonToHost(host: Host, name: String = "logon to ${host.name}") = step(name) {
+    fun logonToHost(host: Host, name: String = "logon to ${host.name}", succeed: Boolean = true) = step(name) {
         val r = currentDecker().logonToHost(host, roller)
-        assertIs<LogonResult.Success>(r, "$name failed")
-        updateCurrentDecker(r.decker)
+        if (succeed) {
+            assertIs<LogonResult.Success>(r, "$name failed")
+            updateCurrentDecker(r.decker)
+        } else {
+            assertIs<LogonResult.Failure>(r, "$name should have failed")
+            updateCurrentDecker(r.decker)
+        }
     }
 
-    fun logonToHost(path: String) {
+    fun logonToHost(path: String, succeed: Boolean = true) {
         val (rtg, ltg, host) = path.split("/")
-        logonToHost(matrix.getHost(rtg, ltg, host)!!)
+        logonToHost(matrix.getHost(rtg, ltg, host)!!, succeed = succeed)
     }
 
     fun gracefulLogoff(name: String = "graceful logoff") = step(name) {

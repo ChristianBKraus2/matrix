@@ -6,11 +6,10 @@ import com.shadowrun.matrix.game.ActionResult
 import com.shadowrun.matrix.game.ActiveIcon
 import com.shadowrun.matrix.game.ActiveIconState
 import com.shadowrun.matrix.game.GameContext
-import com.shadowrun.matrix.integration.utility.GridMock
-import com.shadowrun.matrix.integration.utility.HostMock
-import com.shadowrun.matrix.integration.utility.ScenarioBuilder
 import com.shadowrun.matrix.utility.DiceRoller
 import kotlin.random.Random
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 // Receiver for step lambdas — provides the decker helpers and roller, keeping step bodies param-free
 class StepContext(val context: GameContext, val roller: DiceRoller) {
@@ -42,6 +41,18 @@ open class IntegrationTestBase {
         }
     })
 
+    // Passes the first system test (both return 0 → tie → decker wins), then loses all subsequent
+    // ones (host dice return 3 which beats host TN 3; decker TN is always ≥ 6 so decker gets 0).
+    // The threshold of 12 covers jackInToLtg: 8 decker dice + 4 host dice.
+    protected fun winThenFailRoller() = DiceRoller(object : Random() {
+        private var call = 0
+        override fun nextBits(bitCount: Int) = 0
+        override fun nextInt(from: Int, until: Int): Int {
+            call++
+            return if (call <= 12) 0 else 3
+        }
+    })
+
     protected fun buildDefaultContext(decker: Decker) = GameContext(
         host = HostMock.build("placeholder"),
         securityCode = SecurityCode.GREEN,
@@ -60,6 +71,8 @@ open class IntegrationTestBase {
         val steps = ScenarioBuilder(matrix).apply(init).build()
         val icon = ScriptedDeckerIcon(decker, context, steps)
         runActions(icon, context, steps.size, diceRoller)
+        assertEquals(steps.size, icon.stepResults.size)
+        assertTrue(icon.stepResults.all { it is ActionResult.DeckerAction })
         return icon
     }
 
@@ -81,6 +94,8 @@ open class IntegrationTestBase {
 
         val stepResults = mutableListOf<ActionResult>()
         private var step = 0
+
+        fun currentDecker() = context.deckers.first()
 
         init {
             context.deckers.clear()
