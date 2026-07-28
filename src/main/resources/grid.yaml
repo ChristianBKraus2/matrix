@@ -3,6 +3,7 @@ rtgs:
     name: UCAS Regional Grid
     security: Green-4
     ratings: { access: 6, control: 8, index: 6, files: 6, slave: 6 }
+    connected_rtgs: [AZT]
     ltgs:
       - id: UCAS-SEA
         region: Seattle

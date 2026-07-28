@@ -25,7 +25,20 @@ object GridLoader {
         val rtgData = root["rtgs"] as List<Map<String, Any>>
 
         val rtgs = rtgData.map { buildRtg(it) }
-        return Matrix(rtgs)
+
+        // Second pass: wire connectedRtgs by id reference
+        val rtgById = rtgs.associateBy { it.name }
+        @Suppress("UNCHECKED_CAST")
+        val wiredRtgs = rtgs.zip(rtgData).map { (rtg, data) ->
+            val ids = (data["connected_rtgs"] as? List<String>) ?: emptyList()
+            val connected = ids.mapNotNull { rtgById[it] }
+            if (connected.isEmpty()) rtg else {
+                val wiredRtg = rtg.copy(connectedRtgs = connected)
+                val wiredLtgs = wiredRtg.ltgs.map { it.copy(parentRtg = wiredRtg) }
+                wiredRtg.copy(ltgs = wiredLtgs)
+            }
+        }
+        return Matrix(wiredRtgs)
     }
 
     private fun buildRtg(data: Map<String, Any>): RTG {
@@ -59,7 +72,9 @@ object GridLoader {
             ltgs
         }
 
-        return placeholder.copy(ltgs = ltgsWithPltgs)
+        val finalRtg = placeholder.copy(ltgs = ltgsWithPltgs)
+        val fixedLtgs = ltgsWithPltgs.map { it.copy(parentRtg = finalRtg) }
+        return finalRtg.copy(ltgs = fixedLtgs)
     }
 
     private fun buildLtg(
@@ -87,7 +102,9 @@ object GridLoader {
         val pltgDataList = (data["pltgs"] as? List<Map<String, Any>>) ?: emptyList()
         val pltgs = pltgDataList.map { buildPltg(it, placeholder) }
 
-        return placeholder.copy(hosts = hosts, pltgs = pltgs)
+        val finalLtg = placeholder.copy(hosts = hosts, pltgs = pltgs)
+        val fixedPltgs = pltgs.map { it.copy(parentLtg = finalLtg) }
+        return finalLtg.copy(pltgs = fixedPltgs)
     }
 
     private fun buildPltg(data: Map<String, Any>, parentLtg: LTG): PLTG {

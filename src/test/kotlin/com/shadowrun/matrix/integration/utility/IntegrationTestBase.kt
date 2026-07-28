@@ -1,4 +1,4 @@
-package com.shadowrun.matrix.integration
+package com.shadowrun.matrix.integration.utility
 
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.decker.Decker
@@ -8,6 +8,7 @@ import com.shadowrun.matrix.game.ActiveIconState
 import com.shadowrun.matrix.game.GameContext
 import com.shadowrun.matrix.integration.utility.GridMock
 import com.shadowrun.matrix.integration.utility.HostMock
+import com.shadowrun.matrix.integration.utility.ScenarioBuilder
 import com.shadowrun.matrix.utility.DiceRoller
 import kotlin.random.Random
 
@@ -48,6 +49,20 @@ open class IntegrationTestBase {
         activeIc = mutableListOf()
     )
 
+    protected fun scenario(
+        jackpointPath: String = "UCAS/UCAS-SEA",
+        diceRoller: DiceRoller = winRoller(),
+        init: ScenarioBuilder.() -> Unit
+    ): ScriptedDeckerIcon {
+        val (rtg, ltg) = jackpointPath.split("/")
+        val decker = DeckerMock.build(GridMock.jackpoint(rtg, ltg))
+        val context = buildDefaultContext(decker)
+        val steps = ScenarioBuilder(matrix).apply(init).build()
+        val icon = ScriptedDeckerIcon(decker, context, steps)
+        runActions(icon, context, steps.size, diceRoller)
+        return icon
+    }
+
     protected fun runActions(icon: ActiveIcon, context: GameContext, count: Int, diceRoller: DiceRoller) {
         val states = mutableListOf(ActiveIconState(icon, count * 10))
         while (states.any { it.currentInitiative > 0 }) {
@@ -60,7 +75,7 @@ open class IntegrationTestBase {
 
     protected inner class ScriptedDeckerIcon(
         initialDecker: Decker,
-        private val context: GameContext,
+        val context: GameContext,
         private val steps: List<StepAction>
     ) : ActiveIcon {
 
