@@ -281,5 +281,11 @@ class ScenarioBuilder(private val matrix: Matrix) {
         context.applyDeckerOperationResult(old, result.decker)
     }
 
+    fun invokeMediac(name: String = "invokeMediac") = step(name) {
+        val result = currentDecker().invokeMediac(roller)
+        assertTrue(result.boxesRepaired >= 0, "$name: boxesRepaired should be non-negative")
+        updateCurrentDecker(result.updatedDecker)
+    }
+
     internal fun build(): List<StepAction> = steps.toList()
 }

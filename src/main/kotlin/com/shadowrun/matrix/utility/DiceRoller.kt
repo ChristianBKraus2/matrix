@@ -1,6 +1,9 @@
 package com.shadowrun.matrix.utility
 
 import kotlin.random.Random
+import io.github.oshai.kotlinlogging.KotlinLogging
+
+private val logger = KotlinLogging.logger {}
 
 data class DiceResult(
     val dice: List<Int>,
@@ -16,6 +19,7 @@ class DiceRoller(private val random: Random = Random.Default) {
 
         val dice = List(numberOfDice) { rollOne() }
         val successes = dice.count { it >= targetNumber }
+        logger.debug { "roll(${numberOfDice}d, TN=$targetNumber) → dice=$dice successes=$successes" }
         return DiceResult(dice, targetNumber, successes)
     }
 

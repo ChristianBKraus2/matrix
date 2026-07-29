@@ -8,11 +8,14 @@ import com.shadowrun.matrix.game.Game
 import com.shadowrun.matrix.game.ActiveIcon
 import com.shadowrun.matrix.game.ActiveIconState
 import com.shadowrun.matrix.game.GameContext
+import com.shadowrun.matrix.ic.IC
 import com.shadowrun.matrix.network.Jackpoint
 import com.shadowrun.matrix.network.MatrixLocation
+import com.shadowrun.matrix.programs.Utility
 import com.shadowrun.matrix.utility.DiceRoller
 import kotlin.random.Random
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -39,6 +42,12 @@ open class IntegrationTestBase {
         override fun nextInt(from: Int, until: Int) = 3
     })
 
+    /** Returns 5 for all calls — face 5, beats IC attack TN (typically 3–4) without exploding. */
+    protected fun hitRoller() = DiceRoller(object : Random() {
+        override fun nextBits(bitCount: Int) = 0
+        override fun nextInt(from: Int, until: Int) = 5
+    })
+
     /** Returns 0 for the first [zeroCalls] dice calls, then [thenValue] for all subsequent calls. */
     protected fun winThenRoller(zeroCalls: Int, thenValue: Int) = DiceRoller(object : Random() {
         private var call = 0
@@ -60,9 +69,9 @@ open class IntegrationTestBase {
                    else 0
         }
     })
-    protected fun buildDefaultContext(decker: Decker) = GameContext(
+    protected fun buildDefaultContext(decker: Decker, securityCode: SecurityCode = SecurityCode.GREEN) = GameContext(
         host = HostMock.build("placeholder"),
-        securityCode = SecurityCode.GREEN,
+        securityCode = securityCode,
         deckers = mutableListOf(decker),
         activeIc = mutableListOf()
     )
@@ -71,11 +80,12 @@ open class IntegrationTestBase {
         jackpointPath: String = "UCAS/UCAS-SEA",
         diceRoller: DiceRoller = winRoller(),
         deckerTier: String = DeckerMock.HIGH_END,
+        securityCode: SecurityCode = SecurityCode.GREEN,
         init: ScenarioBuilder.() -> Unit
     ): ScriptedDeckerIcon {
         val (rtg, ltg) = jackpointPath.split("/")
         val decker = DeckerMock.build(GridMock.jackpoint(rtg, ltg), deckerTier)
-        val context = buildDefaultContext(decker)
+        val context = buildDefaultContext(decker, securityCode)
         val steps = ScenarioBuilder(matrix).apply(init).build()
         val icon = ScriptedDeckerIcon(decker, context, steps)
         runActions(icon, context, steps.size, diceRoller)
@@ -88,10 +98,11 @@ open class IntegrationTestBase {
         jackpoint: Jackpoint,
         diceRoller: DiceRoller = winRoller(),
         deckerTier: String = DeckerMock.HIGH_END,
+        securityCode: SecurityCode = SecurityCode.GREEN,
         init: ScenarioBuilder.() -> Unit
     ): ScriptedDeckerIcon {
         val decker = DeckerMock.build(jackpoint, deckerTier)
-        val context = buildDefaultContext(decker)
+        val context = buildDefaultContext(decker, securityCode)
         val steps = ScenarioBuilder(matrix).apply(init).build()
         val icon = ScriptedDeckerIcon(decker, context, steps)
         runActions(icon, context, steps.size, diceRoller)
@@ -156,6 +167,38 @@ open class IntegrationTestBase {
 
     protected fun ScriptedDeckerIcon.assertAlertStatus(expected: AlertStatus) {
         assertEquals(expected, context.host.alertStatus, "Expected alert status $expected but was ${context.host.alertStatus}")
+    }
+
+    protected fun ScriptedDeckerIcon.injectIc(ic: IC) {
+        context.activeIc.add(ic)
+    }
+
+    protected fun ScriptedDeckerIcon.equipUtility(utility: Utility) {
+        val d = currentDecker()
+        val deck = d.cyberdeck
+        val updated = d.copy(cyberdeck = deck.copy(
+            activeUtilities = deck.activeUtilities + utility,
+            storedUtilities = deck.storedUtilities + utility
+        ))
+        context.updateDecker(d, updated)
+    }
+
+    protected fun ScriptedDeckerIcon.runCombatTurnForPhysicalDamage(diceRoller: DiceRoller): Int {
+        val before = currentDecker().physicalConditionMonitor.damage
+        Game(context = context, diceRoller = diceRoller, inCombat = true).runCombatTurn()
+        return currentDecker().physicalConditionMonitor.damage - before
+    }
+
+    protected fun ScriptedDeckerIcon.assertPinnedByBlackIc() {
+        assertTrue(currentDecker().isPinnedByBlackIc, "Expected decker to be pinned by Black IC")
+    }
+
+    protected fun ScriptedDeckerIcon.assertNotPinned() {
+        assertFalse(currentDecker().isPinnedByBlackIc, "Expected decker not to be pinned")
+    }
+
+    protected fun ScriptedDeckerIcon.assertMcpRating(expected: Int) {
+        assertEquals(expected, currentDecker().cyberdeck.mcpRating, "Expected MCP rating $expected but was ${currentDecker().cyberdeck.mcpRating}")
     }
 
     protected inner class ScriptedDeckerIcon(

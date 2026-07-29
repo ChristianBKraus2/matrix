@@ -5,6 +5,8 @@
         </encoder>
     </appender>
 
+    <logger name="com.shadowrun.matrix.utility.DiceRoller" level="DEBUG"/>
+
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>
