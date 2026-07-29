@@ -11,6 +11,7 @@ import com.shadowrun.matrix.network.PLTG
 import com.shadowrun.matrix.network.RTG
 import com.shadowrun.matrix.operations.OperationResult
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 @DslMarker
 annotation class ScenarioDsl
@@ -24,47 +25,130 @@ class ScenarioBuilder(private val matrix: Matrix) {
         steps += block
     }
 
-    fun jackInToLtg(ltg: LTG, name: String = "jack in to ${ltg.name}") = step(name) {
+    fun jackInToLtg(ltg: LTG, name: String = "jack in to ${ltg.name}", succeed: Boolean = true) = step(name) {
         val r = currentDecker().jackInToLtg(ltg, roller)
-        assertIs<LogonResult.Success>(r, "$name failed")
-        updateCurrentDecker(r.decker)
+        if (succeed) {
+            assertIs<LogonResult.Success>(r, "$name failed")
+            updateCurrentDecker(r.decker)
+        } else {
+            assertIs<LogonResult.Failure>(r, "$name should have failed")
+            updateCurrentDecker(r.decker)
+        }
     }
 
-    fun jackInToLtg(path: String) {
+    fun jackInToLtg(path: String, succeed: Boolean = true) {
         val (rtg, ltg) = path.split("/")
-        jackInToLtg(matrix.getLTG(rtg, ltg)!!)
+        jackInToLtg(matrix.getLTG(rtg, ltg)!!, succeed = succeed)
     }
 
-    fun logonToParentRtg(name: String = "move to parent RTG") = step(name) {
+    fun jackInToHost(host: Host, name: String = "jack in to ${host.name}", succeed: Boolean = true) = step(name) {
+        val r = currentDecker().jackInToHost(host, roller)
+        if (succeed) {
+            assertIs<LogonResult.Success>(r, "$name failed")
+            updateCurrentDecker(r.decker)
+        } else {
+            assertIs<LogonResult.Failure>(r, "$name should have failed")
+            updateCurrentDecker(r.decker)
+        }
+    }
+
+    fun logonToParentRtg(name: String = "move to parent RTG", succeed: Boolean = true) = step(name) {
         val currentLtg = (currentDecker().currentLocation as MatrixLocation.OnLTG).ltg
         val r = currentDecker().logonToRtg(currentLtg.parentRtg, roller)
-        assertIs<LogonResult.Success>(r, "$name failed")
-        updateCurrentDecker(r.decker)
+        if (succeed) {
+            assertIs<LogonResult.Success>(r, "$name failed")
+            updateCurrentDecker(r.decker)
+        } else {
+            assertIs<LogonResult.Failure>(r, "$name should have failed")
+            updateCurrentDecker(r.decker)
+        }
     }
 
-    fun logonToRtg(rtg: RTG, name: String = "logon to ${rtg.name}") = step(name) {
+    fun logonToRtg(rtg: RTG, name: String = "logon to ${rtg.name}", succeed: Boolean = true) = step(name) {
         val r = currentDecker().logonToRtg(rtg, roller)
-        assertIs<LogonResult.Success>(r, "$name failed")
-        updateCurrentDecker(r.decker)
+        if (succeed) {
+            assertIs<LogonResult.Success>(r, "$name failed")
+            updateCurrentDecker(r.decker)
+        } else {
+            assertIs<LogonResult.Failure>(r, "$name should have failed")
+            updateCurrentDecker(r.decker)
+        }
     }
 
-    fun logonToRtg(path: String) = logonToRtg(matrix.getRTG(path)!!)
+    fun logonToRtg(path: String, succeed: Boolean = true) = step("logon to RTG $path") {
+        val targetName = path.split("/").last()
+        val rtg = when (val loc = currentDecker().currentLocation) {
+            is MatrixLocation.OnLTG  -> loc.ltg.parentRtg.let {
+                if (it.name == targetName) it
+                else it.connectedRtgs.first { r -> r.name == targetName }
+            }
+            is MatrixLocation.OnRTG  -> loc.rtg.connectedRtgs.first { it.name == targetName }
+            else -> matrix.getRTG(targetName)!!
+        }
+        val r = currentDecker().logonToRtg(rtg, roller)
+        if (succeed) {
+            assertIs<LogonResult.Success>(r, "logon to RTG $path failed")
+            updateCurrentDecker(r.decker)
+        } else {
+            assertIs<LogonResult.Failure>(r, "logon to RTG $path should have failed")
+            updateCurrentDecker(r.decker)
+        }
+    }
 
-    fun logonToLtg(ltg: LTG, name: String = "logon to ${ltg.name}") = step(name) {
+    fun logonToLtg(ltg: LTG, name: String = "logon to ${ltg.name}", succeed: Boolean = true) = step(name) {
         val r = currentDecker().logonToLtg(ltg, roller)
-        assertIs<LogonResult.Success>(r, "$name failed")
-        updateCurrentDecker(r.decker)
+        if (succeed) {
+            assertIs<LogonResult.Success>(r, "$name failed")
+            updateCurrentDecker(r.decker)
+        } else {
+            assertIs<LogonResult.Failure>(r, "$name should have failed")
+            updateCurrentDecker(r.decker)
+        }
     }
 
-    fun logonToLtg(path: String) {
-        val (rtg, ltg) = path.split("/")
-        logonToLtg(matrix.getLTG(rtg, ltg)!!)
+    fun logonToLtg(path: String, succeed: Boolean = true) = step("logon to LTG $path") {
+        val ltgName = path.split("/").last()
+        val ltg = when (val loc = currentDecker().currentLocation) {
+            is MatrixLocation.OnRTG  -> loc.rtg.ltgs.first { it.name == ltgName }
+            is MatrixLocation.OnPLTG -> loc.pltg.parentLtg.parentRtg.ltgs.first { it.name == ltgName }
+            else -> matrix.getLTG(path.split("/")[0], ltgName)!!
+        }
+        val r = currentDecker().logonToLtg(ltg, roller)
+        if (succeed) {
+            assertIs<LogonResult.Success>(r, "logon to LTG $path failed")
+            updateCurrentDecker(r.decker)
+        } else {
+            assertIs<LogonResult.Failure>(r, "logon to LTG $path should have failed")
+            updateCurrentDecker(r.decker)
+        }
     }
 
-    fun logonToPltg(pltg: PLTG, name: String = "logon to ${pltg.name}") = step(name) {
+    fun logonToPltg(pltg: PLTG, name: String = "logon to ${pltg.name}", succeed: Boolean = true) = step(name) {
         val r = currentDecker().logonToPltg(pltg, roller)
-        assertIs<LogonResult.Success>(r, "$name failed")
-        updateCurrentDecker(r.decker)
+        if (succeed) {
+            assertIs<LogonResult.Success>(r, "$name failed")
+            updateCurrentDecker(r.decker)
+        } else {
+            assertIs<LogonResult.Failure>(r, "$name should have failed")
+            updateCurrentDecker(r.decker)
+        }
+    }
+
+    fun logonToPltg(ltgPath: String, succeed: Boolean = true) = step("logon to PLTG under $ltgPath") {
+        val ltgName = ltgPath.split("/").last()
+        val ltg = when (val loc = currentDecker().currentLocation) {
+            is MatrixLocation.OnLTG -> loc.ltg
+            else -> matrix.getLTG(ltgPath.split("/")[0], ltgName)!!
+        }
+        val pltg = ltg.pltgs.first()
+        val r = currentDecker().logonToPltg(pltg, roller)
+        if (succeed) {
+            assertIs<LogonResult.Success>(r, "logon to PLTG under $ltgPath failed")
+            updateCurrentDecker(r.decker)
+        } else {
+            assertIs<LogonResult.Failure>(r, "logon to PLTG under $ltgPath should have failed")
+            updateCurrentDecker(r.decker)
+        }
     }
 
     fun logonToHost(host: Host, name: String = "logon to ${host.name}", succeed: Boolean = true) = step(name) {
@@ -83,9 +167,21 @@ class ScenarioBuilder(private val matrix: Matrix) {
         logonToHost(matrix.getHost(rtg, ltg, host)!!, succeed = succeed)
     }
 
-    fun gracefulLogoff(name: String = "graceful logoff") = step(name) {
+    fun gracefulLogoff(name: String = "graceful logoff", succeed: Boolean = true) = step(name) {
         val r = currentDecker().gracefulLogoff(roller)
-        assertIs<LogoffResult.GracefulSuccess>(r, "$name failed")
+        if (succeed) {
+            assertIs<LogoffResult.GracefulSuccess>(r, "$name failed")
+            updateCurrentDecker(r.decker)
+        } else {
+            assertIs<LogoffResult.JackOut>(r, "$name should have fallen back to jack-out")
+            updateCurrentDecker(r.decker)
+        }
+    }
+
+    fun jackOut(name: String = "jack out") = step(name) {
+        val r = currentDecker().jackOut()
+        assertIs<LogoffResult.JackOut>(r, "$name failed")
+        assertTrue(r.dumpShock, "Expected dumpShock=true for non-immune cyberdeck")
         updateCurrentDecker(r.decker)
     }
 

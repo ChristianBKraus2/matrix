@@ -7,6 +7,7 @@ import com.shadowrun.matrix.game.Game
 import com.shadowrun.matrix.game.ActiveIcon
 import com.shadowrun.matrix.game.ActiveIconState
 import com.shadowrun.matrix.game.GameContext
+import com.shadowrun.matrix.network.Jackpoint
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.utility.DiceRoller
 import kotlin.random.Random
@@ -30,6 +31,11 @@ open class IntegrationTestBase {
     protected fun winRoller() = DiceRoller(object : Random() {
         override fun nextBits(bitCount: Int) = 0
         override fun nextInt(from: Int, until: Int) = 0
+    })
+
+    protected fun failRoller() = DiceRoller(object : Random() {
+        override fun nextBits(bitCount: Int) = 0
+        override fun nextInt(from: Int, until: Int) = 3
     })
 
     /** Returns 0 for the first [zeroCalls] dice calls, then [thenValue] for all subsequent calls. */
@@ -65,6 +71,22 @@ open class IntegrationTestBase {
         return icon
     }
 
+    protected fun scenario(
+        jackpoint: Jackpoint,
+        diceRoller: DiceRoller = winRoller(),
+        deckerTier: String = DeckerMock.HIGH_END,
+        init: ScenarioBuilder.() -> Unit
+    ): ScriptedDeckerIcon {
+        val decker = DeckerMock.build(jackpoint, deckerTier)
+        val context = buildDefaultContext(decker)
+        val steps = ScenarioBuilder(matrix).apply(init).build()
+        val icon = ScriptedDeckerIcon(decker, context, steps)
+        runActions(icon, context, steps.size, diceRoller)
+        assertEquals(steps.size, icon.stepResults.size)
+        assertTrue(icon.stepResults.all { it is ActionResult.DeckerAction })
+        return icon
+    }
+
     protected fun runActions(icon: ActiveIcon, context: GameContext, count: Int, diceRoller: DiceRoller) {
         val states = mutableListOf(ActiveIconState(icon, count * 10))
         while (states.any { it.currentInitiative > 0 }) {
@@ -91,9 +113,24 @@ open class IntegrationTestBase {
         assertEquals(name, loc.ltg.name)
     }
 
+    protected fun ScriptedDeckerIcon.assertOnRtg(name: String) {
+        val loc = assertIs<MatrixLocation.OnRTG>(currentDecker().currentLocation)
+        assertEquals(name, loc.rtg.name)
+    }
+
+    protected fun ScriptedDeckerIcon.assertOnPltg(name: String) {
+        val loc = assertIs<MatrixLocation.OnPLTG>(currentDecker().currentLocation)
+        assertEquals(name, loc.pltg.name)
+    }
+
     protected fun ScriptedDeckerIcon.assertLoggedOff() {
         assertNull(currentDecker().persona,         "Persona should be null after logoff")
         assertNull(currentDecker().currentLocation, "Location should be null after logoff")
+    }
+
+    protected fun ScriptedDeckerIcon.assertNotJackedIn() {
+        assertNull(currentDecker().persona,         "Persona should be null")
+        assertNull(currentDecker().currentLocation, "Location should be null")
     }
 
     protected inner class ScriptedDeckerIcon(
