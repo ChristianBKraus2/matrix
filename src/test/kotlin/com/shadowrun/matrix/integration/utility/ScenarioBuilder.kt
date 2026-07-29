@@ -10,8 +10,11 @@ import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.network.PLTG
 import com.shadowrun.matrix.network.RTG
 import com.shadowrun.matrix.ic.IC
+import com.shadowrun.matrix.operations.AvailableAction
 import com.shadowrun.matrix.operations.HostInfoItem
+import com.shadowrun.matrix.operations.MatrixObject
 import com.shadowrun.matrix.operations.OperationResult
+import com.shadowrun.matrix.operations.SystemOperation
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -23,6 +26,14 @@ annotation class ScenarioDsl
 class ScenarioBuilder(private val matrix: Matrix) {
 
     private val steps = mutableListOf<StepAction>()
+
+    private fun StepContext.assertVisible(check: (MatrixObject) -> Boolean, description: String) =
+        assertTrue(currentDecker().visibleObjects().any(check),
+            "$description not visible from ${currentDecker().currentLocation} — visibleObjects()=${currentDecker().visibleObjects()}")
+
+    private fun StepContext.assertActionable(check: (AvailableAction) -> Boolean, description: String) =
+        assertTrue(currentDecker().availableActions().any(check),
+            "$description not available from ${currentDecker().currentLocation} — availableActions()=${currentDecker().availableActions()}")
 
     fun step(name: String, block: StepContext.() -> Unit) {
         steps += block
@@ -57,6 +68,8 @@ class ScenarioBuilder(private val matrix: Matrix) {
 
     fun logonToParentRtg(name: String = "move to parent RTG", succeed: Boolean = true) = step(name) {
         val currentLtg = (currentDecker().currentLocation as MatrixLocation.OnLTG).ltg
+        assertVisible({ it is MatrixObject.GridNode && it.rtg.name == currentLtg.parentRtg.name }, "parent RTG '${currentLtg.parentRtg.name}'")
+        assertActionable({ it is AvailableAction.LogonToRtg && it.rtg.name == currentLtg.parentRtg.name }, "LogonToRtg '${currentLtg.parentRtg.name}'")
         val r = currentDecker().logonToRtg(currentLtg.parentRtg, roller)
         if (succeed) {
             assertIs<LogonResult.Success>(r, "$name failed")
@@ -68,6 +81,8 @@ class ScenarioBuilder(private val matrix: Matrix) {
     }
 
     fun logonToRtg(rtg: RTG, name: String = "logon to ${rtg.name}", succeed: Boolean = true) = step(name) {
+        assertVisible({ it is MatrixObject.GridNode && it.rtg.name == rtg.name }, "RTG '${rtg.name}'")
+        assertActionable({ it is AvailableAction.LogonToRtg && it.rtg.name == rtg.name }, "LogonToRtg '${rtg.name}'")
         val r = currentDecker().logonToRtg(rtg, roller)
         if (succeed) {
             assertIs<LogonResult.Success>(r, "$name failed")
@@ -88,6 +103,8 @@ class ScenarioBuilder(private val matrix: Matrix) {
             is MatrixLocation.OnRTG  -> loc.rtg.connectedRtgs.first { it.name == targetName }
             else -> matrix.getRTG(targetName)!!
         }
+        assertVisible({ it is MatrixObject.GridNode && it.rtg.name == rtg.name }, "RTG '${rtg.name}'")
+        assertActionable({ it is AvailableAction.LogonToRtg && it.rtg.name == rtg.name }, "LogonToRtg '${rtg.name}'")
         val r = currentDecker().logonToRtg(rtg, roller)
         if (succeed) {
             assertIs<LogonResult.Success>(r, "logon to RTG $path failed")
@@ -99,6 +116,8 @@ class ScenarioBuilder(private val matrix: Matrix) {
     }
 
     fun logonToLtg(ltg: LTG, name: String = "logon to ${ltg.name}", succeed: Boolean = true) = step(name) {
+        assertVisible({ it is MatrixObject.LocalGrid && it.ltg.name == ltg.name }, "LTG '${ltg.name}'")
+        assertActionable({ it is AvailableAction.LogonToLtg && it.ltg.name == ltg.name }, "LogonToLtg '${ltg.name}'")
         val r = currentDecker().logonToLtg(ltg, roller)
         if (succeed) {
             assertIs<LogonResult.Success>(r, "$name failed")
@@ -116,6 +135,8 @@ class ScenarioBuilder(private val matrix: Matrix) {
             is MatrixLocation.OnPLTG -> loc.pltg.parentLtg.parentRtg.ltgs.first { it.name == ltgName }
             else -> matrix.getLTG(path.split("/")[0], ltgName)!!
         }
+        assertVisible({ it is MatrixObject.LocalGrid && it.ltg.name == ltg.name }, "LTG '${ltg.name}'")
+        assertActionable({ it is AvailableAction.LogonToLtg && it.ltg.name == ltg.name }, "LogonToLtg '${ltg.name}'")
         val r = currentDecker().logonToLtg(ltg, roller)
         if (succeed) {
             assertIs<LogonResult.Success>(r, "logon to LTG $path failed")
@@ -127,6 +148,8 @@ class ScenarioBuilder(private val matrix: Matrix) {
     }
 
     fun logonToPltg(pltg: PLTG, name: String = "logon to ${pltg.name}", succeed: Boolean = true) = step(name) {
+        assertVisible({ it is MatrixObject.PrivateGrid && it.pltg.name == pltg.name }, "PLTG '${pltg.name}'")
+        assertActionable({ it is AvailableAction.LogonToPltg && it.pltg.name == pltg.name }, "LogonToPltg '${pltg.name}'")
         val r = currentDecker().logonToPltg(pltg, roller)
         if (succeed) {
             assertIs<LogonResult.Success>(r, "$name failed")
@@ -144,6 +167,8 @@ class ScenarioBuilder(private val matrix: Matrix) {
             else -> matrix.getLTG(ltgPath.split("/")[0], ltgName)!!
         }
         val pltg = ltg.pltgs.first()
+        assertVisible({ it is MatrixObject.PrivateGrid && it.pltg.name == pltg.name }, "PLTG '${pltg.name}'")
+        assertActionable({ it is AvailableAction.LogonToPltg && it.pltg.name == pltg.name }, "LogonToPltg '${pltg.name}'")
         val r = currentDecker().logonToPltg(pltg, roller)
         if (succeed) {
             assertIs<LogonResult.Success>(r, "logon to PLTG under $ltgPath failed")
@@ -155,6 +180,8 @@ class ScenarioBuilder(private val matrix: Matrix) {
     }
 
     fun logonToHost(host: Host, name: String = "logon to ${host.name}", succeed: Boolean = true) = step(name) {
+        assertVisible({ it is MatrixObject.HostNode && it.host.name == host.name }, "host '${host.name}'")
+        assertActionable({ it is AvailableAction.LogonToHost && it.host.name == host.name }, "LogonToHost '${host.name}'")
         val r = currentDecker().logonToHost(host, roller)
         if (succeed) {
             assertIs<LogonResult.Success>(r, "$name failed")
@@ -171,6 +198,7 @@ class ScenarioBuilder(private val matrix: Matrix) {
     }
 
     fun gracefulLogoff(name: String = "graceful logoff", succeed: Boolean = true) = step(name) {
+        assertActionable({ it is AvailableAction.GracefulLogoff }, "GracefulLogoff")
         val r = currentDecker().gracefulLogoff(roller)
         if (succeed) {
             assertIs<LogoffResult.GracefulSuccess>(r, "$name failed")
@@ -182,6 +210,7 @@ class ScenarioBuilder(private val matrix: Matrix) {
     }
 
     fun jackOut(name: String = "jack out") = step(name) {
+        assertActionable({ it is AvailableAction.JackOut }, "JackOut")
         val r = currentDecker().jackOut()
         assertIs<LogoffResult.JackOut>(r, "$name failed")
         assertTrue(r.dumpShock, "Expected dumpShock=true for non-immune cyberdeck")
@@ -193,6 +222,13 @@ class ScenarioBuilder(private val matrix: Matrix) {
         name: String = "analyzeSubsystem $subsystem",
         succeed: Boolean = true
     ) = step(name) {
+        assertVisible({ it is MatrixObject.HostSubsystem && it.node.subsystemType == subsystem }, "subsystem node $subsystem")
+        assertActionable({
+            it is AvailableAction.Operation &&
+            it.operation == SystemOperation.ANALYZE_SUBSYSTEM &&
+            it.target is MatrixObject.HostSubsystem &&
+            (it.target as MatrixObject.HostSubsystem).node.subsystemType == subsystem
+        }, "ANALYZE_SUBSYSTEM $subsystem")
         val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
         val old = currentDecker()
         val result = old.analyzeSubsystem(host, subsystem, roller)
@@ -217,6 +253,7 @@ class ScenarioBuilder(private val matrix: Matrix) {
         name: String = "decryptAccess",
         succeed: Boolean = true
     ) = step(name) {
+        assertActionable({ it is AvailableAction.Operation && it.operation == SystemOperation.DECRYPT_ACCESS }, "DECRYPT_ACCESS")
         val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
         val old = currentDecker()
         val result = old.decryptAccess(host, roller)
@@ -230,6 +267,7 @@ class ScenarioBuilder(private val matrix: Matrix) {
         name: String = "analyzeSecurity",
         assertTallyAtLeast: Int? = null
     ) = step(name) {
+        assertActionable({ it is AvailableAction.Operation && it.operation == SystemOperation.ANALYZE_SECURITY }, "ANALYZE_SECURITY")
         val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
         val old = currentDecker()
         val result = old.analyzeSecurity(host, roller)
@@ -244,6 +282,7 @@ class ScenarioBuilder(private val matrix: Matrix) {
         name: String = "analyzeHost",
         succeed: Boolean = true
     ) = step(name) {
+        assertActionable({ it is AvailableAction.Operation && it.operation == SystemOperation.ANALYZE_HOST }, "ANALYZE_HOST")
         val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
         val old = currentDecker()
         val result = old.analyzeHost(host, items, roller)
@@ -258,6 +297,13 @@ class ScenarioBuilder(private val matrix: Matrix) {
         name: String = "analyzeIc ${ic.name}",
         succeed: Boolean = true
     ) = step(name) {
+        assertVisible({ it is MatrixObject.IcProgram && it.ic == ic }, "IC '${ic.name}'")
+        assertActionable({
+            it is AvailableAction.Operation &&
+            it.operation == SystemOperation.ANALYZE_IC &&
+            it.target is MatrixObject.IcProgram &&
+            (it.target as MatrixObject.IcProgram).ic == ic
+        }, "ANALYZE_IC '${ic.name}'")
         val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
         val old = currentDecker()
         val result = old.analyzeIc(ic, host, roller)
@@ -271,6 +317,7 @@ class ScenarioBuilder(private val matrix: Matrix) {
         name: String = "analyzeFirstActiveIc",
         succeed: Boolean = true
     ) = step(name) {
+        assertActionable({ it is AvailableAction.Operation && it.operation == SystemOperation.ANALYZE_IC }, "ANALYZE_IC")
         val ic = context.activeIc.first()
         val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
         val old = currentDecker()

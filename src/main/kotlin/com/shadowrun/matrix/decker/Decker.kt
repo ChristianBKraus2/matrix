@@ -31,6 +31,8 @@ import com.shadowrun.matrix.operations.PointerChain
 import com.shadowrun.matrix.operations.QueryPrecision
 import com.shadowrun.matrix.operations.ScrambleDestructResult
 import com.shadowrun.matrix.operations.SensorTestResult
+import com.shadowrun.matrix.operations.AvailableAction
+import com.shadowrun.matrix.operations.MatrixObject
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.operations.SystemTestOutcome
 import com.shadowrun.matrix.operations.SystemTestResolver
@@ -436,6 +438,132 @@ data class Decker(
             val p = checkNotNull(persona) { "actionsPerTurn requires a jacked-in persona" }
             return ceil(p.reaction / 10.0).toInt() + cyberdeck.responseIncrease
         }
+
+    // ── Visibility and available actions ─────────────────────────────────────────
+
+    /**
+     * Returns all Matrix objects visible to the decker from their current location.
+     * Returns empty if not jacked in.
+     */
+    fun visibleObjects(): List<MatrixObject> {
+        if (persona == null) return emptyList()
+        return when (val loc = currentLocation) {
+            null -> emptyList()
+            is MatrixLocation.OnRTG -> buildList {
+                add(MatrixObject.GridNode(loc.rtg))
+                loc.rtg.connectedRtgs.forEach { add(MatrixObject.GridNode(it)) }
+                loc.rtg.ltgs.forEach { add(MatrixObject.LocalGrid(it)) }
+            }
+            is MatrixLocation.OnLTG -> buildList {
+                add(MatrixObject.LocalGrid(loc.ltg))
+                add(MatrixObject.GridNode(loc.ltg.parentRtg))
+                loc.ltg.pltgs.forEach { add(MatrixObject.PrivateGrid(it)) }
+                loc.ltg.hosts.forEach { add(MatrixObject.HostNode(it)) }
+            }
+            is MatrixLocation.OnPLTG -> buildList {
+                add(MatrixObject.PrivateGrid(loc.pltg))
+                add(MatrixObject.LocalGrid(loc.pltg.parentLtg))
+                loc.pltg.hosts.forEach { add(MatrixObject.HostNode(it)) }
+            }
+            is MatrixLocation.OnHost -> buildList {
+                add(MatrixObject.HostNode(loc.host))
+                loc.host.nodes.forEach { add(MatrixObject.HostSubsystem(it)) }
+                loc.host.icPrograms.forEach { add(MatrixObject.IcProgram(it)) }
+                loc.host.dataFiles.forEach { add(MatrixObject.File(it)) }
+                loc.host.remoteDevices.forEach { add(MatrixObject.Device(it)) }
+                loc.host.connectedHosts.forEach { add(MatrixObject.HostNode(it)) }
+            }
+        }
+    }
+
+    /**
+     * Returns all actions the decker can attempt from their current location.
+     * Returns empty if not jacked in.
+     * Availability is positional only — whether the required utility is loaded is left to the caller.
+     */
+    fun availableActions(): List<AvailableAction> {
+        if (persona == null) return emptyList()
+        return buildList {
+            // Logoff is always available when jacked in
+            add(AvailableAction.GracefulLogoff())
+            add(AvailableAction.JackOut())
+
+            when (val loc = currentLocation) {
+                null -> Unit
+
+                is MatrixLocation.OnRTG -> {
+                    loc.rtg.connectedRtgs.forEach { add(AvailableAction.LogonToRtg(it)) }
+                    loc.rtg.ltgs.forEach { add(AvailableAction.LogonToLtg(it)) }
+                    addGridSystemActions()
+                }
+
+                is MatrixLocation.OnLTG -> {
+                    add(AvailableAction.LogonToRtg(loc.ltg.parentRtg))
+                    loc.ltg.pltgs.forEach { add(AvailableAction.LogonToPltg(it)) }
+                    loc.ltg.hosts.forEach { add(AvailableAction.LogonToHost(it)) }
+                    addGridSystemActions()
+                }
+
+                is MatrixLocation.OnPLTG -> {
+                    add(AvailableAction.LogonToLtg(loc.pltg.parentLtg))
+                    loc.pltg.hosts.forEach { add(AvailableAction.LogonToHost(it)) }
+                    addGridSystemActions()
+                }
+
+                is MatrixLocation.OnHost -> {
+                    loc.host.connectedHosts.forEach { add(AvailableAction.LogonToHost(it)) }
+                    addHostSystemActions(loc.host)
+                }
+            }
+        }
+    }
+
+    private fun MutableList<AvailableAction>.addGridSystemActions() {
+        add(AvailableAction.Operation(SystemOperation.NULL_OPERATION))
+        add(AvailableAction.Operation(SystemOperation.ANALYZE_SECURITY))
+        add(AvailableAction.Operation(SystemOperation.RELOCATE_ICON))
+        add(AvailableAction.Operation(SystemOperation.LOCATE_IC))
+        visibleObjects().filterIsInstance<MatrixObject.IcProgram>()
+            .forEach { add(AvailableAction.Operation(SystemOperation.ANALYZE_IC, it)) }
+    }
+
+    private fun MutableList<AvailableAction>.addHostSystemActions(host: Host) {
+        add(AvailableAction.Operation(SystemOperation.ANALYZE_HOST))
+        add(AvailableAction.Operation(SystemOperation.ANALYZE_SECURITY))
+        add(AvailableAction.Operation(SystemOperation.NULL_OPERATION))
+        add(AvailableAction.Operation(SystemOperation.RELOCATE_ICON))
+        add(AvailableAction.Operation(SystemOperation.LOCATE_FILE))
+        add(AvailableAction.Operation(SystemOperation.LOCATE_SLAVE))
+        add(AvailableAction.Operation(SystemOperation.LOCATE_ACCESS_NODE))
+        add(AvailableAction.Operation(SystemOperation.LOCATE_DECKER))
+        add(AvailableAction.Operation(SystemOperation.LOCATE_IC))
+        add(AvailableAction.Operation(SystemOperation.DECRYPT_ACCESS))
+        add(AvailableAction.Operation(SystemOperation.DECRYPT_SLAVE))
+        add(AvailableAction.Operation(SystemOperation.UPLOAD_DATA))
+        add(AvailableAction.Operation(SystemOperation.MAKE_COMCALL))
+        add(AvailableAction.Operation(SystemOperation.TAP_COMCALL))
+        add(AvailableAction.Operation(SystemOperation.SWAP_MEMORY))
+        host.nodes.forEach {
+            add(AvailableAction.Operation(SystemOperation.ANALYZE_SUBSYSTEM, MatrixObject.HostSubsystem(it)))
+        }
+        host.icPrograms.forEach {
+            val obj = MatrixObject.IcProgram(it)
+            add(AvailableAction.Operation(SystemOperation.ANALYZE_IC, obj))
+            add(AvailableAction.Operation(SystemOperation.ANALYZE_ICON, obj))
+        }
+        host.dataFiles.forEach {
+            val obj = MatrixObject.File(it)
+            add(AvailableAction.Operation(SystemOperation.DOWNLOAD_DATA, obj))
+            add(AvailableAction.Operation(SystemOperation.EDIT_FILE, obj))
+            if (it.isScrambleProtected) add(AvailableAction.Operation(SystemOperation.DECRYPT_FILE, obj))
+        }
+        host.remoteDevices.forEach {
+            val obj = MatrixObject.Device(it)
+            add(AvailableAction.Operation(SystemOperation.CONTROL_SLAVE, obj))
+            add(AvailableAction.Operation(SystemOperation.EDIT_SLAVE, obj))
+            add(AvailableAction.Operation(SystemOperation.MONITOR_SLAVE, obj))
+        }
+    }
 
     // ── Matrix Perception ─────────────────────────────────────────────────────────
 
