@@ -1,5 +1,6 @@
 package com.shadowrun.matrix.integration.utility
 
+import com.shadowrun.matrix.common.AlertStatus
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.decker.Decker
 import com.shadowrun.matrix.game.ActionResult
@@ -45,6 +46,18 @@ open class IntegrationTestBase {
         override fun nextInt(from: Int, until: Int): Int {
             call++
             return if (call <= zeroCalls) 0 else thenValue
+        }
+    })
+
+    /** Returns 0 for the first [winCalls] calls, then [failValue] for the next [failCalls], then 0 again. */
+    protected fun winFailWinRoller(winCalls: Int, failCalls: Int, failValue: Int = 3) = DiceRoller(object : Random() {
+        private var call = 0
+        override fun nextBits(bitCount: Int) = 0
+        override fun nextInt(from: Int, until: Int): Int {
+            call++
+            return if (call <= winCalls) 0
+                   else if (call <= winCalls + failCalls) failValue
+                   else 0
         }
     })
     protected fun buildDefaultContext(decker: Decker) = GameContext(
@@ -131,6 +144,18 @@ open class IntegrationTestBase {
     protected fun ScriptedDeckerIcon.assertNotJackedIn() {
         assertNull(currentDecker().persona,         "Persona should be null")
         assertNull(currentDecker().currentLocation, "Location should be null")
+    }
+
+    protected fun ScriptedDeckerIcon.assertNoActiveIc() {
+        assertTrue(context.activeIc.isEmpty(), "Expected no active IC but found: ${context.activeIc.map { it.name }}")
+    }
+
+    protected fun ScriptedDeckerIcon.assertActiveIcCount(count: Int) {
+        assertEquals(count, context.activeIc.size, "Expected $count active IC but found ${context.activeIc.size}: ${context.activeIc.map { it.name }}")
+    }
+
+    protected fun ScriptedDeckerIcon.assertAlertStatus(expected: AlertStatus) {
+        assertEquals(expected, context.host.alertStatus, "Expected alert status $expected but was ${context.host.alertStatus}")
     }
 
     protected inner class ScriptedDeckerIcon(

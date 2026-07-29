@@ -9,7 +9,10 @@ import com.shadowrun.matrix.network.Matrix
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.network.PLTG
 import com.shadowrun.matrix.network.RTG
+import com.shadowrun.matrix.ic.IC
+import com.shadowrun.matrix.operations.HostInfoItem
 import com.shadowrun.matrix.operations.OperationResult
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -208,6 +211,74 @@ class ScenarioBuilder(private val matrix: Matrix) {
             ?: error("No $subsystem node found on host ${context.host.name}")
         val d = currentDecker()
         updateCurrentDecker(d.copy(persona = d.persona!!.copy(currentNode = if (succeed) node else null)))
+    }
+
+    fun decryptAccess(
+        name: String = "decryptAccess",
+        succeed: Boolean = true
+    ) = step(name) {
+        val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
+        val old = currentDecker()
+        val result = old.decryptAccess(host, roller)
+        if (succeed) assertIs<OperationResult.Success>(result, "$name should succeed")
+        else assertIs<OperationResult.Failure>(result, "$name should fail")
+        updateCurrentDecker(result.decker)
+        context.applyDeckerOperationResult(old, result.decker)
+    }
+
+    fun analyzeSecurity(
+        name: String = "analyzeSecurity",
+        assertTallyAtLeast: Int? = null
+    ) = step(name) {
+        val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
+        val old = currentDecker()
+        val result = old.analyzeSecurity(host, roller)
+        updateCurrentDecker(result.decker)
+        context.applyDeckerOperationResult(old, result.decker)
+        if (assertTallyAtLeast != null)
+            assertTrue(result.currentTally >= assertTallyAtLeast, "Expected tally >= $assertTallyAtLeast but was ${result.currentTally}")
+    }
+
+    fun analyzeHost(
+        items: List<HostInfoItem> = listOf(HostInfoItem.SecurityRating),
+        name: String = "analyzeHost",
+        succeed: Boolean = true
+    ) = step(name) {
+        val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
+        val old = currentDecker()
+        val result = old.analyzeHost(host, items, roller)
+        if (succeed) assertTrue(result.outcome.deckerWins, "$name: decker should win the System Test")
+        else assertFalse(result.outcome.deckerWins, "$name: host should win the System Test")
+        updateCurrentDecker(result.decker)
+        context.applyDeckerOperationResult(old, result.decker)
+    }
+
+    fun analyzeIc(
+        ic: IC,
+        name: String = "analyzeIc ${ic.name}",
+        succeed: Boolean = true
+    ) = step(name) {
+        val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
+        val old = currentDecker()
+        val result = old.analyzeIc(ic, host, roller)
+        if (succeed) assertIs<OperationResult.Success>(result, "$name should succeed")
+        else assertIs<OperationResult.Failure>(result, "$name should fail")
+        updateCurrentDecker(result.decker)
+        context.applyDeckerOperationResult(old, result.decker)
+    }
+
+    fun analyzeFirstActiveIc(
+        name: String = "analyzeFirstActiveIc",
+        succeed: Boolean = true
+    ) = step(name) {
+        val ic = context.activeIc.first()
+        val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
+        val old = currentDecker()
+        val result = old.analyzeIc(ic, host, roller)
+        if (succeed) assertIs<OperationResult.Success>(result, "$name should succeed")
+        else assertIs<OperationResult.Failure>(result, "$name should fail")
+        updateCurrentDecker(result.decker)
+        context.applyDeckerOperationResult(old, result.decker)
     }
 
     internal fun build(): List<StepAction> = steps.toList()
