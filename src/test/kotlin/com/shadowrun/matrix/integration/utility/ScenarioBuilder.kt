@@ -103,5 +103,16 @@ class ScenarioBuilder(private val matrix: Matrix) {
         context.applyDeckerOperationResult(old, result.decker)
     }
 
+    fun navigateToNode(
+        subsystem: SubsystemType,
+        name: String = "navigate to $subsystem node",
+        succeed: Boolean = true
+    ) = step(name) {
+        val node = context.host.nodes.firstOrNull { it.subsystemType == subsystem }
+            ?: error("No $subsystem node found on host ${context.host.name}")
+        val d = currentDecker()
+        updateCurrentDecker(d.copy(persona = d.persona!!.copy(currentNode = if (succeed) node else null)))
+    }
+
     internal fun build(): List<StepAction> = steps.toList()
 }

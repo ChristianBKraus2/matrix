@@ -3,6 +3,7 @@ package com.shadowrun.matrix.integration.utility
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.decker.Decker
 import com.shadowrun.matrix.game.ActionResult
+import com.shadowrun.matrix.game.Game
 import com.shadowrun.matrix.game.ActiveIcon
 import com.shadowrun.matrix.game.ActiveIconState
 import com.shadowrun.matrix.game.GameContext
@@ -72,6 +73,12 @@ open class IntegrationTestBase {
             state.icon.action(context, diceRoller)
             states[idx] = state.copy(currentInitiative = state.currentInitiative - 10)
         }
+    }
+
+    protected fun ScriptedDeckerIcon.runCombatTurn(diceRoller: DiceRoller): Int {
+        val damageBefore = currentDecker().persona!!.conditionMonitor.damage
+        Game(context = context, diceRoller = diceRoller, inCombat = true).runCombatTurn()
+        return currentDecker().persona!!.conditionMonitor.damage - damageBefore
     }
 
     protected fun ScriptedDeckerIcon.assertOnHost(name: String) {
