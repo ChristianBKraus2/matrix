@@ -9,7 +9,10 @@ import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import com.shadowrun.matrix.server.dto.ActionCommand
+import com.shadowrun.matrix.server.dto.JoinMessage
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 fun startMatrixServer(
     registry: SessionRegistry,
@@ -24,8 +27,12 @@ fun startMatrixServer(
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
                         runCatching {
-                            val cmd = Json.decodeFromString<ActionCommand>(frame.readText())
-                            registry.receiveAction(this, cmd)
+                            val json = frame.readText()
+                            val msgType = Json.parseToJsonElement(json).jsonObject["type"]?.jsonPrimitive?.content
+                            when (msgType) {
+                                "join"   -> registry.receiveJoin(this, Json.decodeFromString<JoinMessage>(json))
+                                "action" -> registry.receiveAction(this, Json.decodeFromString<ActionCommand>(json))
+                            }
                         }
                     }
                 }

@@ -6,12 +6,18 @@ import kotlinx.serialization.json.Json
 val MatrixJson = Json { encodeDefaults = true }
 
 @Serializable
+data class JoinMessage(
+    val type: String = "join",
+    val deckerName: String
+)
+
+@Serializable
 data class StateMessage(
     val type: String = "state",
+    val role: String,
     val decker: DeckerStateDto,
     val visibleObjects: List<MatrixObjectDto>,
-    val availableActions: List<AvailableActionDto>,
-    val isActiveController: Boolean
+    val availableActions: List<AvailableActionDto>
 )
 
 @Serializable
@@ -42,7 +48,8 @@ data class ResultMessage(
 @Serializable
 data class ControlMessage(
     val type: String = "control",
-    val granted: Boolean
+    val role: String,
+    val deckerName: String? = null
 )
 
 @Serializable

@@ -9,17 +9,10 @@ import com.shadowrun.matrix.integration.utility.GridMock
 import com.shadowrun.matrix.network.Jackpoint
 import com.shadowrun.matrix.server.dto.ActionCommand
 import com.shadowrun.matrix.server.dto.ErrorMessage
+import com.shadowrun.matrix.server.dto.JoinMessage
 import com.shadowrun.matrix.server.dto.ResultMessage
 import com.shadowrun.matrix.utility.DiceRoller
-import io.ktor.client.plugins.websocket.WebSockets as ClientWebSockets
-import io.ktor.client.plugins.websocket.webSocket
-import io.ktor.server.routing.routing
-import io.ktor.server.testing.testApplication
-import io.ktor.server.websocket.WebSockets
-import io.ktor.server.websocket.webSocket as serverWebSocket
-import io.ktor.websocket.Frame
-import io.ktor.websocket.readText
-import kotlinx.serialization.encodeToString
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -51,159 +44,162 @@ class WebSocketServerTest {
     )
 
     @Test
-    fun `first connection receives ControlMessage granted true`() {
+    fun `connection receives ControlMessage with observer role`() = runBlocking {
         val registry = SessionRegistry()
-        testApplication {
-            install(WebSockets)
-            routing {
-                serverWebSocket("/decker/ws") {
-                    registry.register(this)
-                    try { for (f in incoming) { } } finally { registry.deregister(this) }
-                }
-            }
-            val client = createClient { install(ClientWebSockets) }
-            client.webSocket("/decker/ws") {
-                val text = (incoming.receive() as Frame.Text).readText()
-                val obj = Json.parseToJsonElement(text).jsonObject
-                assertEquals("control", obj["type"]?.jsonPrimitive?.content)
-                assertEquals("true", obj["granted"]?.jsonPrimitive?.content)
-            }
-        }
+        val session = FakeWebSocketSession()
+        registry.register(session)
+        val obj = Json.parseToJsonElement(session.nextText()).jsonObject
+        assertEquals("control", obj["type"]?.jsonPrimitive?.content)
+        assertEquals("observer", obj["role"]?.jsonPrimitive?.content)
     }
 
     @Test
-    fun `second connection receives ControlMessage granted false`() {
+    fun `all connections receive ControlMessage with observer role`() = runBlocking {
         val registry = SessionRegistry()
-        testApplication {
-            install(WebSockets)
-            routing {
-                serverWebSocket("/decker/ws") {
-                    registry.register(this)
-                    try { for (f in incoming) { } } finally { registry.deregister(this) }
-                }
-            }
-            val client1 = createClient { install(ClientWebSockets) }
-            val client2 = createClient { install(ClientWebSockets) }
-
-            // Connect first client
-            client1.webSocket("/decker/ws") {
-                val first = (incoming.receive() as Frame.Text).readText()
-                assertEquals("true", Json.parseToJsonElement(first).jsonObject["granted"]?.jsonPrimitive?.content)
-
-                // Connect second client while first is still connected
-                client2.webSocket("/decker/ws") {
-                    val second = (incoming.receive() as Frame.Text).readText()
-                    assertEquals("false", Json.parseToJsonElement(second).jsonObject["granted"]?.jsonPrimitive?.content)
-                }
-            }
-        }
+        val session1 = FakeWebSocketSession()
+        val session2 = FakeWebSocketSession()
+        registry.register(session1)
+        registry.register(session2)
+        assertEquals("observer", Json.parseToJsonElement(session1.nextText()).jsonObject["role"]?.jsonPrimitive?.content)
+        assertEquals("observer", Json.parseToJsonElement(session2.nextText()).jsonObject["role"]?.jsonPrimitive?.content)
     }
 
     @Test
-    fun `action broadcasts StateMessage then accepts ActionCommand`() {
+    fun `JoinMessage registers decker and sends registered_decker ControlMessage`() = runBlocking {
+        val registry = SessionRegistry()
+        val session = FakeWebSocketSession()
+        registry.register(session)
+        session.nextText() // observer
+        registry.receiveJoin(session, JoinMessage(deckerName = "Kylie"))
+        val obj = Json.parseToJsonElement(session.nextText()).jsonObject
+        assertEquals("control", obj["type"]?.jsonPrimitive?.content)
+        assertEquals("registered_decker", obj["role"]?.jsonPrimitive?.content)
+        assertEquals("Kylie", obj["deckerName"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `JoinMessage with already-taken name returns name_already_taken error`() = runBlocking {
+        val registry = SessionRegistry()
+        val session1 = FakeWebSocketSession()
+        val session2 = FakeWebSocketSession()
+        registry.register(session1)
+        registry.register(session2)
+        session1.nextText() // observer
+        session2.nextText() // observer
+        registry.receiveJoin(session1, JoinMessage(deckerName = "Kylie"))
+        session1.nextText() // registered_decker
+        registry.receiveJoin(session2, JoinMessage(deckerName = "Kylie"))
+        val error = Json.decodeFromString<ErrorMessage>(session2.nextText())
+        assertEquals("name_already_taken", error.message)
+    }
+
+    @Test
+    fun `JoinMessage sent twice by same session returns already_registered error`() = runBlocking {
+        val registry = SessionRegistry()
+        val session = FakeWebSocketSession()
+        registry.register(session)
+        session.nextText() // observer
+        registry.receiveJoin(session, JoinMessage(deckerName = "Kylie"))
+        session.nextText() // registered_decker
+        registry.receiveJoin(session, JoinMessage(deckerName = "Shadowcat"))
+        val error = Json.decodeFromString<ErrorMessage>(session.nextText())
+        assertEquals("already_registered", error.message)
+    }
+
+    @Test
+    fun `non-controller session sending ActionCommand receives not_your_turn error`() = runBlocking {
+        val registry = SessionRegistry()
+        val session = FakeWebSocketSession()
+        registry.register(session)
+        session.nextText() // observer
+        registry.receiveAction(session, ActionCommand(actionIndex = 0))
+        val error = Json.decodeFromString<ErrorMessage>(session.nextText())
+        assertEquals("not_your_turn", error.message)
+    }
+
+    @Test
+    fun `action with no registered session broadcasts turn-skipped ResultMessage`() = runBlocking {
         val registry = SessionRegistry()
         val decker = makeDecker()
-        val controller = WebSocketDeckerController(registry, decker, actionTimeoutSeconds = 5)
+        val wsController = WebSocketDeckerController(registry, decker, actionTimeoutSeconds = 5)
         val context = makeContext(decker)
+        val session = FakeWebSocketSession()
+        registry.register(session)
+        session.nextText() // observer
 
-        testApplication {
-            install(WebSockets)
-            routing {
-                serverWebSocket("/decker/ws") {
-                    registry.register(this)
-                    try {
-                        for (frame in incoming) {
-                            if (frame is Frame.Text) {
-                                val cmd = Json.decodeFromString<ActionCommand>(frame.readText())
-                                registry.receiveAction(this, cmd)
-                            }
-                        }
-                    } finally {
-                        registry.deregister(this)
-                    }
-                }
-            }
+        val thread = Thread { wsController.action(context, winRoller()) }
+        thread.start()
 
-            val client = createClient { install(ClientWebSockets) }
-            client.webSocket("/decker/ws") {
-                // Consume ControlMessage
-                incoming.receive()
-
-                // Start action() on a background thread
-                val thread = Thread { controller.action(context, winRoller()) }
-                thread.start()
-
-                // Receive StateMessage
-                val stateText = (incoming.receive() as Frame.Text).readText()
-                val stateType = Json.parseToJsonElement(stateText).jsonObject["type"]?.jsonPrimitive?.content
-                assertEquals("state", stateType)
-
-                // Send action command — decker not jacked in so availableActions is empty → invalid index
-                send(Frame.Text(Json.encodeToString(ActionCommand(actionIndex = 0))))
-
-                // Receive ResultMessage
-                val resultText = (incoming.receive() as Frame.Text).readText()
-                val result = Json.decodeFromString<ResultMessage>(resultText)
-                assertFalse(result.success)
-                assertTrue(result.details.contains("Invalid action index"))
-
-                thread.join(3000)
-            }
-        }
+        val result = Json.decodeFromString<ResultMessage>(session.nextText())
+        assertFalse(result.success)
+        assertTrue(result.details.contains("turn skipped"))
+        thread.join(3000)
     }
 
     @Test
-    fun `observer sending ActionCommand receives error message`() {
+    fun `registered decker receives promotion and StateMessage on turn start`() = runBlocking {
         val registry = SessionRegistry()
         val decker = makeDecker()
-        val controller = WebSocketDeckerController(registry, decker, actionTimeoutSeconds = 5)
+        val wsController = WebSocketDeckerController(registry, decker, actionTimeoutSeconds = 5)
         val context = makeContext(decker)
+        val deckerName = wsController.decker.name
+        val session = FakeWebSocketSession()
 
-        testApplication {
-            install(WebSockets)
-            routing {
-                serverWebSocket("/decker/ws") {
-                    registry.register(this)
-                    try {
-                        for (frame in incoming) {
-                            if (frame is Frame.Text) {
-                                val cmd = Json.decodeFromString<ActionCommand>(frame.readText())
-                                registry.receiveAction(this, cmd)
-                            }
-                        }
-                    } finally {
-                        registry.deregister(this)
-                    }
-                }
-            }
+        registry.register(session)
+        session.nextText() // observer
+        registry.receiveJoin(session, JoinMessage(deckerName = deckerName))
+        session.nextText() // registered_decker
 
-            val controller1 = createClient { install(ClientWebSockets) }
-            val observer = createClient { install(ClientWebSockets) }
+        val thread = Thread { wsController.action(context, winRoller()) }
+        thread.start()
 
-            controller1.webSocket("/decker/ws") {
-                incoming.receive() // controller: consume ControlMessage(granted=true)
+        val promotionText = session.nextText()
+        assertEquals("active_controller", Json.parseToJsonElement(promotionText).jsonObject["role"]?.jsonPrimitive?.content)
 
-                // Start action() — will block waiting for input
-                val thread = Thread { controller.action(context, winRoller()) }
-                thread.start()
+        val stateObj = Json.parseToJsonElement(session.nextText()).jsonObject
+        assertEquals("state", stateObj["type"]?.jsonPrimitive?.content)
+        assertEquals("active_controller", stateObj["role"]?.jsonPrimitive?.content)
 
-                // Consume StateMessage broadcast to controller
-                incoming.receive()
+        registry.receiveAction(session, ActionCommand(actionIndex = 0))
 
-                observer.webSocket("/decker/ws") {
-                    incoming.receive() // observer: ControlMessage(granted=false)
-                    incoming.receive() // observer: StateMessage broadcast from action()
+        val result = Json.decodeFromString<ResultMessage>(session.nextText())
+        assertFalse(result.success)
+        assertTrue(result.details.contains("Invalid action index"))
 
-                    // Observer tries to send action → should receive error
-                    send(Frame.Text(Json.encodeToString(ActionCommand(actionIndex = 0))))
+        session.nextText() // demotion ControlMessage(registered_decker)
+        thread.join(3000)
+    }
 
-                    val errorText = (incoming.receive() as Frame.Text).readText()
-                    val error = Json.decodeFromString<ErrorMessage>(errorText)
-                    assertEquals("not your turn", error.message)
-                }
+    @Test
+    fun `active controller disconnect mid-turn broadcasts forfeit ResultMessage`() = runBlocking {
+        val registry = SessionRegistry()
+        val decker = makeDecker()
+        val wsController = WebSocketDeckerController(registry, decker, actionTimeoutSeconds = 5)
+        val context = makeContext(decker)
+        val deckerName = wsController.decker.name
 
-                thread.join(8000)
-            }
-        }
+        val deckerSession = FakeWebSocketSession()
+        val observerSession = FakeWebSocketSession()
+        registry.register(deckerSession)
+        registry.register(observerSession)
+        deckerSession.nextText()  // observer
+        observerSession.nextText() // observer
+
+        registry.receiveJoin(deckerSession, JoinMessage(deckerName = deckerName))
+        deckerSession.nextText() // registered_decker
+
+        val thread = Thread { wsController.action(context, winRoller()) }
+        thread.start()
+
+        deckerSession.nextText()  // ControlMessage(active_controller)
+        deckerSession.nextText()  // StateMessage(active_controller)
+        observerSession.nextText() // StateMessage(observer)
+
+        registry.deregister(deckerSession) // triggers forfeit
+
+        val result = Json.decodeFromString<ResultMessage>(observerSession.nextText())
+        assertFalse(result.success)
+        assertTrue(result.details.contains("forfeit"))
+        thread.join(6000)
     }
 }

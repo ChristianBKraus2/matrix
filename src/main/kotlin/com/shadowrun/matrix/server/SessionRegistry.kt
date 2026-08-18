@@ -3,7 +3,9 @@ package com.shadowrun.matrix.server
 import com.shadowrun.matrix.server.dto.ActionCommand
 import com.shadowrun.matrix.server.dto.ControlMessage
 import com.shadowrun.matrix.server.dto.ErrorMessage
+import com.shadowrun.matrix.server.dto.JoinMessage
 import com.shadowrun.matrix.server.dto.MatrixJson
+import com.shadowrun.matrix.server.dto.StateMessage
 import io.ktor.server.websocket.DefaultWebSocketServerSession
 import io.ktor.websocket.Frame
 import kotlinx.serialization.encodeToString
@@ -12,36 +14,72 @@ import java.util.concurrent.CompletableFuture
 class SessionRegistry {
     private val lock = Any()
     private val sessions = LinkedHashSet<DefaultWebSocketServerSession>()
+    private val deckerSessions = LinkedHashMap<String, DefaultWebSocketServerSession>()
+    private val sessionDecker = HashMap<DefaultWebSocketServerSession, String>()
     private var activeController: DefaultWebSocketServerSession? = null
 
     @Volatile
     var pendingAction: CompletableFuture<ActionCommand>? = null
 
     suspend fun register(session: DefaultWebSocketServerSession) {
-        val becameController = synchronized(lock) {
-            sessions.add(session)
-            if (activeController == null) {
-                activeController = session
-                true
-            } else false
+        synchronized(lock) { sessions.add(session) }
+        session.send(Frame.Text(MatrixJson.encodeToString(ControlMessage(role = "observer"))))
+    }
+
+    suspend fun receiveJoin(session: DefaultWebSocketServerSession, msg: JoinMessage) {
+        val name = msg.deckerName
+        val error = synchronized(lock) {
+            when {
+                sessionDecker.containsKey(session) -> "already_registered"
+                deckerSessions.containsKey(name)   -> "name_already_taken"
+                else -> {
+                    deckerSessions[name] = session
+                    sessionDecker[session] = name
+                    null
+                }
+            }
         }
-        if (becameController) {
-            session.send(Frame.Text(MatrixJson.encodeToString(ControlMessage(granted = true))))
+        if (error != null) {
+            session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = error))))
         } else {
-            session.send(Frame.Text(MatrixJson.encodeToString(ControlMessage(granted = false))))
+            session.send(Frame.Text(MatrixJson.encodeToString(
+                ControlMessage(role = "registered_decker", deckerName = name)
+            )))
         }
     }
 
     suspend fun deregister(session: DefaultWebSocketServerSession) {
-        val promoted: DefaultWebSocketServerSession?
+        val wasController: Boolean
         synchronized(lock) {
             sessions.remove(session)
-            promoted = if (activeController == session) {
-                activeController = sessions.firstOrNull()
-                activeController
-            } else null
+            val name = sessionDecker.remove(session)
+            if (name != null) deckerSessions.remove(name)
+            wasController = activeController == session
+            if (wasController) activeController = null
         }
-        promoted?.send(Frame.Text(MatrixJson.encodeToString(ControlMessage(granted = true))))
+        if (wasController) {
+            pendingAction?.completeExceptionally(DeckerDisconnectedException())
+        }
+    }
+
+    suspend fun promoteForTurn(deckerName: String): Boolean {
+        val session = synchronized(lock) {
+            deckerSessions[deckerName]?.also { activeController = it }
+        } ?: return false
+        session.send(Frame.Text(MatrixJson.encodeToString(
+            ControlMessage(role = "active_controller", deckerName = deckerName)
+        )))
+        return true
+    }
+
+    suspend fun demoteAfterTurn(deckerName: String) {
+        val session = synchronized(lock) {
+            activeController = null
+            deckerSessions[deckerName]
+        } ?: return
+        session.send(Frame.Text(MatrixJson.encodeToString(
+            ControlMessage(role = "registered_decker", deckerName = deckerName)
+        )))
     }
 
     suspend fun broadcast(text: String) {
@@ -51,23 +89,29 @@ class SessionRegistry {
         }
     }
 
-    /** Sends different JSON to the active controller vs. all other sessions. */
-    suspend fun broadcastPersonalized(forController: String, forObserver: String) {
-        val (controller, others) = synchronized(lock) {
-            activeController to sessions.filter { it != activeController }
+    suspend fun broadcastWithRoles(base: StateMessage) {
+        val sessionRoles: List<Pair<DefaultWebSocketServerSession, String>> = synchronized(lock) {
+            sessions.map { s ->
+                s to when {
+                    s == activeController          -> "active_controller"
+                    sessionDecker.containsKey(s)   -> "registered_decker"
+                    else                           -> "observer"
+                }
+            }
         }
-        controller?.let { runCatching { it.send(Frame.Text(forController)) } }
-        for (session in others) { runCatching { session.send(Frame.Text(forObserver)) } }
+        for ((session, role) in sessionRoles) {
+            runCatching { session.send(Frame.Text(MatrixJson.encodeToString(base.copy(role = role)))) }
+        }
     }
 
     suspend fun receiveAction(session: DefaultWebSocketServerSession, cmd: ActionCommand) {
         val future = pendingAction
         if (session != synchronized(lock) { activeController }) {
-            session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = "not your turn"))))
+            session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = "not_your_turn"))))
             return
         }
         if (future == null || future.isDone) {
-            session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = "no action pending"))))
+            session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = "no_action_pending"))))
             return
         }
         future.complete(cmd)
