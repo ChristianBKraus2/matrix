@@ -162,16 +162,16 @@ Once the controller has chosen an `AvailableAction`, it calls the corresponding 
 | `ANALYZE_IC` | `decker.analyzeIc(ic, host, diceRoller)` | `OperationResult` |
 | `ANALYZE_ICON` | `decker.analyzeIcon(icon, host, diceRoller)` | `OperationResult` |
 | `ANALYZE_SECURITY` | `decker.analyzeSecurity(host, diceRoller)` | `AnalyzeSecurityResult` |
-| `ANALYZE_SUBSYSTEM` | `decker.analyzeSubsystem(host, subsystem, diceRoller)` | `OperationResult` |
+| `ANALYZE_SUBSYSTEM` | `decker.analyzeSubsystem(host, subsystemType, diceRoller)` | `OperationResult` |
 | `CONTROL_SLAVE` | `decker.controlSlave(device, host, diceRoller)` | `Pair<OperationResult, MonitoredOperationHandle?>` |
 | `DECRYPT_ACCESS` | `decker.decryptAccess(host, diceRoller)` | `OperationResult` |
 | `DECRYPT_FILE` | `decker.decryptFile(file, host, diceRoller)` | `OperationResult` |
 | `DECRYPT_SLAVE` | `decker.decryptSlave(host, diceRoller)` | `OperationResult` |
 | `DOWNLOAD_DATA` | `decker.downloadData(file, host, diceRoller)` | `Pair<OperationResult, DownloadHandle?>` |
-| `EDIT_FILE` | `decker.editFile(file, host, newContent, diceRoller)` | `EditFileResult` |
+| `EDIT_FILE` | `decker.editFile(file, host, newContent: ByteArray?, diceRoller)` | `EditFileResult` |
 | `EDIT_SLAVE` | `decker.editSlave(device, host, diceRoller)` | `Pair<OperationResult, MonitoredOperationHandle?>` |
 | `LOCATE_ACCESS_NODE` | `decker.locateAccessNode(host, state, precision, diceRoller)` | `Pair<OperationResult, LocateResult>` |
-| `LOCATE_DECKER` | `decker.locateDecker(host, targetPersona, diceRoller, targetSleazeRating)` | `LocateDeckerResult` |
+| `LOCATE_DECKER` | `decker.locateDecker(host, targetPersona: Persona, diceRoller, targetSleazeRating)` | `LocateDeckerResult` |
 | `LOCATE_FILE` | `decker.locateFile(host, state, precision, diceRoller)` | `Pair<OperationResult, LocateResult>` |
 | `LOCATE_IC` | `decker.locateIc(host, diceRoller)` | `OperationResult` |
 | `LOCATE_SLAVE` | `decker.locateSlave(host, state, precision, diceRoller)` | `Pair<OperationResult, LocateResult>` |
@@ -198,6 +198,12 @@ when (val action = chosen as AvailableAction.Operation) {
     // …
 }
 ```
+
+**`ANALYZE_SUBSYSTEM`:** `target` is `MatrixObject.HostSubsystem`; pass `(target as MatrixObject.HostSubsystem).node.subsystemType` (`SubsystemType`) — **not** the `Node` itself.
+
+**`EDIT_FILE`:** `newContent` must be `ByteArray?` (not `String`). Convert with `.toByteArray()` or pass `null` to erase.
+
+**`LOCATE_DECKER`:** `targetPersona` is **non-nullable** (`Persona`, not `Persona?`). Callers that don't have a live `Persona` reference (e.g., a WebSocket bridge) cannot invoke this operation.
 
 ---
 
@@ -319,13 +325,13 @@ class MyController(var decker: Decker) : ActiveIcon {
         val chosen  = decide(decker.visibleObjects(), actions)
         val result  = invoke(decker, chosen, context, diceRoller)
         decker      = result.decker
-        context.updateDecker(/* old */ context.deckers.first(), decker)
+        context.applyDeckerOperationResult(oldDecker, decker)
         return ActionResult.DeckerAction
     }
 }
 ```
 
-After calling a Decker method, call `context.updateDecker(oldDecker, newDecker)` so the game engine's `GameContext` reflects the updated state.
+After calling a Decker method, call `context.applyDeckerOperationResult(oldDecker, newDecker)` so the game engine's `GameContext` reflects the updated state.
 
 ---
 
