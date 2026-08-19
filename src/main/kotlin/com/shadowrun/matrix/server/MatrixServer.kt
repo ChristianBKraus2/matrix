@@ -1,5 +1,6 @@
 package com.shadowrun.matrix.server
 
+import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
@@ -14,10 +15,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-fun startMatrixServer(
-    registry: SessionRegistry,
-    port: Int = 8080
-) = embeddedServer(Netty, port = port) {
+fun Application.matrixModule(registry: SessionRegistry) {
     install(WebSockets)
 
     routing {
@@ -41,4 +39,9 @@ fun startMatrixServer(
             }
         }
     }
-}.start(wait = false)
+}
+
+fun startMatrixServer(
+    registry: SessionRegistry,
+    port: Int = 8080
+) = embeddedServer(Netty, port = port) { matrixModule(registry) }.start(wait = false)
