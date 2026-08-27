@@ -2,6 +2,11 @@ plugins {
     kotlin("jvm") version "2.2.0"
     kotlin("plugin.serialization") version "2.2.0"
     jacoco
+    application
+}
+
+application {
+    mainClass.set("com.shadowrun.matrix.MainKt")
 }
 
 group = "com.shadowrun"
@@ -58,4 +63,19 @@ jacoco {
 
 kotlin {
     jvmToolchain(21)
+}
+
+tasks.register<Exec>("buildFrontend") {
+    workingDir = file("frontend")
+    commandLine("cmd", "/c", "npm install && npm run build")
+}
+
+tasks.register<Copy>("copyFrontendBuild") {
+    from("frontend/dist")
+    into(layout.buildDirectory.dir("resources/main/static"))
+    dependsOn("buildFrontend")
+}
+
+tasks.named("classes") {
+    dependsOn("copyFrontendBuild")
 }
