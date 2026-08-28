@@ -3,17 +3,19 @@ package com.shadowrun.matrix.server.dto
 import com.shadowrun.matrix.operations.MatrixObject
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonClassDiscriminator
+import kotlinx.serialization.ExperimentalSerializationApi
 
 @Serializable
+@OptIn(ExperimentalSerializationApi::class)
+@JsonClassDiscriminator("kind")
 sealed class MatrixObjectDto {
     abstract val index: Int
-    abstract val kind: String
 
     @Serializable
     @SerialName("GridNode")
     data class GridNode(
         override val index: Int,
-        override val kind: String = "GridNode",
         val name: String,
         val region: String,
         val alertStatus: String,
@@ -26,7 +28,6 @@ sealed class MatrixObjectDto {
     @SerialName("LocalGrid")
     data class LocalGrid(
         override val index: Int,
-        override val kind: String = "LocalGrid",
         val name: String,
         val parentRtgName: String,
         val alertStatus: String,
@@ -39,7 +40,6 @@ sealed class MatrixObjectDto {
     @SerialName("PrivateGrid")
     data class PrivateGrid(
         override val index: Int,
-        override val kind: String = "PrivateGrid",
         val name: String,
         val owner: String,
         val parentLtgName: String,
@@ -51,7 +51,6 @@ sealed class MatrixObjectDto {
     @SerialName("HostNode")
     data class HostNode(
         override val index: Int,
-        override val kind: String = "HostNode",
         val name: String,
         val topologyType: String,
         val offline: Boolean,
@@ -64,7 +63,6 @@ sealed class MatrixObjectDto {
     @SerialName("HostSubsystem")
     data class HostSubsystem(
         override val index: Int,
-        override val kind: String = "HostSubsystem",
         val subsystemType: String,
         val description: String
     ) : MatrixObjectDto()
@@ -73,7 +71,6 @@ sealed class MatrixObjectDto {
     @SerialName("IcProgram")
     data class IcProgram(
         override val index: Int,
-        override val kind: String = "IcProgram",
         val name: String,
         val rating: Int,
         val behavior: String,
@@ -84,7 +81,6 @@ sealed class MatrixObjectDto {
     @SerialName("File")
     data class File(
         override val index: Int,
-        override val kind: String = "File",
         val name: String,
         val isScrambleProtected: Boolean,
         val isPointer: Boolean,
@@ -95,7 +91,6 @@ sealed class MatrixObjectDto {
     @SerialName("Device")
     data class Device(
         override val index: Int,
-        override val kind: String = "Device",
         val name: String,
         val systemAddress: String
     ) : MatrixObjectDto()

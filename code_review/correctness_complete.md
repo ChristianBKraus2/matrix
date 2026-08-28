@@ -28,6 +28,9 @@ decker = context.deckers.firstOrNull { it.name == decker.name } ?: decker
 ```
 Alternatively, add a `GameContext.currentDeckerState(name: String): Decker` helper and call it at the top of `action()` rather than relying on the controller's own field across turns.
 
+**Resolution:**
+Fixed in `WebSocketDeckerController.kt` `action()` method: after `context.applyDeckerOperationResult(oldDecker, decker)`, the decker reference is now re-read from the context via `context.deckers.firstOrNull { it.name == decker.name } ?: decker`, ensuring subsequent operations use the alert-transitioned decker from the authoritative context list rather than the pre-transition snapshot.
+
 ---
 
 ### [HIGH] `runCatching` in the frame handler silently swallows all exceptions
@@ -50,6 +53,9 @@ runCatching { /* ... */ }.onFailure { e ->
 ```
 At minimum, log the exception server-side before discarding it.
 
+**Resolution (Phase 1.3):**
+`MatrixServer.kt` now sends an `ErrorMessage` via `.onFailure` on the `runCatching` result instead of silently discarding exceptions. An `else` branch was also added to the `when (msgType)` block, returning `ErrorMessage("unknown_message_type")` for unrecognised message types.
+
 ---
 
 ### [HIGH] `SWAP_MEMORY` and `LOCATE_DECKER` advertised but silently unimplemented
@@ -65,6 +71,9 @@ At minimum, log the exception server-side before discarding it.
 **Recommendation:**  
 Either (a) filter `SWAP_MEMORY` and `LOCATE_DECKER` out of `availableActions` server-side before building the `StateMessage`, or (b) add an `unsupported: Boolean` field to `AvailableActionDto.Operation` and set it for these operations so the UI can disable them with an explanation.
 
+**Resolution:**
+Fixed in `WebSocketDeckerController.kt`: `SWAP_MEMORY` and `LOCATE_DECKER` are now filtered out of `availableActions` before building the `StateMessage`, so these unimplemented operations are never presented to the UI as selectable choices.
+
 ---
 
 ### [MEDIUM] `ResultMessage.deckerSuccesses` / `hostSuccesses` — required on server, optional in TypeScript
@@ -79,6 +88,9 @@ The Kotlin `ResultMessage` declares `val deckerSuccesses: Int` and `val hostSucc
 
 **Recommendation:**  
 Change the TypeScript interface to match the server's guarantee: `deckerSuccesses: number` and `hostSuccesses: number` (non-optional). If there is a code path where these are intentionally absent, that should be a separate message type.
+
+**Resolution:**
+Fixed in `frontend/src/types/messages.ts`: removed `?` optionality from `deckerSuccesses` and `hostSuccesses` on the `ResultMessage` interface — both are now required `number` fields matching the server's non-nullable `Int` contract.
 
 ---
 
@@ -101,6 +113,9 @@ val precision = params?.precision?.let {
 ```
 Also add a server-side validation step that rejects an `ActionCommand` with an unrecognised precision value early, before it reaches the game-logic dispatch layer.
 
+**Resolution:**
+Fixed across three phases: (1.1) `WebSocketDeckerController.kt` `locateWithState` now uses `runCatching { QueryPrecision.valueOf(it) }.getOrNull() ?: QueryPrecision.NORMAL` — invalid values default to `NORMAL` instead of throwing; (1.2) `frontend/src/types/messages.ts` `precision` type corrected from `'NORMAL' | 'HIGH'` to the full five-value union `'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'`; (3.3) the safe lookup from 1.1 serves as the server-side validation gate, rejecting malformed precision values before they reach game logic.
+
 ---
 
 ### [MEDIUM] `GameContext.applyDeckerOperationResult` — tally comparison uses embedded host, not context host
@@ -118,6 +133,9 @@ Read the baseline tally from `context.host.securityTally` (the live ground truth
 val oldTally = context.host.securityTally
 val newTally = (new.currentLocation as? MatrixLocation.OnHost)?.host?.securityTally ?: oldTally
 ```
+
+**Resolution:**
+Fixed in `GameContext.applyDeckerOperationResult`: the old-tally baseline is now read from `host.securityTally` (the live context value) rather than from the tally embedded in the decker snapshot, preventing missed alert-transition checks when a concurrent update has already advanced the context host's tally.
 
 ---
 
@@ -140,6 +158,9 @@ sealed class AvailableActionDto { ... }
 ```
 Then remove `abstract val kind: String` and all `override val kind: String = "..."` defaults. The TypeScript discriminator already uses `kind` and requires no changes.
 
+**Resolution (Phase 5.1):**
+`AvailableActionDto.kt` and `MatrixObjectDto.kt` now use `@JsonClassDiscriminator("kind")` with `@OptIn(ExperimentalSerializationApi::class)`. All explicit `kind: String` fields and `abstract val kind` declarations were removed from every subclass, leaving `kind` as the sole discriminator in the wire format.
+
 ---
 
 ### [LOW] `join` can be sent twice if the WebSocket is already open when `join()` is called
@@ -154,6 +175,9 @@ Then remove `abstract val kind: String` and all `override val kind: String = "..
 
 **Recommendation:**  
 Clear `pendingNameRef.current` as soon as the join is sent in either path, or centralise the join dispatch to the `onmessage` path only (do not send immediately in `join()`, just set the ref).
+
+**Resolution:**
+Fixed in `frontend/src/hooks/useWebSocket.ts`: `pendingNameRef.current` is now cleared to `null` after each send path — both the immediate send inside `join()` and the observer-triggered send in the `onmessage` handler — preventing a second `observer` control message from re-triggering a duplicate join.
 
 ---
 
@@ -172,6 +196,9 @@ Clear `gameState` on disconnect:
 case 'DISCONNECTED':
   return { ...state, connected: false, role: null, gameState: null }
 ```
+
+**Resolution:**
+Fixed in `frontend/src/hooks/useWebSocket.ts` reducer: the `DISCONNECTED` case now sets `gameState: null` alongside `role: null`, so stale game panels are not rendered between a disconnect and the first new `StateMessage` on reconnect.
 
 ---
 

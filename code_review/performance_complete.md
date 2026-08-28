@@ -52,6 +52,9 @@ The dominant cross-cutting issue is that every turn triggers a complete, uncondi
 **Issue:** Every `MatrixObjectDto` subclass and every `AvailableActionDto` subclass carries both a `@SerialName` annotation (used by kotlinx.serialization as the polymorphic `type` key) and an explicit `kind: String` instance field defaulted to the same literal. The serialized JSON therefore contains the discriminator value twice: once from the sealed-class `classDiscriminator` and once from the `kind` field. Every object in `visibleObjects` and every entry in `availableActions` carries this duplicate. The TypeScript types in `messages.ts` also model `kind` as the discriminator used in switch/discriminated unions, meaning the client relies on `kind` instead of the kotlinx `type` key — but both are always present in the wire payload.  
 **Recommendation:** Pick one mechanism. Either remove the explicit `kind` field and configure kotlinx to use `"kind"` as the class discriminator (`Json { classDiscriminator = "kind" }`), or keep the `kind` field and remove `@SerialName` annotations (replacing them with the default class name matching). Eliminating the duplicate halves the type-annotation overhead for every object in the two largest arrays in the state message.
 
+**Resolution (Phase 5.1):**
+`AvailableActionDto.kt` and `MatrixObjectDto.kt` now use `@JsonClassDiscriminator("kind")`, making `kind` the sole kotlinx.serialization discriminator. The redundant explicit `kind: String` fields were removed from all subclasses, reducing JSON payload size for every `visibleObjects` and `availableActions` entry.
+
 ---
 
 ### [MEDIUM] Game-loop thread blocked waiting for player input via `CompletableFuture`
@@ -69,6 +72,9 @@ The dominant cross-cutting issue is that every turn triggers a complete, uncondi
 **File(s):** `src/main/kotlin/com/shadowrun/matrix/server/SessionRegistry.kt:24,29,51,65,75,85,92,107`  
 **Issue:** Every `suspend` function in `SessionRegistry` acquires a JVM `synchronized(lock)` block. Although the locked sections are short and only read/write the in-memory collections, holding a monitor on a coroutine dispatcher thread blocks that thread from executing other coroutines for the duration of the lock. If the Netty/coroutine pool is small (as is typical for Ktor's default configuration), a brief period of lock contention under multiple simultaneous connections can stall the entire event loop.  
 **Recommendation:** Replace `synchronized` with a `Mutex` from `kotlinx.coroutines.sync` and use `mutex.withLock { }` inside the suspend functions. This suspends (yields) rather than blocks the thread while waiting for the lock, keeping the dispatcher free for other coroutines.
+
+**Resolution (Phase 4.3):**
+Deferred — full `Mutex` migration replacing all `synchronized` blocks in `SessionRegistry` is a larger refactor deferred to a future track. The TOCTOU races were addressed in Phases 4.1 and 4.2 by consolidating reads inside the existing `synchronized(lock)` blocks.
 
 ---
 

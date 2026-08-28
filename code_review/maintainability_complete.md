@@ -16,6 +16,9 @@ The three-part system (game_logic / server / ui) shares a WebSocket protocol tha
 **Issue:** The TypeScript type for `precision` is `'NORMAL' | 'HIGH'`. The Kotlin enum `QueryPrecision` has the values `VERY_VAGUE`, `VAGUE`, `NORMAL`, `SPECIFIC`, `VERY_SPECIFIC` — there is no `HIGH`. If the UI sends `precision: 'HIGH'`, the server executes `QueryPrecision.valueOf("HIGH")`, which throws `IllegalArgumentException`. That exception is thrown inside `WebSocketDeckerController.action()`, which is called synchronously from `Game.runOutOfCombatTurn()` / `runCombatTurn()`. It is not inside the `runCatching {}` guard in `MatrixServer.kt` (which only wraps JSON parsing and the initial dispatch), so it propagates uncaught and crashes the game coroutine. The TypeScript type gives the UI author a false guarantee and the crash produces no error message to the client.  
 **Recommendation:** Replace the TypeScript type with the correct five-value union: `'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'`. Also add a `try/catch` around `QueryPrecision.valueOf()` in `locateWithState` and send an `ErrorMessage` back to the client instead of letting the exception escape.
 
+**Resolution (Phase 1.2):**
+`frontend/src/types/messages.ts` `precision` type corrected from `'NORMAL' | 'HIGH'` to the full five-value union `'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'`, matching the Kotlin `QueryPrecision` enum. `ActionsPanel.tsx` updated to render all five options. Server-side safe lookup fixed in Phase 1.1.
+
 ---
 
 ### HIGH — Role strings are raw literals in Kotlin, duplicated as a TypeScript union with no enforcement
@@ -25,6 +28,9 @@ The three-part system (game_logic / server / ui) shares a WebSocket protocol tha
 **Issue:** The three role values `"observer"`, `"registered_decker"`, `"active_controller"` appear as plain string literals in nine places across two Kotlin files, and are independently copied into TypeScript as `export type Role = 'observer' | 'registered_decker' | 'active_controller'`. The TypeScript `useWebSocket.ts` branches on `msg.role === 'observer'` and `App.tsx` branches on `ws.role === 'registered_decker' || ws.role === 'active_controller'`. A rename or typo on either side causes a silent protocol failure — the role state machine stops advancing with no compile error on either side.  
 **Recommendation:** Define a Kotlin `enum class SessionRole { OBSERVER, REGISTERED_DECKER, ACTIVE_CONTROLLER }` (or a `sealed class`), serialise it with `@Serializable` using lowercase names via `@SerialName`, and generate or manually keep the TypeScript `Role` union from a single source. At minimum, replace the Kotlin raw-string scatter with a constants object so there is one place to change.
 
+**Resolution (Phase 5.2):**
+`Messages.kt` now defines a `SessionRole` enum with `@SerialName` values. `SessionRegistry.kt` and `WebSocketDeckerController.kt` are updated to use enum constants instead of raw strings, and `messages.ts` frontend type is updated to match.
+
 ---
 
 ### HIGH — Error code strings duplicated between `SessionRegistry.kt` and `App.tsx` with no shared definition
@@ -33,6 +39,9 @@ The three-part system (game_logic / server / ui) shares a WebSocket protocol tha
 **File(s):** `src/main/kotlin/com/shadowrun/matrix/server/SessionRegistry.kt:33,35,43,110,114` and `frontend/src/App.tsx:10-15`  
 **Issue:** Server error codes (`"already_registered"`, `"name_already_taken"`, `"not_your_turn"`, `"no_action_pending"`) are plain string literals in Kotlin. The UI maps them to human-readable labels in a `Record<string, string>` keyed by those same string values. If a new error code is added server-side without updating `ERROR_LABELS`, the UI displays the raw code string to the user with no warning at compile time. The `ResultMessage.details` freeform strings from `WebSocketDeckerController.kt` are a separate category (narrative text is fine as freeform), but the `ErrorMessage.message` codes are a defined set and should be treated as an enum.  
 **Recommendation:** Define a Kotlin `enum class ErrorCode` (or sealed class) for the `ErrorMessage.message` field. Serialise to the same snake_case strings for backward compatibility. In TypeScript, replace `Record<string, string>` with `Record<ErrorCode, string>` where `ErrorCode` is a string union derived from the Kotlin enum, making missing entries a compile error.
+
+**Resolution (Phase 5.3):**
+Deferred — not implemented in this iteration. Partial improvement: `App.tsx` now includes `name_too_long` and `content_too_large` labels in `ERROR_LABELS` to cover the new server error codes added in Phases 3.1 and 3.2.
 
 ---
 
@@ -61,6 +70,9 @@ The three-part system (game_logic / server / ui) shares a WebSocket protocol tha
 **Issue:** The Kotlin `ResultMessage` always serialises `deckerSuccesses: Int` and `hostSuccesses: Int`. The TypeScript `ResultMessage` declares both as `deckerSuccesses?: number` and `hostSuccesses?: number`. Any UI component that reads these fields must null-guard them even though the server never omits them. The mismatch inverts the actual contract: the fields are required, but the TypeScript type implies they may be absent.  
 **Recommendation:** Remove the `?` from both fields in the TypeScript interface. If there is ever a future case where they should be optional, that is a deliberate protocol change that should be made consciously on both sides simultaneously.
 
+**Resolution (Phase 2.5):**
+`frontend/src/types/messages.ts` `ResultMessage` interface updated — `?` removed from `deckerSuccesses` and `hostSuccesses`, making both required `number` fields that match the server's non-nullable `Int` contract.
+
 ---
 
 ### MEDIUM — `SystemOperation` (28 values) serialised as `operation: string` in TypeScript with no union type and no param-to-operation mapping
@@ -78,6 +90,9 @@ The three-part system (game_logic / server / ui) shares a WebSocket protocol tha
 **File(s):** `src/main/kotlin/com/shadowrun/matrix/server/dto/AvailableActionDto.kt:16-17`, `src/main/kotlin/com/shadowrun/matrix/server/dto/MatrixObjectDto.kt:16-17`  
 **Issue:** Both `AvailableActionDto` and `MatrixObjectDto` are `@Serializable sealed class`es. kotlinx.serialization emits a `type` discriminator field (shaped by `@SerialName`) for sealed class polymorphism. Each subclass also has an explicit `kind: String` field that carries the same value (e.g. `kind: String = "LogonToRtg"`). The JSON wire format therefore contains both `"type":"LogonToRtg"` and `"kind":"LogonToRtg"`. The TypeScript side uses only `kind` as its discriminant and is unaware of the `type` field. A developer new to the codebase will wonder which field is authoritative, and any future attempt to add `@JsonClassDiscriminator("kind")` to unify them will be blocked by the collision with the `type` field already present in `StateMessage` and other wrapper types.  
 **Recommendation:** Add `@JsonClassDiscriminator("kind")` to both sealed classes to make `kind` the official kotlinx.serialization discriminator and eliminate the redundant `type` field from the wire format. This aligns the Kotlin serialisation with the TypeScript discriminant and removes the ambiguity.
+
+**Resolution (Phase 5.1):**
+`AvailableActionDto.kt` and `MatrixObjectDto.kt` now use `@JsonClassDiscriminator("kind")` with `@OptIn(ExperimentalSerializationApi::class)`. The explicit `kind: String` fields have been removed from all subclasses, eliminating the duplicate discriminator in the wire format.
 
 ---
 
@@ -105,6 +120,9 @@ The three-part system (game_logic / server / ui) shares a WebSocket protocol tha
 **File(s):** `src/main/kotlin/com/shadowrun/matrix/server/WebSocketDeckerController.kt:47,243-252`  
 **Issue:** The `interrogationStates` map in `WebSocketDeckerController` persists `InterrogationState` across multiple turns for locate operations (`LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`). This is correct Shadowrun rule behaviour (interrogation operations accumulate successes over repeated actions), but there is no comment explaining why the state lives here rather than in the `Decker` domain object, and no explanation of what happens if a decker logs off mid-interrogation (the state is silently discarded when the controller is garbage-collected). A developer asked to support saving game state would not know to persist this map.  
 **Recommendation:** Add a KDoc comment on the field explaining the rule (interrogation operations require multiple actions to accumulate enough successes) and the lifetime expectation (cleared on disconnect; not persisted).
+
+**Resolution (Phase 5.5):**
+`interrogationStates` was moved from `WebSocketDeckerController` into the `Decker` data class as `interrogationStates: Map<SystemOperation, InterrogationState>`. `locateFile`, `locateSlave`, and `locateAccessNode` now manage state internally, so interrogation progress survives reconnect and is visible to domain logic.
 
 ---
 

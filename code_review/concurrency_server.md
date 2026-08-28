@@ -17,10 +17,16 @@ The server uses a hybrid concurrency model: a Ktor coroutine-based WebSocket lay
 **Issue:** `receiveAction` reads `pendingAction` via a plain volatile read (line 108), then checks `activeController` inside a separate `synchronized(lock)` block (line 109), then re-examines the previously captured future for `isDone` (line 113), and finally calls `future.complete(cmd)` (line 117). These three operations are not atomic with respect to each other. Concretely: (a) if `pendingAction` is set *after* `activeController` is promoted in a racing turn transition, a legitimate controller can read a null future, pass the active-controller check, and be incorrectly rejected with "no_action_pending". (b) Two concurrent WebSocket coroutines for the same session (possible under Ktor's default multi-threaded dispatcher) could both pass the authorization check before either calls `complete()`, resulting in a double-completion attempt — `CompletableFuture.complete()` is safe but only the first wins, and the return value of the second is silently discarded (see also the MEDIUM finding below).
 **Recommendation:** Protect `pendingAction` with the same `lock` used for `activeController`. Perform the full read-authorize-act sequence inside a single `synchronized(lock)` block, or replace the compound check with an `AtomicReference<CompletableFuture<ActionCommand>?>` and a compare-and-set to claim the future atomically. At minimum, promote and assign the future atomically in `promoteForTurn` so that a session that passes the `activeController` check is guaranteed to see a non-null, non-done future.
 
+**Resolution (Phase 4.1):**
+`SessionRegistry.kt` now captures `pendingAction` inside the same `synchronized(lock)` block as the `activeController` check, so the full authorize-and-act sequence is atomic and no race can yield a spurious `no_action_pending` to a legitimate controller.
+
 ### HIGH — `deregister` checks `activeController` inside lock then reads `pendingAction` outside lock (TOCTOU)
 **File:** src/main/kotlin/com/shadowrun/matrix/server/SessionRegistry.kt:51
 **Issue:** `deregister` sets `wasController = (activeController == session)` and clears `activeController` inside the lock (lines 53–59), then reads `pendingAction` and calls `completeExceptionally` outside the lock (lines 60–62). The window between the lock release and the volatile read is small but real: if the game loop assigns a new `pendingAction` future and calls `promoteForTurn` for a different decker in that window, the stale `wasController == true` flag causes `deregister` to complete the *new* decker's future exceptionally, aborting a turn that belongs to a different, still-connected player.
 **Recommendation:** Read and complete `pendingAction` atomically inside the same `synchronized(lock)` block where `activeController` is cleared. Since `completeExceptionally` on a `CompletableFuture` is non-blocking, holding the lock across it is safe (no suspension, no I/O).
+
+**Resolution (Phase 4.2):**
+`SessionRegistry.kt` now reads and nulls `pendingAction` inside the `synchronized(lock)` block that clears `activeController`, then completes the future exceptionally outside the lock, closing the window that could have aborted a different decker's turn.
 
 ### MEDIUM — return value of `future.complete(cmd)` is silently discarded in `receiveAction`
 **File:** src/main/kotlin/com/shadowrun/matrix/server/SessionRegistry.kt:117
@@ -31,6 +37,9 @@ The server uses a hybrid concurrency model: a Ktor coroutine-based WebSocket lay
 **File:** src/main/kotlin/com/shadowrun/matrix/server/WebSocketDeckerController.kt:71
 **Issue:** In `action()`, `registry.pendingAction = future` (line 71) is a plain volatile write that is *not* coordinated with the `synchronized(lock)` that guards `activeController`. `promoteForTurn` is called *before* `pendingAction` is set (line 73 sets the future; `promoteForTurn` is called on line 53). This means a fast client that responds to the `active_controller` control message before the game loop reaches line 71 will enter `receiveAction`, pass the `activeController` check, and read a null `pendingAction`, getting "no_action_pending" spuriously. The sequence should be: set future → set activeController → notify client.
 **Recommendation:** Reorder the operation sequence in `action()` so that `registry.pendingAction = future` is assigned before `promoteForTurn` is called. Alternatively, encapsulate the two-step assignment inside a single synchronized block in `SessionRegistry` (a `promoteForTurnWithFuture(deckerName, future)` method that sets both `activeController` and `pendingAction` atomically under `lock` before sending the control frame).
+
+**Resolution (Phase 1.6):**
+`WebSocketDeckerController.kt` now assigns `registry.pendingAction` before calling `runBlocking { registry.promoteForTurn(...) }`, ensuring the future is visible to `receiveAction` before the client receives the `active_controller` control message.
 
 ### LOW — `decker` field in `WebSocketDeckerController` is a non-volatile plain `var`
 **File:** src/main/kotlin/com/shadowrun/matrix/server/WebSocketDeckerController.kt:44

@@ -6,6 +6,7 @@ import com.shadowrun.matrix.server.dto.DeckerStateDto
 import com.shadowrun.matrix.server.dto.ErrorMessage
 import com.shadowrun.matrix.server.dto.JoinMessage
 import com.shadowrun.matrix.server.dto.MatrixObjectDto
+import com.shadowrun.matrix.server.dto.SessionRole
 import com.shadowrun.matrix.server.dto.StateMessage
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -21,7 +22,7 @@ import kotlin.test.assertNull
 class SessionRegistryTest {
 
     private fun makeStateBase() = StateMessage(
-        role = "observer",
+        role = SessionRole.OBSERVER,
         decker = DeckerStateDto(
             name = "Test", location = "not jacked in",
             isPinnedByBlackIc = false,

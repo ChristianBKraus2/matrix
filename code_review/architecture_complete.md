@@ -50,6 +50,9 @@ The most serious cross-cutting problem is that `WebSocketDeckerController` imple
 
 **Recommendation:** Move `InterrogationState` into `Decker` (or a `Persona` sub-object) as domain state. The domain's `locateFile(…)` etc. methods should read and update this state. The server simply calls the method and converts the result to a DTO.
 
+**Resolution (Phase 5.5):**
+`interrogationStates: Map<SystemOperation, InterrogationState>` was moved from `WebSocketDeckerController` into the `Decker` data class. `locateFile`, `locateSlave`, and `locateAccessNode` now manage state internally, so interrogation progress survives reconnect and participates in domain logic rather than living in the transport layer.
+
 ---
 
 ### [HIGH] `SessionRegistry.pendingAction` is a public mutable field used as a cross-object synchronisation primitive
@@ -128,6 +131,9 @@ Mirror the union in TypeScript. The display label becomes a UI concern, not a DT
 **Issue:** The error code strings are the wire contract between server and UI. Any rename or addition on the server silently breaks the UI display (it falls back to showing the raw code). There is no shared schema or enum that can be checked at build time. New error conditions added to the server require a matching update to `ERROR_LABELS` in the UI, with no tooling to catch omissions.
 
 **Recommendation:** Define error codes as an enum in the server and document them (or generate a schema) so the TypeScript side can be kept in sync. At minimum, add a server-side integration test that asserts the exact error string values to prevent accidental renames.
+
+**Resolution (Phase 5.3):**
+Deferred — a full `ErrorCode` enum was not implemented in this iteration. Partial improvement: `App.tsx` now includes `name_too_long` and `content_too_large` labels in `ERROR_LABELS` to cover the new server error codes added in Phases 3.1 and 3.2.
 
 ---
 

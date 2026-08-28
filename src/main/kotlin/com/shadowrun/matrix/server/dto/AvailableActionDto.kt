@@ -4,46 +4,49 @@ import com.shadowrun.matrix.operations.AvailableAction
 import com.shadowrun.matrix.operations.MatrixObject
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonClassDiscriminator
+import kotlinx.serialization.ExperimentalSerializationApi
 
 @Serializable
+@OptIn(ExperimentalSerializationApi::class)
+@JsonClassDiscriminator("kind")
 sealed class AvailableActionDto {
     abstract val index: Int
-    abstract val kind: String
     abstract val actionType: String
 
     @Serializable
     @SerialName("LogonToRtg")
-    data class LogonToRtg(override val index: Int, override val kind: String = "LogonToRtg",
+    data class LogonToRtg(override val index: Int,
         override val actionType: String, val rtgName: String) : AvailableActionDto()
 
     @Serializable
     @SerialName("LogonToLtg")
-    data class LogonToLtg(override val index: Int, override val kind: String = "LogonToLtg",
+    data class LogonToLtg(override val index: Int,
         override val actionType: String, val ltgName: String) : AvailableActionDto()
 
     @Serializable
     @SerialName("LogonToPltg")
-    data class LogonToPltg(override val index: Int, override val kind: String = "LogonToPltg",
+    data class LogonToPltg(override val index: Int,
         override val actionType: String, val pltgName: String) : AvailableActionDto()
 
     @Serializable
     @SerialName("LogonToHost")
-    data class LogonToHost(override val index: Int, override val kind: String = "LogonToHost",
+    data class LogonToHost(override val index: Int,
         override val actionType: String, val hostName: String) : AvailableActionDto()
 
     @Serializable
     @SerialName("GracefulLogoff")
-    data class GracefulLogoff(override val index: Int, override val kind: String = "GracefulLogoff",
+    data class GracefulLogoff(override val index: Int,
         override val actionType: String) : AvailableActionDto()
 
     @Serializable
     @SerialName("JackOut")
-    data class JackOut(override val index: Int, override val kind: String = "JackOut",
+    data class JackOut(override val index: Int,
         override val actionType: String) : AvailableActionDto()
 
     @Serializable
     @SerialName("Operation")
-    data class Operation(override val index: Int, override val kind: String = "Operation",
+    data class Operation(override val index: Int,
         override val actionType: String, val operation: String,
         val targetKind: String?, val targetName: String?) : AvailableActionDto()
 }

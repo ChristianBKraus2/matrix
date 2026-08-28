@@ -1,9 +1,17 @@
 package com.shadowrun.matrix.server.dto
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 val MatrixJson = Json { encodeDefaults = true }
+
+@Serializable
+enum class SessionRole {
+    @SerialName("observer") OBSERVER,
+    @SerialName("registered_decker") REGISTERED_DECKER,
+    @SerialName("active_controller") ACTIVE_CONTROLLER,
+}
 
 @Serializable
 data class JoinMessage(
@@ -14,7 +22,7 @@ data class JoinMessage(
 @Serializable
 data class StateMessage(
     val type: String = "state",
-    val role: String,
+    val role: SessionRole,
     val decker: DeckerStateDto,
     val visibleObjects: List<MatrixObjectDto>,
     val availableActions: List<AvailableActionDto>
@@ -48,7 +56,7 @@ data class ResultMessage(
 @Serializable
 data class ControlMessage(
     val type: String = "control",
-    val role: String,
+    val role: SessionRole,
     val deckerName: String? = null
 )
 
@@ -57,3 +65,4 @@ data class ErrorMessage(
     val type: String = "error",
     val message: String
 )
+

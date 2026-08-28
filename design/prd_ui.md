@@ -99,9 +99,11 @@ All entries from `availableActions` are rendered as cards. Each card shows the a
 
 | Source | Content |
 |---|---|
-| `ResultMessage` | `details` string; optionally `deckerSuccesses` / `hostSuccesses` for dice results |
+| `ResultMessage` | `details` string; `deckerSuccesses` and `hostSuccesses` are always present non-optional integers |
 | `ErrorMessage` | `message` error code (displayed as human-readable text) |
 | `ControlMessage.role` | When `active_controller`: Middle area shows a **blinking border** to signal it is this client's turn. No border for `registered_decker` or `observer`. |
+
+On WebSocket disconnect, all game state is cleared immediately (location, decker, entities, actions panels are hidden). The UI shows the reconnecting / synchronising banner instead of stale data. Once the connection is re-established and a `StateMessage` arrives, the panels are restored.
 
 # Actions - Details
 
@@ -124,9 +126,9 @@ Four operation types need additional input that is not derivable from the card, 
 
 ### `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`
 
-Param: `precision` — `"NORMAL"` or `"HIGH"` (default `"NORMAL"`)
+Param: `precision` — one of `"VERY_VAGUE"`, `"VAGUE"`, `"NORMAL"`, `"SPECIFIC"`, `"VERY_SPECIFIC"` (default `"NORMAL"`)
 
-**UI control:** A NORMAL / HIGH toggle displayed on the card. The selected value is sent with the `ActionCommand`.
+**UI control:** A 5-position selector on the card. The selected value is sent with the `ActionCommand`.
 
 ### `MAKE_COMCALL`
 

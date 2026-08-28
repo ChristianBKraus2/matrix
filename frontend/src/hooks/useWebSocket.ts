@@ -33,7 +33,7 @@ function reducer(state: WsState, action: WsAction): WsState {
     case 'CONNECTED':
       return { ...state, connected: true }
     case 'DISCONNECTED':
-      return { ...state, connected: false, role: null }
+      return { ...state, connected: false, role: null, gameState: null }
     case 'CONTROL':
       return {
         ...state,
@@ -89,6 +89,7 @@ export function useWebSocket() {
             dispatch({ type: 'CONTROL', msg })
             if (msg.role === 'observer' && pendingNameRef.current) {
               const join: JoinMessage = { type: 'join', deckerName: pendingNameRef.current }
+              pendingNameRef.current = null
               ws.send(JSON.stringify(join))
             }
             break
@@ -130,6 +131,7 @@ export function useWebSocket() {
     pendingNameRef.current = name
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const msg: JoinMessage = { type: 'join', deckerName: name }
+      pendingNameRef.current = null
       wsRef.current.send(JSON.stringify(msg))
     }
   }, [])

@@ -21,6 +21,9 @@ The server is a single-process Ktor WebSocket server with no authentication laye
 **Issue:** `QueryPrecision.valueOf(it)` is called with the raw string from `cmd.params.precision`. If a client sends any value that is not a valid `QueryPrecision` enum name (including an empty string or a typo), `valueOf` throws `IllegalArgumentException`. This exception is thrown inside `WebSocketDeckerController.action()`, which runs on the game loop thread — outside the `runCatching` wrapper in `MatrixServer.kt`. The uncaught exception propagates to the game scheduler, crashing or stalling the entire session.  
 **Recommendation:** Replace `QueryPrecision.valueOf(it)` with a safe lookup and fall back to a default: `QueryPrecision.entries.firstOrNull { e -> e.name == it } ?: QueryPrecision.NORMAL`. Alternatively, make `ActionParams.precision` a serializable enum so kotlinx.serialization rejects unknown values before dispatch.
 
+**Resolution (Phase 3.3):**
+`WebSocketDeckerController.kt` now uses `runCatching { QueryPrecision.valueOf(it) }.getOrNull() ?: QueryPrecision.NORMAL` in `locateWithState`, safely defaulting to `NORMAL` for any unrecognised precision string instead of throwing `IllegalArgumentException`.
+
 ---
 
 ### [HIGH] No authentication on the WebSocket endpoint
@@ -36,6 +39,9 @@ The server is a single-process Ktor WebSocket server with no authentication laye
 **File:** src/main/kotlin/com/shadowrun/matrix/server/WebSocketDeckerController.kt:196  
 **Issue:** `p?.newContent?.toByteArray()` converts a client-supplied string to bytes with no size check. A client can send a multi-megabyte or multi-gigabyte JSON string in `newContent`, causing heap exhaustion on the server. The Ktor WebSocket layer itself does not impose a frame-size limit unless explicitly configured.  
 **Recommendation:** Add a `MAX_CONTENT_BYTES` constant (e.g. 65536) and reject the action before conversion: `if ((p?.newContent?.length ?: 0) > MAX_CONTENT_BYTES) { /* send error, return */ }`. Also configure a maximum incoming frame size on the `WebSockets` plugin installation in `MatrixServer.kt` (`maxFrameSize`).
+
+**Resolution (Phase 3.2):**
+`WebSocketDeckerController.kt` now rejects `newContent` longer than 4096 bytes with `ErrorMessage("content_too_large")` before any conversion or game-logic call. `App.tsx` adds the `content_too_large` error label so the UI displays it to the player.
 
 ---
 
@@ -68,6 +74,9 @@ The server is a single-process Ktor WebSocket server with no authentication laye
 **File:** src/main/kotlin/com/shadowrun/matrix/server/SessionRegistry.kt:30  
 **Issue:** `msg.deckerName` is accepted as-is and stored as a HashMap key and embedded in `ControlMessage` JSON that is broadcast to all clients. An empty string `""`, a name thousands of characters long, or a string containing JSON-special characters (e.g. `"` characters if ever interpolated unsafely) are all accepted. The empty-string case in particular registers silently, taking the `""` slot.  
 **Recommendation:** Validate before inserting: reject empty names, enforce a maximum length (e.g. 32 characters), and restrict to a safe character set (alphanumerics, spaces, hyphens).
+
+**Resolution (Phase 3.1):**
+`SessionRegistry.kt` now rejects names longer than 32 characters in `receiveJoin`, immediately returning `ErrorMessage("name_too_long")` before any map insertion.
 
 ---
 

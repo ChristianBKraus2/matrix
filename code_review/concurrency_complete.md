@@ -18,6 +18,9 @@ The system has a single shared-state boundary: the `SessionRegistry` is accessed
 
 **Recommendation:** Assign `pendingAction` *before* calling `promoteForTurn`, or fold both writes into a single `synchronized(lock)` block so the future is visible to `receiveAction` before the client learns it is the active controller. A clean split: create the future, write `pendingAction`, then promote; promotion is the signal to the client that the future is ready.
 
+**Resolution (Phase 1.6):**
+`WebSocketDeckerController.kt` now assigns `registry.pendingAction` before calling `runBlocking { registry.promoteForTurn(...) }`, closing the window between the client being told it is active and the future being ready to receive its action.
+
 ---
 
 ### [CRITICAL] `receiveAction` checks `pendingAction` and `activeController` under two separate locks — TOCTOU race on double-check
@@ -47,6 +50,9 @@ suspend fun receiveAction(session: DefaultWebSocketServerSession, cmd: ActionCom
 }
 ```
 
+**Resolution (Phase 4.1):**
+`SessionRegistry.kt` now captures `pendingAction` inside the same `synchronized(lock)` block as the `activeController` check, making the read-authorize-complete sequence atomic and eliminating the TOCTOU race.
+
 ---
 
 ### [HIGH] Unhandled exception in `dispatch` leaves `activeController` permanently set
@@ -69,6 +75,9 @@ try {
     throw e
 }
 ```
+
+**Resolution (Phase 1.4):**
+`WebSocketDeckerController.kt` now wraps the dispatch-and-apply block in a try/catch. On exception, it broadcasts an error `ResultMessage` and unconditionally calls `demoteAfterTurn`, ensuring `activeController` is always cleared and the game loop can continue regardless of what happens inside `dispatch`.
 
 ---
 
@@ -103,6 +112,9 @@ try {
 
 **Recommendation:** Move `pendingAction` inside `lock` discipline (declare it as a regular field, read and write it only inside `synchronized(lock)` blocks) or migrate both to a single `Mutex`-guarded data class. This makes the composite invariant explicit and eliminates the need to reason about happens-before across two separate mechanisms.
 
+**Resolution (Phase 4.3):**
+Deferred — full `Mutex` migration replacing all `synchronized` blocks is a larger refactor deferred to a future track. The TOCTOU races were addressed in Phases 4.1 and 4.2 by bringing `pendingAction` reads inside the existing `synchronized(lock)` blocks.
+
 ---
 
 ### [MEDIUM] `broadcastWithRoles` sends per-session serialisation outside the lock — role can change between snapshot and send
@@ -124,6 +136,9 @@ try {
 **Issue:** `deregister` sets `wasController = true` and `activeController = null` inside `synchronized(lock)` (lines 53–59), then calls `pendingAction?.completeExceptionally(DeckerDisconnectedException())` *outside* the lock (line 61). Between releasing `lock` and completing the future, `receiveAction` on another coroutine could race in, read `pendingAction` (still non-null), check `activeController` (now null, so `session != null` is true), and return `not_your_turn` without completing the future. The future is then completed exceptionally one moment later, but the ordering guarantee disappears: the disconnect handler in `WebSocketDeckerController` fires, but any concurrently-arriving action frame from a second client that arrived in the gap has already been rejected with the wrong error code.
 
 **Recommendation:** Either complete the future inside `synchronized(lock)` (CompletableFuture.completeExceptionally is thread-safe), or read and null `pendingAction` atomically inside the lock and then complete it outside, so nothing else can observe the intermediate state.
+
+**Resolution (Phase 4.2):**
+`SessionRegistry.kt` now reads and nulls `pendingAction` inside the `synchronized(lock)` block alongside the `activeController` clear, then completes the future outside the lock, preventing any race between disconnect handling and concurrent action delivery.
 
 ---
 

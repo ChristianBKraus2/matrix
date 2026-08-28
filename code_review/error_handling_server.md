@@ -33,6 +33,9 @@ result.onFailure { e ->
 }
 ```
 
+**Resolution (Phase 1.3):**
+`MatrixServer.kt` now sends an `ErrorMessage` back to the session on failure instead of silently discarding the exception. An `else` branch was also added for unknown `msgType` values, sending `ErrorMessage("unknown_message_type")` to the client.
+
 ---
 
 ### [HIGH] `QueryPrecision.valueOf()` throws `IllegalArgumentException` on bad client input — unhandled

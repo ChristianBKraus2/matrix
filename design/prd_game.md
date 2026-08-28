@@ -28,3 +28,11 @@ When an IC takes an action it uses its appropriate method of CombatResolver. The
 - If no unauthorized decker is found anywhere in the host, the IC takes no action.
 
 If a target is found but is not in the IC's current node, a proactive IC moves to the target's node (returning `IcMoved` this action instead of attacking). A reactive IC does not move; it attacks regardless of which node the target is in.
+
+## Available Actions
+
+The `availableActions` list returned to the client must only include operations that have a complete server-side implementation. Operations `SWAP_MEMORY` and `LOCATE_DECKER` are deferred to a future milestone and are excluded from `availableActions` until implemented.
+
+## Decker State — Multi-Turn Interrogation
+
+`Decker` holds `interrogationStates: Map<SystemOperation, InterrogationState>` as part of its persona state. This map tracks accumulated successes across multiple turns for locate operations (`LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`). The state is cleared automatically when the decker logs off, jacks out, or is dumped.

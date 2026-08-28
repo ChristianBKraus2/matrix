@@ -32,7 +32,7 @@ function needsScanner(op: string | null)  { return op === 'TAP_COMCALL' }
 function needsEdit(op: string | null)     { return op === 'EDIT_FILE' }
 
 interface CardState {
-  precision: 'NORMAL' | 'HIGH'
+  precision: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'
   hasValidPasscode: boolean
   scannerDeviceRating: number
   newContent: string
@@ -98,13 +98,13 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                 {needsPrecision(op) && (
                   <div className="action-control" onClick={e => e.stopPropagation()}>
                     <div className="ctrl-label">PRECISION</div>
-                    {(['NORMAL', 'HIGH'] as const).map(v => (
+                    {(['VERY_VAGUE', 'VAGUE', 'NORMAL', 'SPECIFIC', 'VERY_SPECIFIC'] as const).map(v => (
                       <button
                         key={v}
                         className={`toggle-btn ${cs.precision === v ? 'active' : ''}`}
                         onClick={() => patchState(action.index, { precision: v })}
                       >
-                        {v}
+                        {v.replace(/_/g, ' ')}
                       </button>
                     ))}
                   </div>

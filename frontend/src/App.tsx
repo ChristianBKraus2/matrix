@@ -12,6 +12,8 @@ const ERROR_LABELS: Record<string, string> = {
   no_action_pending:  'No action pending',
   already_registered: 'Already registered',
   name_already_taken: 'Decker name already taken',
+  name_too_long:      'Decker name too long (max 32 characters)',
+  content_too_large:  'File content too large (max 4096 bytes)',
 }
 
 function JoinScreen({

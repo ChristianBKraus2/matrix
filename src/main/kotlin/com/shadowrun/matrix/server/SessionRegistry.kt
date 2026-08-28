@@ -5,6 +5,7 @@ import com.shadowrun.matrix.server.dto.ControlMessage
 import com.shadowrun.matrix.server.dto.ErrorMessage
 import com.shadowrun.matrix.server.dto.JoinMessage
 import com.shadowrun.matrix.server.dto.MatrixJson
+import com.shadowrun.matrix.server.dto.SessionRole
 import com.shadowrun.matrix.server.dto.StateMessage
 import io.ktor.server.websocket.DefaultWebSocketServerSession
 import io.ktor.websocket.Frame
@@ -23,11 +24,15 @@ class SessionRegistry {
 
     suspend fun register(session: DefaultWebSocketServerSession) {
         synchronized(lock) { sessions.add(session) }
-        session.send(Frame.Text(MatrixJson.encodeToString(ControlMessage(role = "observer"))))
+        session.send(Frame.Text(MatrixJson.encodeToString(ControlMessage(role = SessionRole.OBSERVER))))
     }
 
     suspend fun receiveJoin(session: DefaultWebSocketServerSession, msg: JoinMessage) {
         val name = msg.deckerName
+        if (name.length > 32) {
+            session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = "name_too_long"))))
+            return
+        }
         val error = synchronized(lock) {
             when {
                 sessionDecker.containsKey(session) -> "already_registered"
@@ -43,23 +48,29 @@ class SessionRegistry {
             session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = error))))
         } else {
             session.send(Frame.Text(MatrixJson.encodeToString(
-                ControlMessage(role = "registered_decker", deckerName = name)
+                ControlMessage(role = SessionRole.REGISTERED_DECKER, deckerName = name)
             )))
         }
     }
 
     suspend fun deregister(session: DefaultWebSocketServerSession) {
-        val wasController: Boolean
+        // Read and null pendingAction inside the lock so nothing else can observe the
+        // intermediate state between "activeController = null" and completing the future.
+        val futureToCancel: CompletableFuture<ActionCommand>?
         synchronized(lock) {
             sessions.remove(session)
             val name = sessionDecker.remove(session)
             if (name != null) deckerSessions.remove(name)
-            wasController = activeController == session
-            if (wasController) activeController = null
+            val wasController = activeController == session
+            if (wasController) {
+                activeController = null
+                futureToCancel = pendingAction
+                pendingAction = null
+            } else {
+                futureToCancel = null
+            }
         }
-        if (wasController) {
-            pendingAction?.completeExceptionally(DeckerDisconnectedException())
-        }
+        futureToCancel?.completeExceptionally(DeckerDisconnectedException())
     }
 
     suspend fun promoteForTurn(deckerName: String): Boolean {
@@ -67,7 +78,7 @@ class SessionRegistry {
             deckerSessions[deckerName]?.also { activeController = it }
         } ?: return false
         session.send(Frame.Text(MatrixJson.encodeToString(
-            ControlMessage(role = "active_controller", deckerName = deckerName)
+            ControlMessage(role = SessionRole.ACTIVE_CONTROLLER, deckerName = deckerName)
         )))
         return true
     }
@@ -78,7 +89,7 @@ class SessionRegistry {
             deckerSessions[deckerName]
         } ?: return
         session.send(Frame.Text(MatrixJson.encodeToString(
-            ControlMessage(role = "registered_decker", deckerName = deckerName)
+            ControlMessage(role = SessionRole.REGISTERED_DECKER, deckerName = deckerName)
         )))
     }
 
@@ -90,12 +101,12 @@ class SessionRegistry {
     }
 
     suspend fun broadcastWithRoles(base: StateMessage) {
-        val sessionRoles: List<Pair<DefaultWebSocketServerSession, String>> = synchronized(lock) {
+        val sessionRoles: List<Pair<DefaultWebSocketServerSession, SessionRole>> = synchronized(lock) {
             sessions.map { s ->
                 s to when {
-                    s == activeController          -> "active_controller"
-                    sessionDecker.containsKey(s)   -> "registered_decker"
-                    else                           -> "observer"
+                    s == activeController          -> SessionRole.ACTIVE_CONTROLLER
+                    sessionDecker.containsKey(s)   -> SessionRole.REGISTERED_DECKER
+                    else                           -> SessionRole.OBSERVER
                 }
             }
         }
@@ -105,15 +116,17 @@ class SessionRegistry {
     }
 
     suspend fun receiveAction(session: DefaultWebSocketServerSession, cmd: ActionCommand) {
-        val future = pendingAction
-        if (session != synchronized(lock) { activeController }) {
-            session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = "not_your_turn"))))
+        // Capture both activeController and pendingAction atomically to avoid TOCTOU races.
+        val (future, error) = synchronized(lock) {
+            if (session != activeController) return@synchronized null to "not_your_turn"
+            val f = pendingAction
+            if (f == null || f.isDone) return@synchronized null to "no_action_pending"
+            f to null
+        }
+        if (error != null) {
+            session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = error))))
             return
         }
-        if (future == null || future.isDone) {
-            session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = "no_action_pending"))))
-            return
-        }
-        future.complete(cmd)
+        future!!.complete(cmd)
     }
 }

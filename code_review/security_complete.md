@@ -39,6 +39,9 @@ val precision = params?.precision
 ```
 If the value is unrecognised, treat it as `NORMAL` (or return an error to the client before `future.complete` is called, by validating in `receiveAction`).
 
+**Resolution:**
+Fixed across three phases: (1.1) `WebSocketDeckerController.kt` `locateWithState` now uses `runCatching { QueryPrecision.valueOf(it) }.getOrNull() ?: QueryPrecision.NORMAL` — the `IllegalArgumentException` is caught and the value defaults to `NORMAL`, so the game-loop thread can no longer be crashed by a crafted precision string; (1.2) `frontend/src/types/messages.ts` `precision` type corrected from `'NORMAL' | 'HIGH'` to `'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'`; (3.3) the same safe lookup acts as the server-side rejection gate for malformed values.
+
 ---
 
 ### HIGH — No session authentication; any client can squat any decker name
@@ -66,6 +69,9 @@ If the value is unrecognised, treat it as `NORMAL` (or return an error to the cl
 
 **Recommendation:** Add a size cap in `receiveAction` (or in the DTO deserialiser) before the command reaches game logic — e.g., reject any `newContent` longer than a game-defined maximum file size (typically a few kilobytes in SR rules).
 
+**Resolution (Phase 3.2):**
+`WebSocketDeckerController.kt` now rejects `newContent` longer than 4096 bytes with `ErrorMessage("content_too_large")` before reaching game logic. `App.tsx` adds the `content_too_large` error label to the `ERROR_LABELS` map.
+
 ---
 
 ### MEDIUM — IC ratings and behavior flags leaked in DTO before ANALYZE
@@ -91,6 +97,9 @@ If the value is unrecognised, treat it as `NORMAL` (or return an error to the cl
 **Issue:** The UI input field carries `maxLength={32}` but the server imposes no equivalent limit on `JoinMessage.deckerName`. A client bypassing the browser can register a name of arbitrary length. Long names are stored in both `deckerSessions` and `sessionDecker` maps, included in all `ControlMessage` broadcasts, and become part of log strings in `ResultMessage.details`. A 1 MB decker name would be broadcasted to every connected session on every control message.
 
 **Recommendation:** Enforce the length limit in `receiveJoin` on the server: reject names exceeding 32 characters with an `error` message before storing anything.
+
+**Resolution:**
+Fixed in `SessionRegistry.receiveJoin`: names longer than 32 characters are now rejected immediately with `ErrorMessage("name_too_long")` before any map insertion.
 
 ---
 

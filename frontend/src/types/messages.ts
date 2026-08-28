@@ -7,7 +7,7 @@ export interface JoinMessage {
 
 export interface ActionParams {
   newContent?: string | null
-  precision?: 'NORMAL' | 'HIGH'
+  precision?: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'
   hasValidPasscode?: boolean
   scannerDeviceRating?: number
   inactivitySeconds?: number
@@ -84,8 +84,8 @@ export interface StateMessage {
 export interface ResultMessage {
   type: 'result'
   success: boolean
-  deckerSuccesses?: number
-  hostSuccesses?: number
+  deckerSuccesses: number
+  hostSuccesses: number
   details: string
 }
 

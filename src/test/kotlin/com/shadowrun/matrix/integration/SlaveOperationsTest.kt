@@ -36,7 +36,7 @@ class SlaveOperationsTest : IntegrationTestBase() {
         icon.equipUtility(browse)
 
         val state = InterrogationState(SystemOperation.LOCATE_SLAVE, "Security Camera")
-        val result = icon.currentDecker().locateSlave(host, state, QueryPrecision.VERY_SPECIFIC, hitRoller())
+        val result = icon.currentDecker().locateSlave(host, QueryPrecision.VERY_SPECIFIC, hitRoller())
         icon.context.updateDecker(icon.currentDecker(), result.first.decker)
 
         assertIs<LocateResult.Located>(result.second, "Should accumulate 3+ successes and locate the device")
@@ -50,7 +50,7 @@ class SlaveOperationsTest : IntegrationTestBase() {
         }
         val host = host(icon)
         val state = InterrogationState(SystemOperation.LOCATE_SLAVE, "Camera")
-        val result = icon.currentDecker().locateSlave(host, state, QueryPrecision.NORMAL, failRoller())
+        val result = icon.currentDecker().locateSlave(host, QueryPrecision.NORMAL, failRoller())
 
         assertIs<OperationResult.Failure>(result.first, "failRoller should make host win")
         assertTrue(result.second !is LocateResult.Located, "Should not locate device when host wins")

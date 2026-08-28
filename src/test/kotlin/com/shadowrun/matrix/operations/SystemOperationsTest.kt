@@ -306,7 +306,7 @@ class SystemOperationsTest {
         val h = host()
         val d = decker(jackedIn = true, host = h)
         val state = InterrogationState(SystemOperation.LOCATE_FILE, "paydata", 0)
-        val (_, locate) = d.locateFile(h, state, QueryPrecision.NORMAL, loseRoller)
+        val (_, locate) = d.locateFile(h, QueryPrecision.NORMAL, loseRoller)
         assertIs<LocateResult.Ongoing>(locate)
     }
 
@@ -317,7 +317,10 @@ class SystemOperationsTest {
         val d = decker(jackedIn = true, host = h)
         // Start at 4, need 1 more; winRoller gives 6 successes → jumps past 5
         val state = InterrogationState(SystemOperation.LOCATE_FILE, "paydata", 4)
-        val (_, locate) = d.locateFile(h, state, QueryPrecision.NORMAL, winRoller)
+        val d2 = decker(jackedIn = true, host = h).copy(interrogationStates = mapOf(
+            SystemOperation.LOCATE_FILE to InterrogationState(SystemOperation.LOCATE_FILE, "", 4)
+        ))
+        val (_, locate) = d2.locateFile(h, QueryPrecision.NORMAL, winRoller)
         assertIs<LocateResult.Located>(locate)
     }
 
@@ -325,8 +328,10 @@ class SystemOperationsTest {
     fun `locateFile returns NotFound when data absent and 3 successes accumulated`() {
         val h = host(secValue = 2, index = 2)
         val d = decker(jackedIn = true, host = h)
-        val state = InterrogationState(SystemOperation.LOCATE_FILE, "nonexistent", 2)
-        val (_, locate) = d.locateFile(h, state, QueryPrecision.NORMAL, winRoller)
+        val d2 = decker(jackedIn = true, host = h).copy(interrogationStates = mapOf(
+            SystemOperation.LOCATE_FILE to InterrogationState(SystemOperation.LOCATE_FILE, "", 2)
+        ))
+        val (_, locate) = d2.locateFile(h, QueryPrecision.NORMAL, winRoller)
         assertIs<LocateResult.NotFound>(locate)
     }
 
@@ -335,8 +340,10 @@ class SystemOperationsTest {
         val device = RemoteDevice("camera-3", "SLAVE-003")
         val h = host(dataFiles = emptyList(), remoteDevices = listOf(device), secValue = 2, index = 2)
         val d = decker(jackedIn = true, host = h)
-        val state = InterrogationState(SystemOperation.LOCATE_SLAVE, "camera", 2)
-        val (_, locate) = d.locateSlave(h, state, QueryPrecision.NORMAL, winRoller)
+        val d2 = decker(jackedIn = true, host = h).copy(interrogationStates = mapOf(
+            SystemOperation.LOCATE_SLAVE to InterrogationState(SystemOperation.LOCATE_SLAVE, "", 2)
+        ))
+        val (_, locate) = d2.locateSlave(h, QueryPrecision.NORMAL, winRoller)
         assertIs<LocateResult.Located>(locate)
     }
 

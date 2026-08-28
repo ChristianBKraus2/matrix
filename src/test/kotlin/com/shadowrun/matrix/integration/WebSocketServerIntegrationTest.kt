@@ -5,6 +5,7 @@ import com.shadowrun.matrix.server.WebSocketDeckerController
 import com.shadowrun.matrix.server.dto.ActionCommand
 import com.shadowrun.matrix.server.dto.AvailableActionDto
 import com.shadowrun.matrix.server.dto.DeckerStateDto
+import com.shadowrun.matrix.server.dto.SessionRole
 import com.shadowrun.matrix.server.dto.StateMessage
 import com.shadowrun.matrix.server.matrixModule
 import com.shadowrun.matrix.decker.LogonResult
@@ -50,7 +51,7 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
     fun `receiving StateMessage shows decker info`() = webSocketTest { registry ->
         joinAsDecker("Kylie")
         registry.broadcastWithRoles(StateMessage(
-            role = "observer",
+            role = SessionRole.OBSERVER,
             decker = deckerState("Kylie"),
             visibleObjects = emptyList(),
             availableActions = emptyList()
@@ -64,7 +65,7 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
     fun `receiving StateMessage shows available actions`() = webSocketTest { registry ->
         joinAsDecker("Kylie")
         registry.broadcastWithRoles(StateMessage(
-            role = "observer",
+            role = SessionRole.OBSERVER,
             decker = deckerState("Kylie"),
             visibleObjects = emptyList(),
             availableActions = listOf(

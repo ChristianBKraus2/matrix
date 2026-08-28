@@ -56,6 +56,9 @@ The game logic layer is structurally sound and the data-flow model (immutable De
 **Issue:** `return AnalyzeSecurityResult(updatedDecker, outcome, host.securityRating, newTally, host.alertStatus)` uses `host.alertStatus` from the caller-supplied parameter. If an alert transition has been applied to the game-context host since the caller obtained their `host` reference, the returned `alertStatus` is stale. Similarly, `tallyFor(host)` compares via data-class equality including the `securityTally` field; a caller with a stale host reference will get `0` back, causing `newTally` in the result to report only the successes from this one test rather than the accumulated total.
 **Recommendation:** Derive the return values from `updatedDecker.currentLocation` (which carries the live tally) rather than from the parameter. Either accept a `GameContext` reference, or document clearly that callers must pass the exact same host instance held by the decker's current location.
 
+**Resolution (Phase 2.1):**
+`GameContext.kt` now reads `oldTally` from `context.host.securityTally` (the live host in the game context) rather than from the decker snapshot, so tally accumulation and IC-trigger checks are computed against the current baseline rather than a potentially stale value.
+
 ---
 
 ### [MEDIUM] `maintainMonitoredOperation` is a no-op; monitored operation abort mechanic is unimplemented

@@ -14,7 +14,6 @@ import com.shadowrun.matrix.operations.AnalyzeSecurityResult
 import com.shadowrun.matrix.operations.AvailableAction
 import com.shadowrun.matrix.operations.EditFileResult
 import com.shadowrun.matrix.operations.HostInfoItem
-import com.shadowrun.matrix.operations.InterrogationState
 import com.shadowrun.matrix.operations.LocateDeckerResult
 import com.shadowrun.matrix.operations.LocateResult
 import com.shadowrun.matrix.operations.MatrixIcon
@@ -25,6 +24,7 @@ import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.server.dto.ActionCommand
 import com.shadowrun.matrix.server.dto.MatrixJson
 import com.shadowrun.matrix.server.dto.ResultMessage
+import com.shadowrun.matrix.server.dto.SessionRole
 import com.shadowrun.matrix.server.dto.StateMessage
 import com.shadowrun.matrix.server.dto.toDto
 import com.shadowrun.matrix.utility.DiceRoller
@@ -44,14 +44,19 @@ class WebSocketDeckerController(
     var decker: Decker = initialDecker
         private set
 
-    private val interrogationStates = mutableMapOf<SystemOperation, InterrogationState>()
-
     override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val visibleObjects = decker.visibleObjects()
         val availableActions = decker.availableActions()
+            .filterNot { it is AvailableAction.Operation &&
+                         it.operation in setOf(SystemOperation.SWAP_MEMORY, SystemOperation.LOCATE_DECKER) }
 
+        // Set pendingAction BEFORE promoteForTurn so receiveAction never sees a null future
+        // after the client learns it is the active controller (fixes TOCTOU race).
+        val future = CompletableFuture<ActionCommand>()
+        registry.pendingAction = future
         val hasController = runBlocking { registry.promoteForTurn(decker.name) }
         if (!hasController) {
+            registry.pendingAction = null
             runBlocking {
                 registry.broadcast(MatrixJson.encodeToString(ResultMessage(
                     success = false, deckerSuccesses = 0, hostSuccesses = 0,
@@ -62,14 +67,11 @@ class WebSocketDeckerController(
         }
 
         val stateBase = StateMessage(
-            role = "observer",
+            role = SessionRole.OBSERVER,
             decker = decker.toDto(),
             visibleObjects = visibleObjects.toDto(),
             availableActions = availableActions.toDto()
         )
-        val future = CompletableFuture<ActionCommand>()
-        registry.pendingAction = future
-
         runBlocking { registry.broadcastWithRoles(stateBase) }
 
         val cmd = try {
@@ -81,11 +83,17 @@ class WebSocketDeckerController(
             }
             return ActionResult.DeckerAction
         } catch (e: ExecutionException) {
-            if (e.cause is DeckerDisconnectedException) {
+            val cause = e.cause
+            if (cause is DeckerDisconnectedException) {
                 runBlocking {
                     registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Decker disconnected — turn forfeit")))
+                    registry.demoteAfterTurn(decker.name)
                 }
                 return ActionResult.DeckerAction
+            }
+            runBlocking {
+                registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Unexpected error — turn aborted")))
+                registry.demoteAfterTurn(decker.name)
             }
             throw e
         } finally {
@@ -102,18 +110,30 @@ class WebSocketDeckerController(
         }
 
         val oldDecker = decker
-        val result = dispatch(chosen, cmd, diceRoller)
-        decker = result.decker
-        context.applyDeckerOperationResult(oldDecker, decker)
-
-        runBlocking {
-            registry.broadcast(MatrixJson.encodeToString(ResultMessage(
-                success = result.success,
-                deckerSuccesses = result.deckerSuccesses,
-                hostSuccesses = result.hostSuccesses,
-                details = result.details
-            )))
-            registry.demoteAfterTurn(decker.name)
+        try {
+            val result = dispatch(chosen, cmd, diceRoller)
+            decker = result.decker
+            context.applyDeckerOperationResult(oldDecker, decker)
+            // Re-read from context: applyDeckerOperationResult may have replaced the decker
+            // reference (e.g. alert transition updates the embedded host object).
+            decker = context.deckers.firstOrNull { it.name == decker.name } ?: decker
+            runBlocking {
+                registry.broadcast(MatrixJson.encodeToString(ResultMessage(
+                    success = result.success,
+                    deckerSuccesses = result.deckerSuccesses,
+                    hostSuccesses = result.hostSuccesses,
+                    details = result.details
+                )))
+                registry.demoteAfterTurn(decker.name)
+            }
+        } catch (e: Exception) {
+            runBlocking {
+                registry.broadcast(MatrixJson.encodeToString(ResultMessage(
+                    success = false, deckerSuccesses = 0, hostSuccesses = 0,
+                    details = "Internal error — turn aborted"
+                )))
+                registry.demoteAfterTurn(decker.name)
+            }
         }
 
         return ActionResult.DeckerAction
@@ -193,28 +213,26 @@ class WebSocketDeckerController(
             }
             SystemOperation.EDIT_FILE -> {
                 val file = (action.target as MatrixObject.File).file
-                decker.editFile(file, host, p?.newContent?.toByteArray(), diceRoller).toDispatch()
+                val content = p?.newContent
+                if (content != null && content.length > 4096) {
+                    return DispatchResult(decker, false, 0, 0, "File content exceeds maximum allowed size")
+                }
+                decker.editFile(file, host, content?.toByteArray(), diceRoller).toDispatch()
             }
             SystemOperation.EDIT_SLAVE -> {
                 val device = (action.target as MatrixObject.Device).device
                 decker.editSlave(device, host, diceRoller).first.toDispatch()
             }
             SystemOperation.LOCATE_FILE -> {
-                val (opResult, locateResult) = locateWithState(
-                    action.operation, p, host, diceRoller
-                ) { s, prec -> decker.locateFile(host, s, prec, diceRoller) }
+                val (opResult, locateResult) = locateWithState(p) { prec -> decker.locateFile(host, prec, diceRoller) }
                 opResult.toDispatch(locateResult.label())
             }
             SystemOperation.LOCATE_SLAVE -> {
-                val (opResult, locateResult) = locateWithState(
-                    action.operation, p, host, diceRoller
-                ) { s, prec -> decker.locateSlave(host, s, prec, diceRoller) }
+                val (opResult, locateResult) = locateWithState(p) { prec -> decker.locateSlave(host, prec, diceRoller) }
                 opResult.toDispatch(locateResult.label())
             }
             SystemOperation.LOCATE_ACCESS_NODE -> {
-                val (opResult, locateResult) = locateWithState(
-                    action.operation, p, host, diceRoller
-                ) { s, prec -> decker.locateAccessNode(host, s, prec, diceRoller) }
+                val (opResult, locateResult) = locateWithState(p) { prec -> decker.locateAccessNode(host, prec, diceRoller) }
                 opResult.toDispatch(locateResult.label())
             }
             SystemOperation.LOCATE_DECKER -> DispatchResult(decker, false, 0, 0, "LOCATE_DECKER requires a target Persona — not supported via WebSocket")
@@ -235,21 +253,11 @@ class WebSocketDeckerController(
     }
 
     private fun locateWithState(
-        op: SystemOperation,
         params: com.shadowrun.matrix.server.dto.ActionParams?,
-        @Suppress("UNUSED_PARAMETER") host: Host,
-        @Suppress("UNUSED_PARAMETER") diceRoller: DiceRoller,
-        call: (InterrogationState, QueryPrecision) -> Pair<OperationResult, LocateResult>
+        call: (QueryPrecision) -> Pair<OperationResult, LocateResult>
     ): Pair<OperationResult, LocateResult> {
-        val state = interrogationStates.getOrPut(op) { InterrogationState(op, "") }
-        val precision = params?.precision?.let { QueryPrecision.valueOf(it) } ?: QueryPrecision.NORMAL
-        val (opResult, locateResult) = call(state, precision)
-        when (locateResult) {
-            is LocateResult.Ongoing  -> interrogationStates[op] = state.copy(accumulatedSuccesses = locateResult.accumulatedSuccesses)
-            is LocateResult.Located  -> interrogationStates.remove(op)
-            LocateResult.NotFound    -> interrogationStates.remove(op)
-        }
-        return opResult to locateResult
+        val precision = params?.precision?.let { runCatching { QueryPrecision.valueOf(it) }.getOrNull() } ?: QueryPrecision.NORMAL
+        return call(precision)
     }
 
     // ── Result converters ──────────────────────────────────────────────────────

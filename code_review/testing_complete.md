@@ -61,6 +61,9 @@ The Kotlin game-logic and server layers have solid unit and integration test cov
 **Issue:** `SWAP_MEMORY` and `LOCATE_DECKER` are valid entries in the `SystemOperation` enum and can be listed as `availableActions` on the server. The dispatch function returns `success=false` with a stub message for both. There is no test verifying this behavior, and no test verifying that the frontend's `ActionsPanel` can correctly render an `Operation` DTO with `operation="SWAP_MEMORY"` without crashing. If a host configuration exposes these operations, the player sees a button that silently fails with no actionable feedback.
 **Recommendation:** Add a `WebSocketServerTest` that drives a turn where `availableActions` contains a `SWAP_MEMORY` operation, the client submits that action index, and the result message is asserted to have `success=false` with the stub reason. Consider filtering these operations out of `availableActions` before broadcasting rather than failing silently at dispatch.
 
+**Resolution (Phase 2.3):**
+`WebSocketDeckerController.kt` now filters `SWAP_MEMORY` and `LOCATE_DECKER` from `availableActions` before building the `StateMessage`, so these unimplemented operations are never presented to the client and the silent-failure dispatch path is no longer reachable from the UI.
+
 ---
 
 ### MEDIUM No JSON round-trip serialization tests spanning server → wire → client types

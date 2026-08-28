@@ -26,7 +26,11 @@ class GameContext(
 
     fun updateDecker(old: Decker, new: Decker) {
         val idx = deckers.indexOf(old)
-        if (idx >= 0) deckers[idx] = new
+        if (idx < 0) {
+            System.err.println("GameContext.updateDecker: decker '${old.name}' not found in context list — state may diverge")
+            return
+        }
+        deckers[idx] = new
     }
 
     fun updateHost(new: Host) {
@@ -53,8 +57,9 @@ class GameContext(
     }
 
     fun applyDeckerOperationResult(old: Decker, new: Decker) {
-        val oldTally = (old.currentLocation as? MatrixLocation.OnHost)?.host?.securityTally ?: 0
-        val newTally = (new.currentLocation as? MatrixLocation.OnHost)?.host?.securityTally ?: 0
+        // Use the live context host as the tally baseline, not the potentially stale decker snapshot.
+        val oldTally = host.securityTally
+        val newTally = (new.currentLocation as? MatrixLocation.OnHost)?.host?.securityTally ?: oldTally
         updateDecker(old, new)
         if (newTally > oldTally) {
             val newHost = (new.currentLocation as? MatrixLocation.OnHost)?.host ?: host.copy(securityTally = newTally)

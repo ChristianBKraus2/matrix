@@ -64,7 +64,8 @@ data class Decker(
     val currentLocation: MatrixLocation? = null,
     val blackIcPin: BlackIcPinState? = null,
     val trackState: TrackState? = null,
-    val suppressedIc: List<IcSuppressionState> = emptyList()
+    val suppressedIc: List<IcSuppressionState> = emptyList(),
+    val interrogationStates: Map<SystemOperation, InterrogationState> = emptyMap()
 ) : ActiveIcon {
     override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = ActionResult.DeckerAction
 
@@ -743,14 +744,13 @@ data class Decker(
      */
     fun locateFile(
         host: Host,
-        state: InterrogationState,
         precision: QueryPrecision,
         diceRoller: DiceRoller
     ): Pair<OperationResult, LocateResult> {
+        val state = interrogationStates.getOrDefault(SystemOperation.LOCATE_FILE, InterrogationState(SystemOperation.LOCATE_FILE, ""))
         logger.info { "[$name] locateFile on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
         requireJackedIn()
         val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_FILE, host, state, precision, diceRoller)
-        val updated = withUpdatedTally(outcome.hostSuccesses)
         val locateResult = when {
             newState.accumulatedSuccesses >= 5 -> {
                 val file = host.dataFiles.firstOrNull { it.name.contains(state.query, ignoreCase = true) }
@@ -762,7 +762,12 @@ data class Decker(
             else -> LocateResult.Ongoing(newState.accumulatedSuccesses)
         }
         logger.info { "[$name] locateFile result: $locateResult" }
-        val opResult = if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
+        val newStates = when (locateResult) {
+            is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_FILE to state.copy(accumulatedSuccesses = locateResult.accumulatedSuccesses))
+            else -> interrogationStates - SystemOperation.LOCATE_FILE
+        }
+        val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
+        val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)
         return Pair(opResult, locateResult)
     }
 
@@ -772,14 +777,13 @@ data class Decker(
      */
     fun locateSlave(
         host: Host,
-        state: InterrogationState,
         precision: QueryPrecision,
         diceRoller: DiceRoller
     ): Pair<OperationResult, LocateResult> {
+        val state = interrogationStates.getOrDefault(SystemOperation.LOCATE_SLAVE, InterrogationState(SystemOperation.LOCATE_SLAVE, ""))
         logger.info { "[$name] locateSlave on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
         requireJackedIn()
         val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_SLAVE, host, state, precision, diceRoller)
-        val updated = withUpdatedTally(outcome.hostSuccesses)
         val locateResult = when {
             newState.accumulatedSuccesses >= 3 -> {
                 val device = host.remoteDevices.firstOrNull { it.name.contains(state.query, ignoreCase = true) }
@@ -789,7 +793,12 @@ data class Decker(
             else -> LocateResult.Ongoing(newState.accumulatedSuccesses)
         }
         logger.info { "[$name] locateSlave result: $locateResult" }
-        val opResult = if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
+        val newStates = when (locateResult) {
+            is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_SLAVE to state.copy(accumulatedSuccesses = locateResult.accumulatedSuccesses))
+            else -> interrogationStates - SystemOperation.LOCATE_SLAVE
+        }
+        val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
+        val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)
         return Pair(opResult, locateResult)
     }
 
@@ -799,17 +808,21 @@ data class Decker(
      */
     fun locateAccessNode(
         host: Host,
-        state: InterrogationState,
         precision: QueryPrecision,
         diceRoller: DiceRoller
     ): Pair<OperationResult, LocateResult> {
+        val state = interrogationStates.getOrDefault(SystemOperation.LOCATE_ACCESS_NODE, InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, ""))
         logger.info { "[$name] locateAccessNode on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
         requireJackedIn()
         val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_ACCESS_NODE, host, state, precision, diceRoller)
-        val updated = withUpdatedTally(outcome.hostSuccesses)
         val locateResult = if (newState.accumulatedSuccesses >= 5) LocateResult.Located(state.query, newState.accumulatedSuccesses)
         else LocateResult.Ongoing(newState.accumulatedSuccesses)
-        val opResult = if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
+        val newStates = when (locateResult) {
+            is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_ACCESS_NODE to state.copy(accumulatedSuccesses = locateResult.accumulatedSuccesses))
+            else -> interrogationStates - SystemOperation.LOCATE_ACCESS_NODE
+        }
+        val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
+        val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)
         return Pair(opResult, locateResult)
     }
 

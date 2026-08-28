@@ -57,7 +57,6 @@ class DtoMappingTest {
         val dto = MatrixObject.GridNode(rtg).toDto(0)
         assertIs<MatrixObjectDto.GridNode>(dto)
         assertEquals(0, dto.index)
-        assertEquals("GridNode", dto.kind)
         assertEquals(rtg.name, dto.name)
         assertEquals(rtg.ltgs.size, dto.ltgCount)
     }
@@ -68,7 +67,6 @@ class DtoMappingTest {
         val dto = MatrixObject.LocalGrid(ltg).toDto(1)
         assertIs<MatrixObjectDto.LocalGrid>(dto)
         assertEquals(1, dto.index)
-        assertEquals("LocalGrid", dto.kind)
         assertEquals(ltg.name, dto.name)
     }
 
@@ -78,7 +76,6 @@ class DtoMappingTest {
         val dto = MatrixObject.HostNode(host).toDto(2)
         assertIs<MatrixObjectDto.HostNode>(dto)
         assertEquals(2, dto.index)
-        assertEquals("HostNode", dto.kind)
         assertEquals(host.name, dto.name)
     }
 
@@ -88,7 +85,6 @@ class DtoMappingTest {
         val dto = MatrixObject.HostSubsystem(node).toDto(3)
         assertIs<MatrixObjectDto.HostSubsystem>(dto)
         assertEquals(3, dto.index)
-        assertEquals("HostSubsystem", dto.kind)
         assertEquals(node.subsystemType.name, dto.subsystemType)
         assertEquals(node.description, dto.description)
     }
@@ -99,7 +95,6 @@ class DtoMappingTest {
         val dto = MatrixObject.IcProgram(ic).toDto(4)
         assertIs<MatrixObjectDto.IcProgram>(dto)
         assertEquals(4, dto.index)
-        assertEquals("IcProgram", dto.kind)
         assertEquals(ic.name, dto.name)
         assertNull(dto.guardedNodeType)
     }
@@ -119,7 +114,6 @@ class DtoMappingTest {
         val dto = MatrixObject.File(file).toDto(6)
         assertIs<MatrixObjectDto.File>(dto)
         assertEquals(6, dto.index)
-        assertEquals("File", dto.kind)
         assertEquals("payroll.txt", dto.name)
         assertEquals(5, dto.sizeMp)
     }
@@ -130,7 +124,6 @@ class DtoMappingTest {
         val dto = MatrixObject.Device(device).toDto(7)
         assertIs<MatrixObjectDto.Device>(dto)
         assertEquals(7, dto.index)
-        assertEquals("Device", dto.kind)
         assertEquals("cam-01", dto.name)
         assertEquals("LTG-9882", dto.systemAddress)
     }
@@ -141,7 +134,6 @@ class DtoMappingTest {
     fun `AvailableAction Operation with null target has null targetKind and targetName`() {
         val dto = AvailableAction.Operation(SystemOperation.NULL_OPERATION).toDto(0)
         assertIs<AvailableActionDto.Operation>(dto)
-        assertEquals("Operation", dto.kind)
         assertNull(dto.targetKind)
         assertNull(dto.targetName)
     }
@@ -161,7 +153,6 @@ class DtoMappingTest {
         val rtg = GridMock.matrix.rtgs.first()
         val dto = AvailableAction.LogonToRtg(rtg).toDto(2)
         assertIs<AvailableActionDto.LogonToRtg>(dto)
-        assertEquals("LogonToRtg", dto.kind)
         assertEquals(rtg.name, dto.rtgName)
     }
 
@@ -169,13 +160,11 @@ class DtoMappingTest {
     fun `AvailableAction JackOut toDto`() {
         val dto = AvailableAction.JackOut().toDto(3)
         assertIs<AvailableActionDto.JackOut>(dto)
-        assertEquals("JackOut", dto.kind)
     }
 
     @Test
     fun `AvailableAction GracefulLogoff toDto`() {
         val dto = AvailableAction.GracefulLogoff().toDto(4)
         assertIs<AvailableActionDto.GracefulLogoff>(dto)
-        assertEquals("GracefulLogoff", dto.kind)
     }
 }
