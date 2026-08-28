@@ -11,6 +11,7 @@ import com.shadowrun.matrix.server.WebSocketDeckerController
 import com.shadowrun.matrix.server.startMatrixServer
 import com.shadowrun.matrix.utility.DiceRoller
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.runBlocking
 
 private val logger = KotlinLogging.logger {}
 
@@ -42,7 +43,7 @@ fun main() {
 
     while (true) {
         try {
-            controller.action(context, DiceRoller())
+            runBlocking { controller.action(context, DiceRoller()) }
         } catch (e: Exception) {
             logger.warn { "Game loop: ${e.message}" }
             Thread.sleep(500)

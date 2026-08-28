@@ -9,9 +9,7 @@ import com.shadowrun.matrix.common.SecurityRating
 import com.shadowrun.matrix.common.SubsystemRatings
 import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.common.TopologyType
-import com.shadowrun.matrix.decker.Cyberdeck
-import com.shadowrun.matrix.decker.Decker
-import com.shadowrun.matrix.decker.Persona
+import com.shadowrun.matrix.decker.*
 import com.shadowrun.matrix.ic.Killer
 import com.shadowrun.matrix.ic.Probe
 import com.shadowrun.matrix.network.DataFile

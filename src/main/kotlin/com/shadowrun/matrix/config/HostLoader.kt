@@ -27,13 +27,15 @@ import com.shadowrun.matrix.network.RemoteDevice
 import com.shadowrun.matrix.network.SAN
 import com.shadowrun.matrix.network.SecuritySheaf
 import com.shadowrun.matrix.network.TriggerStep
+import org.yaml.snakeyaml.LoaderOptions
 import org.yaml.snakeyaml.Yaml
+import org.yaml.snakeyaml.constructor.SafeConstructor
 import java.io.InputStream
 
 object HostLoader {
 
     fun load(input: InputStream): Host {
-        val yaml = Yaml()
+        val yaml = Yaml(SafeConstructor(LoaderOptions()))
         @Suppress("UNCHECKED_CAST")
         val data = yaml.load<Map<String, Any>>(input)
         return buildFromMap(data)
@@ -159,10 +161,22 @@ object HostLoader {
             "killer"           -> Killer(rating, guardedNode)
             "probe"            -> Probe(rating, guardedNode)
             "scramble"         -> Scramble(rating, guardedNode)
-            "tarbaby"          -> TarBaby(rating, guardedNode)
+            "tarbaby"          -> TarBaby(
+                rating = rating,
+                targetCategory = (data["target_category"] as? String)
+                    ?.let { com.shadowrun.matrix.common.UtilityCategory.valueOf(it.uppercase()) }
+                    ?: com.shadowrun.matrix.common.UtilityCategory.OPERATIONAL,
+                guardedNode = guardedNode
+            )
             "blaster"          -> Blaster(rating, guardedNode)
             "sparky"           -> Sparky(rating, guardedNode)
-            "tarpit"           -> TarPit(rating, guardedNode)
+            "tarpit"           -> TarPit(
+                rating = rating,
+                targetCategory = (data["target_category"] as? String)
+                    ?.let { com.shadowrun.matrix.common.UtilityCategory.valueOf(it.uppercase()) }
+                    ?: com.shadowrun.matrix.common.UtilityCategory.OPERATIONAL,
+                guardedNode = guardedNode
+            )
             "lethalblackic"    -> LethalBlackIC(rating, guardedNode)
             "nonlethalblackic" -> NonLethalBlackIC(rating, guardedNode)
             "crippler"         -> Crippler(

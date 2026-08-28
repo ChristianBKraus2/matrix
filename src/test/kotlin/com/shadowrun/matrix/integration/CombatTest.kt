@@ -3,6 +3,7 @@ package com.shadowrun.matrix.integration
 import com.shadowrun.matrix.common.PersonaAttributeType
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.common.SubsystemType
+import com.shadowrun.matrix.common.UtilityCategory
 import com.shadowrun.matrix.ic.Blaster
 import com.shadowrun.matrix.ic.Crippler
 import com.shadowrun.matrix.ic.Killer
@@ -12,6 +13,7 @@ import com.shadowrun.matrix.integration.utility.DeckerMock
 import com.shadowrun.matrix.integration.utility.IntegrationTestBase
 import com.shadowrun.matrix.programs.Utility
 import com.shadowrun.matrix.programs.UtilityType
+import com.shadowrun.matrix.decker.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -110,7 +112,7 @@ class CombatTest : IntegrationTestBase() {
         icon.equipUtility(medic)
         assertEquals(1, icon.currentDecker().cyberdeck.activeUtilities.size, "Medic should be active before TarBaby")
 
-        icon.injectIc(TarBaby(rating = 6))
+        icon.injectIc(TarBaby(rating = 6, targetCategory = UtilityCategory.DEFENSIVE))
         icon.runCombatTurn(hitRoller())
 
         assertEquals(0, icon.currentDecker().cyberdeck.activeUtilities.size, "TarBaby should have crashed the active utility")

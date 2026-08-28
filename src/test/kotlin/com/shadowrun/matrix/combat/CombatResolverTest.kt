@@ -10,9 +10,7 @@ import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.common.SecurityRating
 import com.shadowrun.matrix.common.SubsystemRatings
 import com.shadowrun.matrix.common.boxes
-import com.shadowrun.matrix.decker.Cyberdeck
-import com.shadowrun.matrix.decker.Decker
-import com.shadowrun.matrix.decker.Persona
+import com.shadowrun.matrix.decker.*
 import com.shadowrun.matrix.ic.Blaster
 import com.shadowrun.matrix.ic.Crippler
 import com.shadowrun.matrix.ic.Killer

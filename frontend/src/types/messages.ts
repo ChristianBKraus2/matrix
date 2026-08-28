@@ -3,6 +3,7 @@
 export interface JoinMessage {
   type: 'join'
   deckerName: string
+  reconnectToken?: string
 }
 
 export interface ActionParams {
@@ -28,6 +29,7 @@ export interface ControlMessage {
   role: Role
   deckerName?: string
   reconnect?: boolean
+  reconnectToken?: string
 }
 
 export interface ActiveUtility {

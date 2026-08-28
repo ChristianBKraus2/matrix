@@ -70,6 +70,13 @@ class GameContext(
         }
     }
 
+    fun addToSecurityTally(points: Int) {
+        val old = host.securityTally
+        val new = old + points
+        updateHost(host.copy(securityTally = new))
+        checkTriggers(old, new)
+    }
+
     fun removeIc(ic: IC) {
         activeIc.remove(ic)
     }

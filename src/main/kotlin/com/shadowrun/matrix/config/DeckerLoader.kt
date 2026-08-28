@@ -8,7 +8,9 @@ import com.shadowrun.matrix.programs.PersonaProgram
 import com.shadowrun.matrix.programs.Utility
 import com.shadowrun.matrix.programs.UtilityType
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.yaml.snakeyaml.LoaderOptions
 import org.yaml.snakeyaml.Yaml
+import org.yaml.snakeyaml.constructor.SafeConstructor
 import java.io.InputStream
 
 object DeckerLoader {
@@ -16,7 +18,7 @@ object DeckerLoader {
     private val logger = KotlinLogging.logger {}
 
     fun load(input: InputStream, catalog: List<DeckCatalogEntry> = emptyList()): Decker {
-        val yaml = Yaml()
+        val yaml = Yaml(SafeConstructor(LoaderOptions()))
         @Suppress("UNCHECKED_CAST")
         val data = yaml.load<Map<String, Any>>(input)
         return buildDecker(data, catalog)

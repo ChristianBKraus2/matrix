@@ -1,13 +1,15 @@
 package com.shadowrun.matrix.config
 
+import org.yaml.snakeyaml.LoaderOptions
 import org.yaml.snakeyaml.Yaml
+import org.yaml.snakeyaml.constructor.SafeConstructor
 import java.io.InputStream
 
 object DeckCatalogLoader {
 
     @Suppress("UNCHECKED_CAST")
     fun load(input: InputStream): List<DeckCatalogEntry> {
-        val yaml = Yaml()
+        val yaml = Yaml(SafeConstructor(LoaderOptions()))
         val data = yaml.load<Map<String, Any>>(input)
         val entries = data["decks"] as List<Map<String, Any>>
         return entries.map { buildEntry(it) }

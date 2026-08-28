@@ -128,7 +128,7 @@ class WebSocketServerTest {
         registry.register(session)
         session.nextText() // observer
 
-        val thread = Thread { wsController.action(context, winRoller()) }
+        val thread = Thread { runBlocking { wsController.action(context, winRoller()) } }
         thread.start()
 
         val result = Json.decodeFromString<ResultMessage>(session.nextText())
@@ -151,7 +151,7 @@ class WebSocketServerTest {
         registry.receiveJoin(session, JoinMessage(deckerName = deckerName))
         session.nextText() // registered_decker
 
-        val thread = Thread { wsController.action(context, winRoller()) }
+        val thread = Thread { runBlocking { wsController.action(context, winRoller()) } }
         thread.start()
 
         val promotionText = session.nextText()
@@ -189,7 +189,7 @@ class WebSocketServerTest {
         registry.receiveJoin(deckerSession, JoinMessage(deckerName = deckerName))
         deckerSession.nextText() // registered_decker
 
-        val thread = Thread { wsController.action(context, winRoller()) }
+        val thread = Thread { runBlocking { wsController.action(context, winRoller()) } }
         thread.start()
 
         deckerSession.nextText()  // ControlMessage(active_controller)

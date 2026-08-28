@@ -34,7 +34,7 @@ function reducer(state: WsState, action: WsAction): WsState {
     case 'CONNECTED':
       return { ...state, connected: true }
     case 'DISCONNECTED':
-      return { ...state, connected: false, role: null, gameState: null, reconnected: false }
+      return { ...state, connected: false, role: null, gameState: null, events: [], reconnected: false }
     case 'CONTROL':
       return {
         ...state,
@@ -70,6 +70,8 @@ export function useWebSocket() {
   const [state, dispatch] = useReducer(reducer, initialState)
   const wsRef = useRef<WebSocket | null>(null)
   const pendingNameRef = useRef<string | null>(null)
+  const reconnectTokenRef = useRef<string | null>(null)
+  const isMountedRef = useRef(true)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectDelay = useRef(3000)
 
@@ -90,8 +92,13 @@ export function useWebSocket() {
         switch (msg.type) {
           case 'control':
             dispatch({ type: 'CONTROL', msg })
+            if (msg.reconnectToken) reconnectTokenRef.current = msg.reconnectToken
             if (msg.role === 'observer' && pendingNameRef.current) {
-              const join: JoinMessage = { type: 'join', deckerName: pendingNameRef.current }
+              const join: JoinMessage = {
+                type: 'join',
+                deckerName: pendingNameRef.current,
+                ...(reconnectTokenRef.current ? { reconnectToken: reconnectTokenRef.current } : {}),
+              }
               pendingNameRef.current = null
               ws.send(JSON.stringify(join))
             }
@@ -113,6 +120,7 @@ export function useWebSocket() {
 
     ws.onclose = () => {
       dispatch({ type: 'DISCONNECTED' })
+      if (!isMountedRef.current) return
       reconnectTimer.current = setTimeout(() => {
         reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000)
         connect()
@@ -125,6 +133,7 @@ export function useWebSocket() {
   useEffect(() => {
     connect()
     return () => {
+      isMountedRef.current = false
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
       wsRef.current?.close()
     }
@@ -133,7 +142,11 @@ export function useWebSocket() {
   const join = useCallback((name: string) => {
     pendingNameRef.current = name
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      const msg: JoinMessage = { type: 'join', deckerName: name }
+      const msg: JoinMessage = {
+        type: 'join',
+        deckerName: name,
+        ...(reconnectTokenRef.current ? { reconnectToken: reconnectTokenRef.current } : {}),
+      }
       pendingNameRef.current = null
       wsRef.current.send(JSON.stringify(msg))
     }

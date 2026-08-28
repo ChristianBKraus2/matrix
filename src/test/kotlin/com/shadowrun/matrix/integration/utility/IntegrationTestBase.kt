@@ -16,6 +16,7 @@ import com.shadowrun.matrix.utility.DiceRoller
 import kotlin.random.Random
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlinx.coroutines.runBlocking
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -116,14 +117,14 @@ open class IntegrationTestBase {
         while (states.any { it.currentInitiative > 0 }) {
             val state = states.filter { it.currentInitiative > 0 }.maxByOrNull { it.currentInitiative }!!
             val idx = states.indexOf(state)
-            state.icon.action(context, diceRoller)
+            runBlocking { state.icon.action(context, diceRoller) }
             states[idx] = state.copy(currentInitiative = state.currentInitiative - 10)
         }
     }
 
     protected fun ScriptedDeckerIcon.runCombatTurn(diceRoller: DiceRoller): Int {
         val damageBefore = currentDecker().persona!!.conditionMonitor.damage
-        Game(context = context, diceRoller = diceRoller, inCombat = true).runCombatTurn()
+        runBlocking { Game(context = context, diceRoller = diceRoller, inCombat = true).runCombatTurn() }
         return currentDecker().persona!!.conditionMonitor.damage - damageBefore
     }
 
@@ -185,7 +186,7 @@ open class IntegrationTestBase {
 
     protected fun ScriptedDeckerIcon.runCombatTurnForPhysicalDamage(diceRoller: DiceRoller): Int {
         val before = currentDecker().physicalConditionMonitor.damage
-        Game(context = context, diceRoller = diceRoller, inCombat = true).runCombatTurn()
+        runBlocking { Game(context = context, diceRoller = diceRoller, inCombat = true).runCombatTurn() }
         return currentDecker().physicalConditionMonitor.damage - before
     }
 
@@ -217,7 +218,7 @@ open class IntegrationTestBase {
             context.deckers.add(initialDecker)
         }
 
-        override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+        override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
             if (step < steps.size) steps[step].invoke(StepContext(context, diceRoller))
             step++
             return ActionResult.DeckerAction.also { stepResults += it }

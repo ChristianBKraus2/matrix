@@ -6,6 +6,7 @@ import com.shadowrun.matrix.integration.utility.IntegrationTestBase
 import com.shadowrun.matrix.network.DataFile
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.operations.OperationResult
+import com.shadowrun.matrix.decker.*
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertTrue

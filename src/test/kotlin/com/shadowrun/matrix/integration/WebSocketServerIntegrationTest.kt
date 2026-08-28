@@ -8,7 +8,8 @@ import com.shadowrun.matrix.server.dto.DeckerStateDto
 import com.shadowrun.matrix.server.dto.SessionRole
 import com.shadowrun.matrix.server.dto.StateMessage
 import com.shadowrun.matrix.server.matrixModule
-import com.shadowrun.matrix.decker.LogonResult
+import com.shadowrun.matrix.decker.*
+import kotlinx.coroutines.runBlocking
 import com.shadowrun.matrix.integration.utility.DeckerMock
 import com.shadowrun.matrix.integration.utility.GridMock
 import com.shadowrun.matrix.integration.utility.IntegrationTestBase
@@ -102,7 +103,7 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
         joinAsDecker(jackedInDecker.name)
 
         // Turn 1: on UCAS-SEA LTG — logon to parent RTG (UCAS)
-        val turn1 = Thread { controller.action(context, winRoller()) }.also { it.start() }
+        val turn1 = Thread { runBlocking { controller.action(context, winRoller()) } }.also { it.start() }
         incoming.receive() // active_controller
         val state1 = receiveJson()
         val rtgIndex = state1["availableActions"]!!.jsonArray
@@ -113,7 +114,7 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
         turn1.join()
 
         // Turn 2: now on UCAS RTG — all 4 LTGs must appear as available actions
-        val turn2 = Thread { controller.action(context, winRoller()) }.also { it.start() }
+        val turn2 = Thread { runBlocking { controller.action(context, winRoller()) } }.also { it.start() }
         incoming.receive() // active_controller
         val state2 = receiveJson()
         val ltgNames = state2["availableActions"]!!.jsonArray

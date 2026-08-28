@@ -4,9 +4,13 @@ import com.shadowrun.matrix.combat.DefenderParticipant
 import com.shadowrun.matrix.decker.Decker
 import com.shadowrun.matrix.network.MatrixLocation
 
-fun Decker.asDefenderParticipant(): DefenderParticipant = DefenderParticipant(
-    bod = persona!!.bod,
-    armorCurrentRating = 0,
-    personaStatus = persona.status,
-    securityCode = (currentLocation as MatrixLocation.OnHost).host.securityRating.code
-)
+fun Decker.asDefenderParticipant(): DefenderParticipant {
+    val p = requireNotNull(persona) { "asDefenderParticipant: decker has no persona" }
+    val loc = requireNotNull(currentLocation as? MatrixLocation.OnHost) { "asDefenderParticipant: decker not OnHost" }
+    return DefenderParticipant(
+        bod = p.bod,
+        armorCurrentRating = 0,
+        personaStatus = p.status,
+        securityCode = loc.host.securityRating.code
+    )
+}

@@ -43,7 +43,7 @@ fun Application.matrixModule(registry: SessionRegistry) {
                     } catch (e: Exception) {
                         runCatching {
                             this.send(Frame.Text(MatrixJson.encodeToString(
-                                ErrorMessage(message = ErrorCode.BAD_REQUEST, details = e.message?.take(120))
+                                ErrorMessage(message = ErrorCode.BAD_REQUEST, details = null)
                             )))
                         }
                     }

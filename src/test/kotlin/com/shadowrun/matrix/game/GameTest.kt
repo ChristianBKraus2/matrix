@@ -32,6 +32,7 @@ import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.utility.DiceRoller
 import kotlin.random.Random
 import kotlin.test.Test
+import kotlinx.coroutines.runBlocking
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -50,6 +51,9 @@ class GameTest {
 
     private fun allFaces(face: Int, count: Int = 100) =
         DiceRoller(stubRandom(*IntArray(count) { face }))
+
+    private fun ActiveIcon.blockingAction(context: GameContext, diceRoller: DiceRoller): ActionResult =
+        runBlocking { action(context, diceRoller) }
 
     private fun programs(rating: Int = 6) = listOf(
         PersonaProgram(PersonaAttributeType.BOD, rating),
@@ -213,7 +217,7 @@ class GameTest {
     fun `Decker action returns DeckerAction`() {
         val decker = intrudingDecker()
         val ctx = context(deckers = listOf(decker))
-        val result = decker.action(ctx, allFaces(1))
+        val result = decker.blockingAction(ctx, allFaces(1))
         assertIs<ActionResult.DeckerAction>(result)
     }
 
@@ -225,7 +229,7 @@ class GameTest {
         val ic = Scramble(rating = 5, guardedNode = node)
         val decker = intrudingDecker(node = node)
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
-        assertIs<ActionResult.NoTarget>(ic.action(ctx, allFaces(1)))
+        assertIs<ActionResult.NoTarget>(ic.blockingAction(ctx, allFaces(1)))
     }
 
     // ── IC findTarget and moveIfNeeded ────────────────────────────────────────────
@@ -234,7 +238,7 @@ class GameTest {
     fun `IC action returns NoTarget when no intruding decker in host`() {
         val ic = Killer(rating = 5)
         val ctx = context(deckers = listOf(legitimateDecker()), activeIc = listOf(ic))
-        assertIs<ActionResult.NoTarget>(ic.action(ctx, allFaces(1)))
+        assertIs<ActionResult.NoTarget>(ic.blockingAction(ctx, allFaces(1)))
     }
 
     @Test
@@ -244,7 +248,7 @@ class GameTest {
         val ic = Killer(rating = 5, guardedNode = icNode)
         val decker = intrudingDecker(node = targetNode)
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
-        val result = ic.action(ctx, allFaces(1))
+        val result = ic.blockingAction(ctx, allFaces(1))
         assertIs<ActionResult.IcMoved>(result)
     }
 
@@ -257,7 +261,7 @@ class GameTest {
         val decker = intrudingDecker(node = targetNode)
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
         // Reactive IC does NOT return IcMoved; it either attacks or returns NoTarget
-        val result = ic.action(ctx, allFaces(1))
+        val result = ic.blockingAction(ctx, allFaces(1))
         assertTrue(result !is ActionResult.IcMoved, "Reactive IC must not return IcMoved")
     }
 
@@ -269,7 +273,7 @@ class GameTest {
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
         // force hit: attacker rolls 5s (success vs TN4), defender rolls 1s (no success)
         val dice = DiceRoller(stubRandom(*IntArray(100) { 5 }))
-        val result = ic.action(ctx, dice)
+        val result = ic.blockingAction(ctx, dice)
         assertIs<ActionResult.IcAttack>(result)
     }
 
@@ -284,7 +288,7 @@ class GameTest {
         val originalCmDamage = decker.persona!!.conditionMonitor.damage
         // force attacker successes, no defender successes
         val dice = DiceRoller(stubRandom(*IntArray(100) { 5 }))
-        val result = ic.action(ctx, dice)
+        val result = ic.blockingAction(ctx, dice)
         assertIs<ActionResult.IcAttack>(result)
         val updatedDecker = ctx.deckers[0]
         assertTrue(updatedDecker.persona!!.conditionMonitor.damage > originalCmDamage)
@@ -298,7 +302,7 @@ class GameTest {
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
         val originalCmDamage = decker.persona!!.conditionMonitor.damage
         // force attacker 0 successes — allFaces(1) never hits any TN
-        val result = ic.action(ctx, allFaces(1))
+        val result = ic.blockingAction(ctx, allFaces(1))
         assertIs<ActionResult.IcAttack>(result)
         assertEquals(originalCmDamage, ctx.deckers[0].persona!!.conditionMonitor.damage)
         assertTrue(result.message.contains("missed"))
@@ -319,7 +323,7 @@ class GameTest {
         // sequence: [5,1,5,1,...] — rollOne reads one value at a time
         val diceValues = IntArray(100) { idx -> if (idx % 2 == 0) 5 else 1 }
         val dice = DiceRoller(stubRandom(*diceValues))
-        val result = ic.action(ctx, dice)
+        val result = ic.blockingAction(ctx, dice)
         assertIs<ActionResult.IcAttack>(result)
         // BOD should be reduced or unchanged (net=0 means no reduction, but result is still IcAttack)
         assertTrue(ctx.deckers[0].persona!!.bod <= decker.persona!!.bod)
@@ -334,7 +338,7 @@ class GameTest {
         val decker = intrudingDecker(node = node)
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
         val dice = DiceRoller(stubRandom(*IntArray(100) { 5 }))
-        val result = ic.action(ctx, dice)
+        val result = ic.blockingAction(ctx, dice)
         assertIs<ActionResult.IcAttack>(result)
         assertTrue(result.message.contains("tally"))
     }
@@ -345,7 +349,7 @@ class GameTest {
         val ic = Probe(rating = 5, guardedNode = node)
         val decker = intrudingDecker(node = node)
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
-        val result = ic.action(ctx, allFaces(1))
+        val result = ic.blockingAction(ctx, allFaces(1))
         assertIs<ActionResult.IcAttack>(result)
         assertTrue(result.message.contains("0 tally"))
     }
@@ -358,9 +362,9 @@ class GameTest {
         val ic = TarBaby(rating = 5, guardedNode = node)
         val decker = intrudingDecker(node = node)
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
-        val result = ic.action(ctx, allFaces(5))
+        val result = ic.blockingAction(ctx, allFaces(5))
         assertIs<ActionResult.IcAttack>(result)
-        assertTrue(result.message.contains("no active utility"))
+        assertTrue(result.message.contains("no OPERATIONAL utility"))
     }
 
     @Test
@@ -372,9 +376,37 @@ class GameTest {
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
         // IC wins (5s vs TN=utility.currentRating=3), utility fails (1s)
         val dice = DiceRoller(stubRandom(*IntArray(100) { 5 }))
-        val result = ic.action(ctx, dice)
+        val result = ic.blockingAction(ctx, dice)
         assertIs<ActionResult.IcAttack>(result)
         assertTrue(ctx.deckers[0].cyberdeck.activeUtilities.isEmpty())
+    }
+
+    @Test
+    fun `TarBaby ignores utility of wrong category`() {
+        val node = accessNode()
+        val ic = TarBaby(rating = 5, targetCategory = com.shadowrun.matrix.common.UtilityCategory.OFFENSIVE, guardedNode = node)
+        val utility = Utility(UtilityType.ANALYZE, rating = 3) // OPERATIONAL, not OFFENSIVE
+        val decker = intrudingDecker(node = node, activeUtilities = listOf(utility))
+        val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
+        val result = ic.blockingAction(ctx, allFaces(5))
+        assertIs<ActionResult.IcAttack>(result)
+        assertTrue(result.message.contains("no OFFENSIVE utility"))
+        assertEquals(1, ctx.deckers[0].cyberdeck.activeUtilities.size) // untouched
+    }
+
+    @Test
+    fun `TarBaby targets utility of matching category when multiple utilities present`() {
+        val node = accessNode()
+        val ic = TarBaby(rating = 5, targetCategory = com.shadowrun.matrix.common.UtilityCategory.DEFENSIVE, guardedNode = node)
+        val operational = Utility(UtilityType.ANALYZE, rating = 3)
+        val defensive = Utility(UtilityType.ARMOR, rating = 3)
+        val decker = intrudingDecker(node = node, activeUtilities = listOf(operational, defensive))
+        val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
+        val dice = DiceRoller(stubRandom(*IntArray(100) { 5 }))
+        ic.blockingAction(ctx, dice)
+        // ARMOR (DEFENSIVE) should have been targeted — ANALYZE (OPERATIONAL) remains
+        assertTrue(ctx.deckers[0].cyberdeck.activeUtilities.any { it.type == UtilityType.ANALYZE })
+        assertTrue(ctx.deckers[0].cyberdeck.activeUtilities.none { it.type == UtilityType.ARMOR })
     }
 
     // ── Blaster ───────────────────────────────────────────────────────────────────
@@ -386,7 +418,7 @@ class GameTest {
         val decker = intrudingDecker(node = node)
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
         val dice = DiceRoller(stubRandom(*IntArray(100) { 5 }))
-        val result = ic.action(ctx, dice)
+        val result = ic.blockingAction(ctx, dice)
         assertIs<ActionResult.IcAttack>(result)
         assertTrue(result.message.contains("Blaster"))
     }
@@ -400,7 +432,7 @@ class GameTest {
         val decker = intrudingDecker(node = node)
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
         val dice = DiceRoller(stubRandom(*IntArray(100) { 5 }))
-        val result = ic.action(ctx, dice)
+        val result = ic.blockingAction(ctx, dice)
         assertIs<ActionResult.IcAttack>(result)
         assertTrue(ctx.deckers[0].persona!!.evasion <= decker.persona!!.evasion)
     }
@@ -414,7 +446,7 @@ class GameTest {
         val decker = intrudingDecker(node = node)
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
         val dice = DiceRoller(stubRandom(*IntArray(100) { 5 }))
-        val result = ic.action(ctx, dice)
+        val result = ic.blockingAction(ctx, dice)
         assertIs<ActionResult.IcAttack>(result)
         assertTrue(result.message.contains("Sparky"))
     }
@@ -427,9 +459,22 @@ class GameTest {
         val ic = TarPit(rating = 5, guardedNode = node)
         val decker = intrudingDecker(node = node)
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
-        val result = ic.action(ctx, allFaces(5))
+        val result = ic.blockingAction(ctx, allFaces(5))
         assertIs<ActionResult.IcAttack>(result)
-        assertTrue(result.message.contains("no active utility"))
+        assertTrue(result.message.contains("no OPERATIONAL utility"))
+    }
+
+    @Test
+    fun `TarPit ignores utility of wrong category`() {
+        val node = accessNode()
+        val ic = TarPit(rating = 5, targetCategory = com.shadowrun.matrix.common.UtilityCategory.DEFENSIVE, guardedNode = node)
+        val utility = Utility(UtilityType.ANALYZE, rating = 3) // OPERATIONAL, not DEFENSIVE
+        val decker = intrudingDecker(node = node, activeUtilities = listOf(utility))
+        val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
+        val result = ic.blockingAction(ctx, allFaces(5))
+        assertIs<ActionResult.IcAttack>(result)
+        assertTrue(result.message.contains("no DEFENSIVE utility"))
+        assertEquals(1, ctx.deckers[0].cyberdeck.activeUtilities.size) // untouched
     }
 
     // ── LethalBlackIC ─────────────────────────────────────────────────────────────
@@ -442,7 +487,7 @@ class GameTest {
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
         // [6,1] sequence: first roll is 6 (no exploding loop), second is 1
         val dice = DiceRoller(stubRandom(*IntArray(100) { idx -> if (idx % 2 == 0) 6 else 1 }))
-        val result = ic.action(ctx, dice)
+        val result = ic.blockingAction(ctx, dice)
         assertIs<ActionResult.IcAttack>(result)
     }
 
@@ -455,7 +500,7 @@ class GameTest {
         val decker = intrudingDecker(node = node)
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
         val dice = DiceRoller(stubRandom(*IntArray(100) { idx -> if (idx % 2 == 0) 6 else 1 }))
-        val result = ic.action(ctx, dice)
+        val result = ic.blockingAction(ctx, dice)
         assertIs<ActionResult.IcAttack>(result)
     }
 
@@ -465,7 +510,7 @@ class GameTest {
     fun `runOutOfCombatTurn calls action on each decker`() {
         val actionLog = mutableListOf<String>()
         val trackingIcon = object : ActiveIcon {
-            override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+            override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
                 actionLog += "called"
                 return ActionResult.DeckerAction
             }
@@ -475,7 +520,7 @@ class GameTest {
         val decker2 = intrudingDecker(name = "B")
         val ctx = context(deckers = listOf(decker1, decker2))
         val game = Game(ctx, allFaces(1), inCombat = false)
-        game.runOutOfCombatTurn()
+        runBlocking { game.runOutOfCombatTurn() }
         // Each decker.action is DeckerAction (placeholder) — verify both were called via size
         assertEquals(2, ctx.deckers.size)
     }
@@ -488,13 +533,13 @@ class GameTest {
 
         // Wrap two deckers in tracking ActiveIcons
         val iconA = object : ActiveIcon {
-            override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+            override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
                 actionOrder += "A"
                 return ActionResult.DeckerAction
             }
         }
         val iconB = object : ActiveIcon {
-            override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+            override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
                 actionOrder += "B"
                 return ActionResult.DeckerAction
             }
@@ -511,7 +556,7 @@ class GameTest {
         while (states.any { it.currentInitiative > 0 }) {
             val state = states.filter { it.currentInitiative > 0 }.maxByOrNull { it.currentInitiative }!!
             val idx = states.indexOf(state)
-            state.icon.action(GameContext(host(SecurityCode.ORANGE), SecurityCode.ORANGE, mutableListOf(), mutableListOf()), allFaces(1))
+            runBlocking { state.icon.action(GameContext(host(SecurityCode.ORANGE), SecurityCode.ORANGE, mutableListOf(), mutableListOf()), allFaces(1)) }
             states[idx] = state.copy(currentInitiative = state.currentInitiative - 10)
         }
 
@@ -528,7 +573,7 @@ class GameTest {
         // single die for decker initiative: reaction=5, roll=4 → score=9
         val dice = DiceRoller(stubRandom(4))
         val game = Game(ctx, dice, inCombat = true)
-        game.runCombatTurn()
+        runBlocking { game.runCombatTurn() }
     }
 
     // ── asDefenderParticipant ─────────────────────────────────────────────────────

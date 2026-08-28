@@ -10,18 +10,20 @@ class Game(
     val diceRoller: DiceRoller,
     val inCombat: Boolean
 ) {
-    fun runOutOfCombatTurn() {
+    suspend fun runOutOfCombatTurn() {
         for (decker in context.deckers.toList()) {
-            decker.action(context, diceRoller)
+            try { decker.action(context, diceRoller) }
+            catch (e: Exception) { System.err.println("Out-of-combat action error for ${decker.name}: ${e.message}") }
         }
     }
 
-    fun runCombatTurn() {
+    suspend fun runCombatTurn() {
         val states = buildInitiativeList().toMutableList()
         while (states.any { it.currentInitiative > 0 }) {
             val state = states.filter { it.currentInitiative > 0 }.maxByOrNull { it.currentInitiative } ?: break
             val idx = states.indexOf(state)
-            state.icon.action(context, diceRoller)
+            try { state.icon.action(context, diceRoller) }
+            catch (e: Exception) { System.err.println("Combat action error: ${e.message}") }
             states[idx] = state.copy(currentInitiative = state.currentInitiative - 10)
         }
     }

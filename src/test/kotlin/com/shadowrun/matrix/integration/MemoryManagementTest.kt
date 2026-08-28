@@ -1,6 +1,6 @@
 package com.shadowrun.matrix.integration
 
-import com.shadowrun.matrix.decker.LoadUtilityResult
+import com.shadowrun.matrix.decker.*
 import com.shadowrun.matrix.integration.utility.IntegrationTestBase
 import com.shadowrun.matrix.programs.Utility
 import com.shadowrun.matrix.programs.UtilityType

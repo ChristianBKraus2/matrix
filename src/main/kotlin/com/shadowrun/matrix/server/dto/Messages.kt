@@ -27,7 +27,8 @@ enum class ErrorCode {
 @Serializable
 data class JoinMessage(
     val type: String = "join",
-    val deckerName: String
+    val deckerName: String,
+    val reconnectToken: String? = null
 )
 
 @Serializable
@@ -69,7 +70,8 @@ data class ControlMessage(
     val type: String = "control",
     val role: SessionRole,
     val deckerName: String? = null,
-    val reconnect: Boolean = false
+    val reconnect: Boolean = false,
+    val reconnectToken: String? = null
 )
 
 @Serializable

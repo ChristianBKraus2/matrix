@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ActionParams, AvailableActionDto } from '../types/messages'
 
 interface Props {
@@ -53,12 +53,16 @@ function buildParams(op: string | null, cs: CardState): ActionParams | undefined
 export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props) {
   const [cardStates, setCardStates] = useState<Record<number, CardState>>({})
 
+  useEffect(() => {
+    setCardStates({})
+  }, [actions])
+
   function getState(idx: number): CardState {
     return cardStates[idx] ?? defaultCardState()
   }
 
   function patchState(idx: number, patch: Partial<CardState>) {
-    setCardStates(prev => ({ ...prev, [idx]: { ...getState(idx), ...patch } }))
+    setCardStates(prev => ({ ...prev, [idx]: { ...(prev[idx] ?? defaultCardState()), ...patch } }))
   }
 
   function handleClick(action: AvailableActionDto) {

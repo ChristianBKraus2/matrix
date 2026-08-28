@@ -1,8 +1,7 @@
 package com.shadowrun.matrix.integration.utility
 
 import com.shadowrun.matrix.common.SubsystemType
-import com.shadowrun.matrix.decker.LogoffResult
-import com.shadowrun.matrix.decker.LogonResult
+import com.shadowrun.matrix.decker.*
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.Matrix

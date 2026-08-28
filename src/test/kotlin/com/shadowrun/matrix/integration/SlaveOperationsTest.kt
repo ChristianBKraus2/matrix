@@ -8,6 +8,7 @@ import com.shadowrun.matrix.operations.LocateResult
 import com.shadowrun.matrix.operations.OperationResult
 import com.shadowrun.matrix.operations.QueryPrecision
 import com.shadowrun.matrix.operations.SystemOperation
+import com.shadowrun.matrix.decker.*
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull

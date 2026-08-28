@@ -8,13 +8,15 @@ import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.Matrix
 import com.shadowrun.matrix.network.PLTG
 import com.shadowrun.matrix.network.RTG
+import org.yaml.snakeyaml.LoaderOptions
 import org.yaml.snakeyaml.Yaml
+import org.yaml.snakeyaml.constructor.SafeConstructor
 import java.io.InputStream
 
 object GridLoader {
 
     fun load(input: InputStream): Matrix {
-        val yaml = Yaml()
+        val yaml = Yaml(SafeConstructor(LoaderOptions()))
         @Suppress("UNCHECKED_CAST")
         val root = yaml.load<Map<String, Any>>(input)
 

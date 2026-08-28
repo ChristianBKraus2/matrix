@@ -3,7 +3,7 @@ package com.shadowrun.matrix.integration
 import com.shadowrun.matrix.common.AlertStatus
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.common.SubsystemType
-import com.shadowrun.matrix.decker.LogonResult
+import com.shadowrun.matrix.decker.*
 import com.shadowrun.matrix.integration.utility.IntegrationTestBase
 import com.shadowrun.matrix.network.applyAlertTransition
 import com.shadowrun.matrix.network.MatrixLocation

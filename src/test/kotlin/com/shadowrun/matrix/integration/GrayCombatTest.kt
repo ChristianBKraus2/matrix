@@ -3,6 +3,7 @@ package com.shadowrun.matrix.integration
 import com.shadowrun.matrix.combat.CombatResolver
 import com.shadowrun.matrix.common.PersonaAttributeType
 import com.shadowrun.matrix.common.SecurityCode
+import com.shadowrun.matrix.common.UtilityCategory
 import com.shadowrun.matrix.ic.NonLethalBlackIC
 import com.shadowrun.matrix.ic.Ripper
 import com.shadowrun.matrix.ic.Sparky
@@ -124,7 +125,7 @@ class GrayCombatTest : IntegrationTestBase() {
         icon.equipUtility(armor)
         assertEquals(1, icon.currentDecker().cyberdeck.activeUtilities.size, "Armor should be active before TarPit")
 
-        icon.injectIc(TarPit(rating = 6))
+        icon.injectIc(TarPit(rating = 6, targetCategory = UtilityCategory.DEFENSIVE))
         icon.runCombatTurn(hitRoller())
 
         assertEquals(0, icon.currentDecker().cyberdeck.activeUtilities.size,
