@@ -18,14 +18,14 @@ import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.server.testing.testApplication
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Test
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 
 class WebSocketServerIntegrationTest : IntegrationTestBase() {
@@ -83,10 +83,10 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
         joinAsDecker("Kylie")
         registry.promoteForTurn("Kylie")
         incoming.receive() // consume active_controller
-        val pending = CompletableFuture<ActionCommand>()
-        registry.pendingAction = pending
+        val pending = CompletableDeferred<ActionCommand>()
+        registry.setPendingAction(pending)
         send(Frame.Text("""{"type":"action","actionIndex":0}"""))
-        val cmd = pending.get(1, TimeUnit.SECONDS)
+        val cmd = withTimeout(1000) { pending.await() }
         assertEquals(0, cmd.actionIndex)
     }
 

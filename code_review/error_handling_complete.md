@@ -1,4 +1,3 @@
----
 # Error Handling Review — Complete System (Cross-Cutting)
 
 ## Summary
@@ -51,6 +50,9 @@ The system has a well-structured three-layer pipeline (game_logic → server →
 **File(s):** `src/main/kotlin/com/shadowrun/matrix/frontend/src/hooks/useWebSocket.ts:110-118`, `src/main/kotlin/com/shadowrun/matrix/server/SessionRegistry.kt:24-27`
 **Issue:** `useWebSocket` implements exponential-backoff reconnect. On reconnect the server sends `control { role: "observer" }` and, because `pendingNameRef.current` still holds the decker name from the previous session, the client immediately sends a `join` message. The server re-registers the client as a fresh decker with no game context. Meanwhile, the stale `gameState` in the React reducer is never cleared on `DISCONNECTED` (the reducer resets only `connected` and `role`). So between reconnect and the first new `state` message, the UI shows the last pre-disconnect game state as if it were current. If no `state` message arrives (e.g., the game is between turns), the player can act on outdated information.
 **Recommendation:** Add a `gameState: null` reset to the `DISCONNECTED` reducer case. The server should also send a `ResultMessage` or an `ErrorMessage` with a code like `"session_restored"` immediately after registering a decker that matches a name, so the UI can show a reconnection notice.
+
+**Resolution (Phase 6.2):**
+`SessionRegistry` now tracks `disconnectedDeckerNames` — a set of decker names that were registered and subsequently deregistered. When `receiveJoin` registers a name that appears in this set, it sends `ControlMessage(role = REGISTERED_DECKER, deckerName = name, reconnect = true)` and removes the name from the set. `ControlMessage` gained a `reconnect: Boolean = false` field (server) and `reconnect?: boolean` (TypeScript). `useWebSocket.ts` sets `reconnected: true` in state when this flag is received; `App.tsx` renders a "SESSION RESTORED" banner in the game view while `reconnected` is true. The flag resets on disconnect.
 
 ---
 
@@ -109,6 +111,9 @@ An `else` branch was added to the `when (msgType)` block in `MatrixServer.kt`, r
 **Issue:** The server sends two distinct styles of error strings: code-style keys (`"not_your_turn"`, `"no_action_pending"`, `"already_registered"`, `"name_already_taken"`) and free-text sentences (`"Action timed out"`, `"Decker disconnected — turn forfeit"`, `"Invalid action index 99"`, `"No controller registered for decker X — turn skipped"`). The `JoinScreen` in `App.tsx` maps only the four code-style keys; all other strings fall through to raw display via `?? last.msg.message`. The free-text strings from `WebSocketDeckerController` are shown only in `NarrativePanel` (via `ResultMessage.details`), not in `ErrorMessage`. This inconsistency makes it impossible to internationalise or style errors uniformly, and any new error code added server-side silently degrades to raw display.
 **Recommendation:** Standardise server error strings to always use code-style keys (e.g., `"action_timed_out"`, `"decker_disconnected"`, `"invalid_action_index"`). Expand `ERROR_LABELS` to cover all codes. Move `ERROR_LABELS` to a shared constants file used by both `JoinScreen` and any future error display component. Apply the same lookup in `NarrativePanel` for `ErrorMessage` events.
 
+**Resolution (Batch 2 — Error Handling):**
+Resolved via the `ErrorCode` enum migration (Maintainability Batch 2). `App.tsx` `ERROR_LABELS` is now `Record<ErrorCode, string>`, making missing entries compile errors. All 7 defined error codes have entries; the `ErrorMessage.message` field is now typed `ErrorCode` on both the Kotlin and TypeScript sides.
+
 ---
 
 ### [LOW] TypeScript `ResultMessage` marks `deckerSuccesses`/`hostSuccesses` as optional; Kotlin always sends them
@@ -118,14 +123,18 @@ An `else` branch was added to the `when (msgType)` block in `MatrixServer.kt`, r
 **Issue:** `ResultMessage` in TypeScript declares `deckerSuccesses?: number` and `hostSuccesses?: number`, but the Kotlin DTO has non-optional `Int` fields and `MatrixJson` is configured with `encodeDefaults = true`, so both fields are always present in the wire format. The optional annotations in TypeScript are therefore misleading and force consumers to handle `undefined` that will never actually occur. If a future change makes the fields genuinely optional on the Kotlin side, the TypeScript code will silently accept `undefined` without any type error surfacing.
 **Recommendation:** Change the TypeScript declarations to `deckerSuccesses: number` and `hostSuccesses: number` to match the actual wire contract.
 
+**Resolution (Phase 2.5):**
+`frontend/src/types/messages.ts` `ResultMessage` interface updated — `?` removed from `deckerSuccesses` and `hostSuccesses`, making both required `number` fields that match the server's non-nullable `Int` contract.
+
 ---
 
 ## Clean Seams
 
 - The `ErrorMessage` type (`type: "error"`, `message: string`) is defined identically on both sides and is correctly routed through the reducer to the `events` list, then rendered in both `JoinScreen` and (implicitly) `NarrativePanel`.
 - `useWebSocket` implements exponential backoff reconnect (3 s base, 30 s cap) and correctly resends the `join` message on reconnect using `pendingNameRef`, so a brief network hiccup is transparent to the player.
-- `DeckerDisconnectedException` is cleanly modelled as a typed exception propagated through `CompletableFuture.completeExceptionally`, and the handling in `action()` correctly broadcasts a `ResultMessage` before returning, rather than leaving the game loop stuck.
+- `DeckerDisconnectedException` is cleanly modelled as a typed exception propagated through `CompletableDeferred.completeExceptionally`, and the handling in `action()` correctly broadcasts a `ResultMessage` before returning, rather than leaving the game loop stuck.
 - The `broadcast` and `broadcastWithRoles` methods wrap each individual send in `runCatching`, so a single dead session cannot prevent other sessions from receiving the message.
 - The `ActionCommand.actionIndex` → `availableActions.getOrNull(cmd.actionIndex)` null-check (line 95-102 of `WebSocketDeckerController.kt`) correctly bounds-checks client input and returns a `ResultMessage` with details rather than crashing.
 - The `AvailableActionDto` sealed class on the Kotlin side maps cleanly to the TypeScript discriminated union on `kind`, giving the UI type-safe access to action-specific fields.
+
 ---

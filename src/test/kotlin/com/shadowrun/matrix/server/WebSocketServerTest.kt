@@ -8,6 +8,7 @@ import com.shadowrun.matrix.integration.utility.DeckerMock
 import com.shadowrun.matrix.integration.utility.GridMock
 import com.shadowrun.matrix.network.Jackpoint
 import com.shadowrun.matrix.server.dto.ActionCommand
+import com.shadowrun.matrix.server.dto.ErrorCode
 import com.shadowrun.matrix.server.dto.ErrorMessage
 import com.shadowrun.matrix.server.dto.JoinMessage
 import com.shadowrun.matrix.server.dto.ResultMessage
@@ -90,7 +91,7 @@ class WebSocketServerTest {
         session1.nextText() // registered_decker
         registry.receiveJoin(session2, JoinMessage(deckerName = "Kylie"))
         val error = Json.decodeFromString<ErrorMessage>(session2.nextText())
-        assertEquals("name_already_taken", error.message)
+        assertEquals(ErrorCode.NAME_ALREADY_TAKEN, error.message)
     }
 
     @Test
@@ -103,7 +104,7 @@ class WebSocketServerTest {
         session.nextText() // registered_decker
         registry.receiveJoin(session, JoinMessage(deckerName = "Shadowcat"))
         val error = Json.decodeFromString<ErrorMessage>(session.nextText())
-        assertEquals("already_registered", error.message)
+        assertEquals(ErrorCode.ALREADY_REGISTERED, error.message)
     }
 
     @Test
@@ -114,7 +115,7 @@ class WebSocketServerTest {
         session.nextText() // observer
         registry.receiveAction(session, ActionCommand(actionIndex = 0))
         val error = Json.decodeFromString<ErrorMessage>(session.nextText())
-        assertEquals("not_your_turn", error.message)
+        assertEquals(ErrorCode.NOT_YOUR_TURN, error.message)
     }
 
     @Test

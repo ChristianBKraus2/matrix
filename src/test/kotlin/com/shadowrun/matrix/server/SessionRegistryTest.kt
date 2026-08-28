@@ -3,18 +3,19 @@ package com.shadowrun.matrix.server
 import com.shadowrun.matrix.server.dto.ActionCommand
 import com.shadowrun.matrix.server.dto.AvailableActionDto
 import com.shadowrun.matrix.server.dto.DeckerStateDto
+import com.shadowrun.matrix.server.dto.ErrorCode
 import com.shadowrun.matrix.server.dto.ErrorMessage
 import com.shadowrun.matrix.server.dto.JoinMessage
 import com.shadowrun.matrix.server.dto.MatrixObjectDto
 import com.shadowrun.matrix.server.dto.SessionRole
 import com.shadowrun.matrix.server.dto.StateMessage
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Test
-import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -41,10 +42,10 @@ class SessionRegistryTest {
         val session = FakeWebSocketSession()
         registry.register(session)
         session.nextText() // observer
-        val future = CompletableFuture<ActionCommand>()
-        registry.pendingAction = future
+        val deferred = CompletableDeferred<ActionCommand>()
+        registry.setPendingAction(deferred)
         registry.deregister(session)
-        assertFalse(future.isDone)
+        assertFalse(deferred.isCompleted)
     }
 
     @Test
@@ -71,7 +72,7 @@ class SessionRegistryTest {
         session.nextText()
         registry.promoteForTurn("Kylie")
         session.nextText()
-        registry.pendingAction = CompletableFuture.completedFuture(ActionCommand(actionIndex = 0))
+        registry.setPendingAction(CompletableDeferred<ActionCommand>().also { it.complete(ActionCommand(actionIndex = 0)) })
         // isDone=true — completeExceptionally is a no-op; must not throw
         registry.deregister(session)
     }
@@ -88,7 +89,7 @@ class SessionRegistryTest {
         session.nextText()
         // pendingAction is still null at this point
         registry.receiveAction(session, ActionCommand(actionIndex = 0))
-        assertEquals("no_action_pending", Json.decodeFromString<ErrorMessage>(session.nextText()).message)
+        assertEquals(ErrorCode.NO_ACTION_PENDING, Json.decodeFromString<ErrorMessage>(session.nextText()).message)
     }
 
     @Test
@@ -101,9 +102,9 @@ class SessionRegistryTest {
         session.nextText()
         registry.promoteForTurn("Kylie")
         session.nextText()
-        registry.pendingAction = CompletableFuture.completedFuture(ActionCommand(actionIndex = 0))
+        registry.setPendingAction(CompletableDeferred<ActionCommand>().also { it.complete(ActionCommand(actionIndex = 0)) })
         registry.receiveAction(session, ActionCommand(actionIndex = 1))
-        assertEquals("no_action_pending", Json.decodeFromString<ErrorMessage>(session.nextText()).message)
+        assertEquals(ErrorCode.NO_ACTION_PENDING, Json.decodeFromString<ErrorMessage>(session.nextText()).message)
     }
 
     @Test

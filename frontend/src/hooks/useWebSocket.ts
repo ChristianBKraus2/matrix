@@ -18,6 +18,7 @@ interface WsState {
   deckerName: string | null
   gameState: StateMessage | null
   events: GameEvent[]
+  reconnected: boolean
 }
 
 type WsAction =
@@ -33,12 +34,13 @@ function reducer(state: WsState, action: WsAction): WsState {
     case 'CONNECTED':
       return { ...state, connected: true }
     case 'DISCONNECTED':
-      return { ...state, connected: false, role: null, gameState: null }
+      return { ...state, connected: false, role: null, gameState: null, reconnected: false }
     case 'CONTROL':
       return {
         ...state,
         role: action.msg.role,
         deckerName: action.msg.deckerName ?? state.deckerName,
+        reconnected: action.msg.reconnect === true ? true : state.reconnected,
       }
     case 'STATE':
       return { ...state, role: action.msg.role, gameState: action.msg }
@@ -61,6 +63,7 @@ const initialState: WsState = {
   deckerName: null,
   gameState: null,
   events: [],
+  reconnected: false,
 }
 
 export function useWebSocket() {

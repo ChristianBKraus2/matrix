@@ -28,12 +28,10 @@ import com.shadowrun.matrix.server.dto.SessionRole
 import com.shadowrun.matrix.server.dto.StateMessage
 import com.shadowrun.matrix.server.dto.toDto
 import com.shadowrun.matrix.utility.DiceRoller
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.encodeToString
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 
 class WebSocketDeckerController(
     private val registry: SessionRegistry,
@@ -44,7 +42,7 @@ class WebSocketDeckerController(
     var decker: Decker = initialDecker
         private set
 
-    override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+    override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = runBlocking {
         val visibleObjects = decker.visibleObjects()
         val availableActions = decker.availableActions()
             .filterNot { it is AvailableAction.Operation &&
@@ -52,18 +50,16 @@ class WebSocketDeckerController(
 
         // Set pendingAction BEFORE promoteForTurn so receiveAction never sees a null future
         // after the client learns it is the active controller (fixes TOCTOU race).
-        val future = CompletableFuture<ActionCommand>()
-        registry.pendingAction = future
-        val hasController = runBlocking { registry.promoteForTurn(decker.name) }
+        val deferred = CompletableDeferred<ActionCommand>()
+        registry.setPendingAction(deferred)
+        val hasController = registry.promoteForTurn(decker.name)
         if (!hasController) {
-            registry.pendingAction = null
-            runBlocking {
-                registry.broadcast(MatrixJson.encodeToString(ResultMessage(
-                    success = false, deckerSuccesses = 0, hostSuccesses = 0,
-                    details = "No controller registered for decker ${decker.name} — turn skipped"
-                )))
-            }
-            return ActionResult.DeckerAction
+            registry.setPendingAction(null)
+            registry.broadcast(MatrixJson.encodeToString(ResultMessage(
+                success = false, deckerSuccesses = 0, hostSuccesses = 0,
+                details = "No controller registered for decker ${decker.name} — turn skipped"
+            )))
+            return@runBlocking ActionResult.DeckerAction
         }
 
         val stateBase = StateMessage(
@@ -72,41 +68,33 @@ class WebSocketDeckerController(
             visibleObjects = visibleObjects.toDto(),
             availableActions = availableActions.toDto()
         )
-        runBlocking { registry.broadcastWithRoles(stateBase) }
+        registry.broadcastWithRoles(stateBase)
 
         val cmd = try {
-            future.get(actionTimeoutSeconds, TimeUnit.SECONDS)
-        } catch (_: TimeoutException) {
-            runBlocking {
-                registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Action timed out")))
-                registry.demoteAfterTurn(decker.name)
-            }
-            return ActionResult.DeckerAction
-        } catch (e: ExecutionException) {
-            val cause = e.cause
-            if (cause is DeckerDisconnectedException) {
-                runBlocking {
-                    registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Decker disconnected — turn forfeit")))
-                    registry.demoteAfterTurn(decker.name)
-                }
-                return ActionResult.DeckerAction
-            }
-            runBlocking {
-                registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Unexpected error — turn aborted")))
-                registry.demoteAfterTurn(decker.name)
-            }
-            throw e
+            withTimeoutOrNull(actionTimeoutSeconds * 1000L) { deferred.await() }
+        } catch (_: DeckerDisconnectedException) {
+            registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Decker disconnected — turn forfeit")))
+            registry.demoteAfterTurn(decker.name)
+            return@runBlocking ActionResult.DeckerAction
+        } catch (e: Exception) {
+            registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Unexpected error — turn aborted")))
+            registry.demoteAfterTurn(decker.name)
+            return@runBlocking ActionResult.DeckerAction
         } finally {
-            registry.pendingAction = null
+            registry.setPendingAction(null)
+        }
+
+        if (cmd == null) {
+            registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Action timed out")))
+            registry.demoteAfterTurn(decker.name)
+            return@runBlocking ActionResult.DeckerAction
         }
 
         val chosen = availableActions.getOrNull(cmd.actionIndex)
         if (chosen == null) {
-            runBlocking {
-                registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Invalid action index ${cmd.actionIndex}")))
-                registry.demoteAfterTurn(decker.name)
-            }
-            return ActionResult.DeckerAction
+            registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Invalid action index ${cmd.actionIndex}")))
+            registry.demoteAfterTurn(decker.name)
+            return@runBlocking ActionResult.DeckerAction
         }
 
         val oldDecker = decker
@@ -117,26 +105,22 @@ class WebSocketDeckerController(
             // Re-read from context: applyDeckerOperationResult may have replaced the decker
             // reference (e.g. alert transition updates the embedded host object).
             decker = context.deckers.firstOrNull { it.name == decker.name } ?: decker
-            runBlocking {
-                registry.broadcast(MatrixJson.encodeToString(ResultMessage(
-                    success = result.success,
-                    deckerSuccesses = result.deckerSuccesses,
-                    hostSuccesses = result.hostSuccesses,
-                    details = result.details
-                )))
-                registry.demoteAfterTurn(decker.name)
-            }
+            registry.broadcast(MatrixJson.encodeToString(ResultMessage(
+                success = result.success,
+                deckerSuccesses = result.deckerSuccesses,
+                hostSuccesses = result.hostSuccesses,
+                details = result.details
+            )))
+            registry.demoteAfterTurn(decker.name)
         } catch (e: Exception) {
-            runBlocking {
-                registry.broadcast(MatrixJson.encodeToString(ResultMessage(
-                    success = false, deckerSuccesses = 0, hostSuccesses = 0,
-                    details = "Internal error — turn aborted"
-                )))
-                registry.demoteAfterTurn(decker.name)
-            }
+            registry.broadcast(MatrixJson.encodeToString(ResultMessage(
+                success = false, deckerSuccesses = 0, hostSuccesses = 0,
+                details = "Internal error — turn aborted"
+            )))
+            registry.demoteAfterTurn(decker.name)
         }
 
-        return ActionResult.DeckerAction
+        ActionResult.DeckerAction
     }
 
     private fun dispatch(action: AvailableAction, cmd: ActionCommand, diceRoller: DiceRoller): DispatchResult {

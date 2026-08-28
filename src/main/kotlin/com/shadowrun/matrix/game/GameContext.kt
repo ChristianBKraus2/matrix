@@ -12,7 +12,9 @@ import com.shadowrun.matrix.network.applyAlertTransition
 class GameContext(
     host: Host,
     val securityCode: SecurityCode,
+    /** Game-loop thread only — no concurrent access. */
     val deckers: MutableList<Decker>,
+    /** Game-loop thread only — no concurrent access. */
     val activeIc: MutableList<IC>
 ) {
     var host: Host = host

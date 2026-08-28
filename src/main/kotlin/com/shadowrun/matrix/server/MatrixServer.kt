@@ -1,6 +1,7 @@
 package com.shadowrun.matrix.server
 
 import com.shadowrun.matrix.server.dto.ActionCommand
+import com.shadowrun.matrix.server.dto.ErrorCode
 import com.shadowrun.matrix.server.dto.ErrorMessage
 import com.shadowrun.matrix.server.dto.JoinMessage
 import com.shadowrun.matrix.server.dto.MatrixJson
@@ -36,13 +37,13 @@ fun Application.matrixModule(registry: SessionRegistry) {
                             "join"   -> registry.receiveJoin(this, Json.decodeFromString<JoinMessage>(json))
                             "action" -> registry.receiveAction(this, Json.decodeFromString<ActionCommand>(json))
                             else     -> this.send(Frame.Text(MatrixJson.encodeToString(
-                                ErrorMessage(message = "unknown_message_type: $msgType")
+                                ErrorMessage(message = ErrorCode.UNKNOWN_MESSAGE_TYPE, details = msgType)
                             )))
                         }
                     } catch (e: Exception) {
                         runCatching {
                             this.send(Frame.Text(MatrixJson.encodeToString(
-                                ErrorMessage(message = "bad_request: ${e.message?.take(120)}")
+                                ErrorMessage(message = ErrorCode.BAD_REQUEST, details = e.message?.take(120))
                             )))
                         }
                     }

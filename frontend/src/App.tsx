@@ -5,15 +5,16 @@ import LocationPanel from './components/LocationPanel'
 import EntitiesPanel from './components/EntitiesPanel'
 import ActionsPanel from './components/ActionsPanel'
 import NarrativePanel from './components/NarrativePanel'
-import type { GameEvent } from './types/messages'
+import type { ErrorCode, GameEvent } from './types/messages'
 
-const ERROR_LABELS: Record<string, string> = {
-  not_your_turn:      'Not your turn',
-  no_action_pending:  'No action pending',
-  already_registered: 'Already registered',
-  name_already_taken: 'Decker name already taken',
-  name_too_long:      'Decker name too long (max 32 characters)',
-  content_too_large:  'File content too large (max 4096 bytes)',
+const ERROR_LABELS: Record<ErrorCode, string> = {
+  not_your_turn:         'Not your turn',
+  no_action_pending:     'No action pending',
+  already_registered:    'Already registered',
+  name_already_taken:    'Decker name already taken',
+  name_too_long:         'Decker name too long (max 32 characters)',
+  unknown_message_type:  'Unknown message type',
+  bad_request:           'Bad request',
 }
 
 function JoinScreen({
@@ -95,10 +96,13 @@ export default function App() {
     )
   }
 
-  const { gameState, role, sendAction, events } = ws
+  const { gameState, role, sendAction, events, reconnected } = ws
 
   return (
     <div className="game-grid">
+      {reconnected && (
+        <div className="reconnect-banner">SESSION RESTORED — reconnected to active game</div>
+      )}
       <LocationPanel gameState={gameState} />
       <DeckerPanel decker={gameState.decker} />
       <NarrativePanel events={events} isActiveTurn={role === 'active_controller'} />

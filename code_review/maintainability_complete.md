@@ -1,4 +1,3 @@
----
 # Maintainability Review — Complete System (Cross-Cutting)
 
 ## Summary
@@ -40,8 +39,8 @@ The three-part system (game_logic / server / ui) shares a WebSocket protocol tha
 **Issue:** Server error codes (`"already_registered"`, `"name_already_taken"`, `"not_your_turn"`, `"no_action_pending"`) are plain string literals in Kotlin. The UI maps them to human-readable labels in a `Record<string, string>` keyed by those same string values. If a new error code is added server-side without updating `ERROR_LABELS`, the UI displays the raw code string to the user with no warning at compile time. The `ResultMessage.details` freeform strings from `WebSocketDeckerController.kt` are a separate category (narrative text is fine as freeform), but the `ErrorMessage.message` codes are a defined set and should be treated as an enum.  
 **Recommendation:** Define a Kotlin `enum class ErrorCode` (or sealed class) for the `ErrorMessage.message` field. Serialise to the same snake_case strings for backward compatibility. In TypeScript, replace `Record<string, string>` with `Record<ErrorCode, string>` where `ErrorCode` is a string union derived from the Kotlin enum, making missing entries a compile error.
 
-**Resolution (Phase 5.3):**
-Deferred — not implemented in this iteration. Partial improvement: `App.tsx` now includes `name_too_long` and `content_too_large` labels in `ERROR_LABELS` to cover the new server error codes added in Phases 3.1 and 3.2.
+**Resolution (Batch 2 — Maintainability):**
+`Messages.kt` now defines `@Serializable enum class ErrorCode` with 7 `@SerialName` snake_case values (`NOT_YOUR_TURN`, `NO_ACTION_PENDING`, `ALREADY_REGISTERED`, `NAME_ALREADY_TAKEN`, `NAME_TOO_LONG`, `UNKNOWN_MESSAGE_TYPE`, `BAD_REQUEST`). `ErrorMessage.message` changed from `String` to `ErrorCode`; a new `details: String?` field carries dynamic context. All Kotlin call sites in `SessionRegistry.kt` and `MatrixServer.kt` updated to enum constants. `frontend/src/types/messages.ts` exports `ErrorCode` as a string union and types `ErrorMessage.message: ErrorCode`. `App.tsx` `ERROR_LABELS` is now `Record<ErrorCode, string>`, making missing entries compile errors; all 7 codes have entries.
 
 ---
 
@@ -52,6 +51,9 @@ Deferred — not implemented in this iteration. Partial improvement: `App.tsx` n
 **Issue:** There is no AsyncAPI spec, OpenAPI document, Protobuf schema, or even a README that describes the WebSocket protocol. A new developer must read both the Kotlin server and the TypeScript client to reconstruct: (1) which messages flow in which direction, (2) the role state machine (`connect → observer → registered_decker → active_controller → registered_decker`), (3) the turn lifecycle (server sends `state` → client sends `action` → server sends `result` → server sends new `state`), and (4) which `ActionParams` fields are meaningful for each operation. The role transition triggered by receiving a `control{role:"observer"}` and immediately sending `join` is implicit behaviour buried in `useWebSocket.ts:90-93`.  
 **Recommendation:** Add a `design/protocol.md` (or AsyncAPI YAML) that describes all message types, their direction, the role state machine as a diagram, and the turn lifecycle sequence. This is a one-time investment that pays off every time a new developer, test author, or frontend contributor touches the system.
 
+**Resolution (Batch 2 — Maintainability):**
+`design/protocol.md` created, covering: transport and endpoint; all message types with direction and when-sent; full JSON schemas; the role state machine as an ASCII diagram; turn lifecycle sequence; complete error code reference table; and discriminant tables for `AvailableActionDto` and `MatrixObjectDto` sealed classes.
+
 ---
 
 ### HIGH — `runCatching {}` in `MatrixServer.kt` silently swallows all message-processing errors
@@ -60,6 +62,9 @@ Deferred — not implemented in this iteration. Partial improvement: `App.tsx` n
 **File(s):** `src/main/kotlin/com/shadowrun/matrix/server/MatrixServer.kt:29-35`  
 **Issue:** Every exception thrown during JSON parsing or message dispatch is swallowed by `runCatching { }` with no logging and no error response to the client. If the server receives a malformed `ActionCommand` (e.g. missing required fields, wrong type for `actionIndex`), the client receives silence — no `ErrorMessage`, no log line, no indication that anything went wrong. This makes debugging protocol errors extremely difficult across the server/client boundary.  
 **Recommendation:** Replace the bare `runCatching` with explicit handling: catch `SerializationException` and send an `ErrorMessage` back to the client; catch unexpected exceptions with a `logger.error(...)` call and optionally a generic error response. Swallowing errors at the outermost handler is the worst place to lose information.
+
+**Resolution (Phase 1.3 — see also error_handling_complete.md):**
+`MatrixServer.kt` now has an explicit `try/catch` inside the frame loop. On exception it sends `ErrorMessage(message = ErrorCode.BAD_REQUEST, details = e.message?.take(120))` back to the session. An `else` branch was also added to the `when (msgType)` block returning `ErrorMessage(ErrorCode.UNKNOWN_MESSAGE_TYPE, details = msgType)` for unrecognised message types.
 
 ---
 
@@ -82,6 +87,9 @@ Deferred — not implemented in this iteration. Partial improvement: `App.tsx` n
 **Issue:** The `Operation` variant of `AvailableActionDto` carries `operation: string` on the TypeScript side. There is no union type listing the 28 valid `SystemOperation` names, so the UI cannot switch exhaustively over them, and there is no compile-time feedback if a new operation is added or an existing one is renamed. More critically, the mapping from operation name to required `ActionParams` fields is encoded only in `dispatchHostOperation` — for example, `EDIT_FILE` reads `params.newContent`, `NULL_OPERATION` reads `params.inactivitySeconds`, and `MAKE_COMCALL` reads `params.hasValidPasscode`. This mapping is invisible to the UI author.  
 **Recommendation:** Add a TypeScript union type `export type SystemOperation = 'ANALYZE_HOST' | 'ANALYZE_IC' | ...` for all 28 values. Add an exported constant or type mapping each operation to its required `ActionParams` keys (even a simple `Partial<Record<SystemOperation, (keyof ActionParams)[]>>` would help). This enables the `ActionsPanel` to render correct parameter inputs for each operation.
 
+**Resolution (Batch 2 — Maintainability):**
+`frontend/src/types/messages.ts` now exports `SystemOperation` as a 28-value string union covering all `SystemOperation` enum names. The `Operation` variant of `AvailableActionDto` uses `operation: SystemOperation` instead of `operation: string`, enabling exhaustive TypeScript checking.
+
 ---
 
 ### MEDIUM — `kind` field in sealed DTOs is redundant with the kotlinx.serialization type discriminator, creating two competing discriminants in the JSON
@@ -103,6 +111,9 @@ Deferred — not implemented in this iteration. Partial improvement: `App.tsx` n
 **Issue:** `Game.runOutOfCombatTurn()` calls `decker.action(context, diceRoller)` as a plain synchronous call on the `ActiveIcon` interface. Nothing in `Game.kt` or the `ActiveIcon` contract indicates that this call can block. In reality, `WebSocketDeckerController.action()` calls `runBlocking { registry.promoteForTurn(...) }` and then `future.get(actionTimeoutSeconds, TimeUnit.SECONDS)`, which blocks the calling thread for up to 120 seconds waiting for a human to respond. If the `Game` methods are ever called from a coroutine context, `runBlocking` inside a coroutine is a known Kotlin pitfall that can deadlock. A new developer looking at `Game.kt` has no warning.  
 **Recommendation:** Document the blocking contract on the `ActiveIcon` interface with a KDoc comment. Long term, consider making `action()` a `suspend fun` and replacing `runBlocking` with a proper coroutine-based `CompletableDeferred`.
 
+**Resolution (Batch 2 — Concurrency/Maintainability):**
+`WebSocketDeckerController.kt` was refactored to use a single outer `runBlocking { }` with `CompletableDeferred` and `withTimeoutOrNull`, eliminating all nested `runBlocking` calls (see concurrency finding). `action()` remains a non-suspend function to avoid changes across ~40 tests; the blocking nature at the `ActiveIcon` boundary is unchanged, but the implementation no longer risks deadlock in coroutine contexts.
+
 ---
 
 ### LOW — Five enum types serialised as raw `String` in Kotlin DTOs, duplicated as TypeScript union types with no code generation
@@ -111,6 +122,9 @@ Deferred — not implemented in this iteration. Partial improvement: `App.tsx` n
 **File(s):** `src/main/kotlin/com/shadowrun/matrix/server/dto/MatrixObjectDto.kt:19,29,40,53,59,68,78`, `frontend/src/types/messages.ts:50-53,61`  
 **Issue:** `AlertStatus`, `SecurityCode`, `TopologyType`, `SubsystemType`, and IC `behavior` are Kotlin enums serialised with `.name` (plain string). The TypeScript counterparts (`export type AlertStatus = 'NO_ALERT' | 'PASSIVE_ALERT' | 'ACTIVE_ALERT'`, etc.) are hand-maintained copies. When a Kotlin enum gains or loses a variant (e.g. if a new `SecurityCode` tier is added), the TypeScript union silently becomes incomplete — new values from the server are accepted by the `string` base type at runtime but never appear as valid TypeScript literals.  
 **Recommendation:** Introduce a build step (e.g. a Kotlin script, `kotlinx-serialization` reflection, or a simple Gradle task) that dumps the enum values to a TypeScript `const` file at build time. Until then, add a comment in both files cross-referencing the other side so that a developer knows to update both when changing an enum.
+
+**Resolution (Phase 6.3):**
+`MatrixObjectDto.kt` has a KDoc on the sealed class listing all five raw-name types (`AlertStatus`, `SecurityCode`, `TopologyType`, `SubsystemType`, `IcBehavior`) and instructing developers to update `frontend/src/types/messages.ts` when any variant changes. `messages.ts` has a matching comment block before the five union types, cross-referencing the Kotlin enum FQNs. A build-step code-generation approach remains a future improvement.
 
 ---
 
@@ -133,4 +147,5 @@ Deferred — not implemented in this iteration. Partial improvement: `App.tsx` n
 - **TypeScript `messages.ts` is a single file for the entire protocol.** All server-sent and client-sent types are in one place. The client/server boundary is easy to find.
 - **`useWebSocket.ts` is a clean React hook abstraction.** The hook fully encapsulates WebSocket lifecycle, reconnection, and message dispatch. `App.tsx` and child components are entirely free of WebSocket concerns.
 - **`ActionCommand` uses an index rather than an operation name.** Sending `actionIndex` rather than re-serialising the action avoids the UI having to reconstruct a complete action from user input — the server owns the canonical action list and the UI just picks from it by position.
+
 ---

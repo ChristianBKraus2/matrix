@@ -14,6 +14,17 @@ enum class SessionRole {
 }
 
 @Serializable
+enum class ErrorCode {
+    @SerialName("not_your_turn")       NOT_YOUR_TURN,
+    @SerialName("no_action_pending")   NO_ACTION_PENDING,
+    @SerialName("already_registered")  ALREADY_REGISTERED,
+    @SerialName("name_already_taken")  NAME_ALREADY_TAKEN,
+    @SerialName("name_too_long")       NAME_TOO_LONG,
+    @SerialName("unknown_message_type") UNKNOWN_MESSAGE_TYPE,
+    @SerialName("bad_request")         BAD_REQUEST,
+}
+
+@Serializable
 data class JoinMessage(
     val type: String = "join",
     val deckerName: String
@@ -57,12 +68,14 @@ data class ResultMessage(
 data class ControlMessage(
     val type: String = "control",
     val role: SessionRole,
-    val deckerName: String? = null
+    val deckerName: String? = null,
+    val reconnect: Boolean = false
 )
 
 @Serializable
 data class ErrorMessage(
     val type: String = "error",
-    val message: String
+    val message: ErrorCode,
+    val details: String? = null
 )
 

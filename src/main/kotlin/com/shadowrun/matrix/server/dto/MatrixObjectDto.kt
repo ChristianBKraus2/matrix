@@ -6,6 +6,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonClassDiscriminator
 import kotlinx.serialization.ExperimentalSerializationApi
 
+/**
+ * Five Kotlin enum types in this hierarchy are serialised as raw [Enum.name] strings (not @SerialName).
+ * When changing any of these enums, update the corresponding union types in frontend/src/types/messages.ts:
+ *   AlertStatus, SecurityCode, TopologyType, SubsystemType, IcBehavior (behavior field on IcProgram)
+ */
 @Serializable
 @OptIn(ExperimentalSerializationApi::class)
 @JsonClassDiscriminator("kind")

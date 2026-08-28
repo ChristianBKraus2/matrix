@@ -1,4 +1,3 @@
----
 # Concurrency Review — Complete System (Cross-Cutting)
 
 ## Summary
@@ -90,6 +89,9 @@ try {
 
 **Recommendation:** Make `action()` a `suspend` function that uses `withTimeout` + `Channel<ActionCommand>` instead of `CompletableFuture.get`. This lets Ktor handle the game loop as a properly suspended coroutine and removes all `runBlocking` call sites in the controller.
 
+**Resolution (Batch 2 — Concurrency):**
+`WebSocketDeckerController.kt` now wraps the entire `action()` body in a single outer `runBlocking { }`, eliminating all nested `runBlocking` calls. `CompletableFuture<ActionCommand>` is replaced with `CompletableDeferred<ActionCommand>`, and `future.get(120, TimeUnit.SECONDS)` with `withTimeoutOrNull(actionTimeoutSeconds * 1000L) { deferred.await() }`. `null` return signals timeout; `DeckerDisconnectedException` is caught directly (no `ExecutionException` wrapper) since `CompletableDeferred.await()` propagates exceptions without wrapping. `SessionRegistry.kt` updated to use `CompletableDeferred` throughout.
+
 ---
 
 ### [HIGH] `GameContext.deckers` and `GameContext.activeIc` are unsynchronised `MutableList` shared across the game/server boundary
@@ -100,6 +102,9 @@ try {
 **Issue:** `deckers` and `activeIc` are plain `MutableList` fields on `GameContext`. `WebSocketDeckerController.action` reads `decker.visibleObjects()` and `decker.availableActions()` (lines 50–51), then later calls `context.applyDeckerOperationResult` (line 107), which calls `updateDecker` (a `replaceAll` on `deckers`) and `checkTriggers` (`activeIc.addAll`). All of this runs on the game thread today, but the `GameContext` reference is owned by `Game`, and nothing prevents a future HTTP diagnostic endpoint or a second concurrent `Game.run*Turn` call from accessing these lists simultaneously. There is no visibility guarantee for the stale `Decker` reference inside `WebSocketDeckerController.decker` if the field were ever read from another thread.
 
 **Recommendation:** Keep all mutation of `GameContext` on a single designated "game thread" or coroutine, and document this invariant with `@GuardedBy` annotations or a `@MainThread`-equivalent marker. Replace `MutableList` with thread-confined collections and add a check (assertion or `ThreadLocal`) that all writes occur on the expected thread.
+
+**Resolution (Batch 2 — Concurrency):**
+`GameContext.kt` constructor parameters `deckers` and `activeIc` now carry `/** Game-loop thread only — no concurrent access. */` KDoc comments, making the thread-confinement invariant explicit at the declaration site.
 
 ---
 
@@ -112,8 +117,8 @@ try {
 
 **Recommendation:** Move `pendingAction` inside `lock` discipline (declare it as a regular field, read and write it only inside `synchronized(lock)` blocks) or migrate both to a single `Mutex`-guarded data class. This makes the composite invariant explicit and eliminates the need to reason about happens-before across two separate mechanisms.
 
-**Resolution (Phase 4.3):**
-Deferred — full `Mutex` migration replacing all `synchronized` blocks is a larger refactor deferred to a future track. The TOCTOU races were addressed in Phases 4.1 and 4.2 by bringing `pendingAction` reads inside the existing `synchronized(lock)` blocks.
+**Resolution (Phase 6.1):**
+`pendingAction` is now a `private var` with no `@Volatile` annotation. All reads already happened inside `synchronized(lock)` (Phases 4.1/4.2). Writes from `WebSocketDeckerController` now go through `SessionRegistry.setPendingAction(deferred)`, which wraps the assignment in `synchronized(lock)`. Both mechanisms are eliminated in favour of the single `lock` monitor, making the composite invariant explicit and visible in one place.
 
 ---
 
@@ -125,6 +130,9 @@ Deferred — full `Mutex` migration replacing all `synchronized` blocks is a lar
 **Issue:** The role for each session is determined inside `synchronized(lock)` (line 93–100), which correctly snapshots `activeController` at one point in time. However, `MatrixJson.encodeToString(base.copy(role = role))` and `session.send(...)` execute *outside* the lock in a sequential loop (lines 102–104). Because `send` is a suspend call, it can yield between iterations. If `demoteAfterTurn` or `promoteForTurn` runs on the game thread while the loop is mid-flight (possible via `runBlocking` on a different OS thread), an early session in the loop receives a role that is already stale by the time the message is delivered. For a single-game scenario this is a low-probability cosmetic issue, but in a multi-decker combat turn it can cause a session to believe it is `active_controller` when it is not.
 
 **Recommendation:** Serialise all messages inside the `synchronized` block (encoding is cheap) and only call `send` outside with pre-built `Frame.Text` objects. This removes the window between role assignment and serialisation.
+
+**Resolution (Batch 2 — Concurrency):**
+`SessionRegistry.kt` `broadcastWithRoles` now builds a `List<Pair<Session, String>>` inside `synchronized(lock)`, calling `MatrixJson.encodeToString(base.copy(role = role))` for each session before releasing the lock. Only the `session.send(Frame.Text(text))` calls execute outside the lock, eliminating the window between role determination and serialisation.
 
 ---
 
@@ -151,6 +159,9 @@ Deferred — full `Mutex` migration replacing all `synchronized` blocks is a lar
 
 **Recommendation:** Add a `// @GuardedBy("game thread only")` comment, or extract the map into a class that asserts single-thread access.
 
+**Resolution (Phase 5.5):**
+`interrogationStates` was moved from `WebSocketDeckerController` into the `Decker` data class as an immutable `Map<SystemOperation, InterrogationState>`. State is now updated by returning a new `Decker` copy after each locate operation, so it is part of the same value-semantic snapshot as the rest of the decker. Thread-confinement concern is eliminated: `Decker` is the game-thread's own data and is never mutated in place.
+
 ---
 
 ### [LOW] TypeScript `ResultMessage` marks `deckerSuccesses` and `hostSuccesses` as optional; Kotlin always sends them as non-null
@@ -162,6 +173,9 @@ Deferred — full `Mutex` migration replacing all `synchronized` blocks is a lar
 
 **Recommendation:** Remove the `?` optionality from `deckerSuccesses` and `hostSuccesses` in `messages.ts` to match the server schema exactly.
 
+**Resolution (Phase 2.5):**
+`frontend/src/types/messages.ts` `ResultMessage` interface updated — `?` removed from `deckerSuccesses` and `hostSuccesses`, making both required `number` fields that match the server's non-nullable `Int` contract.
+
 ---
 
 ## Clean Seams
@@ -170,9 +184,10 @@ Deferred — full `Mutex` migration replacing all `synchronized` blocks is a lar
 
 - **`broadcast` / `broadcastWithRoles` use a session snapshot under lock.** Taking `sessions.toList()` inside `synchronized(lock)` before iterating means session deregistrations that happen concurrently do not cause `ConcurrentModificationException`; the worst outcome is a `send` failure that is swallowed by `runCatching`.
 
-- **CompletableFuture completion is internally thread-safe.** Even where the TOCTOU races exist around checking `isDone`, calling `complete` or `completeExceptionally` concurrently on a `CompletableFuture` will not corrupt state — exactly one call wins, the rest are no-ops. The bugs above are about missing acknowledgements and incorrect error messages, not about crashes or state corruption.
+- **`CompletableDeferred` completion is internally thread-safe.** Even where TOCTOU races existed around checking `isCompleted`, calling `complete` or `completeExceptionally` concurrently on a `CompletableDeferred` will not corrupt state — exactly one call wins, the rest are no-ops. The bugs above were about missing acknowledgements and incorrect error messages, not about crashes or state corruption.
 
 - **The UI uses a pure reducer.** `useWebSocket` processes all server messages through `useReducer`, which is React-serialised and never races with itself. The UI state is always a consistent snapshot of the last received message per type; there is no client-side mutation of game state outside the reducer.
 
 - **Single WebSocket endpoint, single join flow.** `receiveJoin` correctly rejects duplicate registration under `lock`, and the name-uniqueness check and the session-to-name binding are a single atomic operation, preventing two sessions from registering the same decker name.
+
 ---

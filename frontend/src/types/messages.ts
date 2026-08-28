@@ -27,6 +27,7 @@ export interface ControlMessage {
   type: 'control'
   role: Role
   deckerName?: string
+  reconnect?: boolean
 }
 
 export interface ActiveUtility {
@@ -47,6 +48,13 @@ export interface DeckerStateDto {
   activeUtilities: ActiveUtility[]
 }
 
+// These union types mirror Kotlin enums serialised with .name (not @SerialName).
+// If a Kotlin enum adds, removes, or renames a variant, update the matching type here.
+//   AlertStatus  ↔ com.shadowrun.matrix.network.AlertStatus
+//   SecurityCode ↔ com.shadowrun.matrix.common.SecurityCode
+//   TopologyType ↔ com.shadowrun.matrix.network.TopologyType
+//   SubsystemType ↔ com.shadowrun.matrix.common.SubsystemType
+//   IcProgram.behavior ↔ com.shadowrun.matrix.ic.IcBehavior
 export type AlertStatus = 'NO_ALERT' | 'PASSIVE_ALERT' | 'ACTIVE_ALERT'
 export type SecurityCode = 'BLUE' | 'GREEN' | 'ORANGE' | 'RED'
 export type TopologyType = 'OPEN_ACCESS' | 'TIERED' | 'HOST_HOST' | 'PRIVATE_GRID'
@@ -64,6 +72,14 @@ export type MatrixObjectDto =
 
 export type ActionType = 'FREE' | 'SIMPLE' | 'COMPLEX'
 
+export type SystemOperation =
+  | 'ANALYZE_HOST' | 'ANALYZE_IC' | 'ANALYZE_ICON' | 'ANALYZE_SECURITY' | 'ANALYZE_SUBSYSTEM'
+  | 'CONTROL_SLAVE' | 'DECRYPT_ACCESS' | 'DECRYPT_FILE' | 'DECRYPT_SLAVE' | 'DOWNLOAD_DATA'
+  | 'EDIT_FILE' | 'EDIT_SLAVE' | 'GRACEFUL_LOGOFF' | 'LOCATE_ACCESS_NODE' | 'LOCATE_DECKER'
+  | 'LOCATE_FILE' | 'LOCATE_IC' | 'LOCATE_SLAVE' | 'LOGON_TO_HOST' | 'LOGON_TO_LTG'
+  | 'LOGON_TO_RTG' | 'MAKE_COMCALL' | 'MONITOR_SLAVE' | 'NULL_OPERATION' | 'SWAP_MEMORY'
+  | 'RELOCATE_ICON' | 'TAP_COMCALL' | 'UPLOAD_DATA'
+
 export type AvailableActionDto =
   | { kind: 'LogonToRtg'; index: number; actionType: ActionType; rtgName: string }
   | { kind: 'LogonToLtg'; index: number; actionType: ActionType; ltgName: string }
@@ -71,7 +87,7 @@ export type AvailableActionDto =
   | { kind: 'LogonToHost'; index: number; actionType: ActionType; hostName: string }
   | { kind: 'GracefulLogoff'; index: number; actionType: ActionType }
   | { kind: 'JackOut'; index: number; actionType: ActionType }
-  | { kind: 'Operation'; index: number; actionType: ActionType; operation: string; targetKind: string | null; targetName: string | null }
+  | { kind: 'Operation'; index: number; actionType: ActionType; operation: SystemOperation; targetKind: string | null; targetName: string | null }
 
 export interface StateMessage {
   type: 'state'
@@ -91,8 +107,18 @@ export interface ResultMessage {
 
 export interface ErrorMessage {
   type: 'error'
-  message: string
+  message: ErrorCode
+  details?: string
 }
+
+export type ErrorCode =
+  | 'not_your_turn'
+  | 'no_action_pending'
+  | 'already_registered'
+  | 'name_already_taken'
+  | 'name_too_long'
+  | 'unknown_message_type'
+  | 'bad_request'
 
 export type ServerMessage = ControlMessage | StateMessage | ResultMessage | ErrorMessage
 
