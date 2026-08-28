@@ -12,33 +12,46 @@ import com.shadowrun.matrix.network.applyAlertTransition
 class GameContext(
     host: Host,
     val securityCode: SecurityCode,
-    /** Game-loop thread only — no concurrent access. */
-    val deckers: MutableList<Decker>,
-    /** Game-loop thread only — no concurrent access. */
-    val activeIc: MutableList<IC>
+    deckers: List<Decker>,
+    activeIc: List<IC> = emptyList()
 ) {
     var host: Host = host
         private set
 
+    private val _deckers: MutableList<Decker> = deckers.toMutableList()
+    /** Read-only view of deckers in this context. Use updateDecker() to mutate. */
+    val deckers: List<Decker> get() = _deckers
+
+    private val _activeIc: MutableList<IC> = activeIc.toMutableList()
+    /** Read-only view of active IC programs. Use addIc()/removeIc() to mutate. */
+    val activeIc: List<IC> get() = _activeIc
+
+    fun addIc(ic: IC) { _activeIc.add(ic) }
+
+    fun removeIc(ic: IC) { _activeIc.remove(ic) }
+
+    fun resetDeckers(decker: Decker) { _deckers.clear(); _deckers.add(decker) }
+
+    fun deckerByName(name: String): Decker? = _deckers.firstOrNull { it.name == name }
+
     fun unauthorizedDeckerInNode(node: Node): Decker? =
-        deckers.firstOrNull { it.persona?.currentNode == node && it.persona.status == PersonaStatus.INTRUDING }
+        _deckers.firstOrNull { it.persona?.currentNode == node && it.persona.status == PersonaStatus.INTRUDING }
 
     fun unauthorizedDeckerInHost(): Decker? =
-        deckers.firstOrNull { it.persona?.status == PersonaStatus.INTRUDING }
+        _deckers.firstOrNull { it.persona?.status == PersonaStatus.INTRUDING }
 
     fun updateDecker(old: Decker, new: Decker) {
-        val idx = deckers.indexOf(old)
-        if (idx < 0) {
-            System.err.println("GameContext.updateDecker: decker '${old.name}' not found in context list — state may diverge")
-            return
+        val idx = _deckers.indexOf(old)
+        check(idx >= 0) {
+            "GameContext.updateDecker: decker '${old.name}' not found in context — this is a programming error"
         }
-        deckers[idx] = new
+        _deckers[idx] = new
     }
 
     fun updateHost(new: Host) {
         val old = host
         host = new
-        deckers.replaceAll { decker ->
+        _deckers.replaceAll { decker ->
             val loc = decker.currentLocation
             if (loc is MatrixLocation.OnHost && loc.host == old)
                 decker.copy(currentLocation = MatrixLocation.OnHost(new))
@@ -50,7 +63,7 @@ class GameContext(
         val newlyTriggered = host.securitySheaf.triggerSteps
             .filter { it.tallyThreshold in (oldTally + 1)..newTally }
         for (step in newlyTriggered) {
-            activeIc.addAll(step.activatedIc)
+            _activeIc.addAll(step.activatedIc)
             step.alertTransition?.let { transition ->
                 if (transition.ordinal > host.alertStatus.ordinal)
                     updateHost(applyAlertTransition(host, transition))
@@ -59,7 +72,6 @@ class GameContext(
     }
 
     fun applyDeckerOperationResult(old: Decker, new: Decker) {
-        // Use the live context host as the tally baseline, not the potentially stale decker snapshot.
         val oldTally = host.securityTally
         val newTally = (new.currentLocation as? MatrixLocation.OnHost)?.host?.securityTally ?: oldTally
         updateDecker(old, new)
@@ -75,9 +87,5 @@ class GameContext(
         val new = old + points
         updateHost(host.copy(securityTally = new))
         checkTriggers(old, new)
-    }
-
-    fun removeIc(ic: IC) {
-        activeIc.remove(ic)
     }
 }

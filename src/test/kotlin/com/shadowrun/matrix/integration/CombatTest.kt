@@ -201,7 +201,7 @@ class CombatTest : IntegrationTestBase() {
         icon.assertPinnedByBlackIc()
 
         assertFailsWith<IllegalStateException>("Pinned decker should not be able to jack out") {
-            icon.currentDecker().jackOut(pinnedByBlackIc = true)
+            icon.currentDecker().jackOut()
         }
     }
 

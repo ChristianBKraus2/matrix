@@ -171,7 +171,7 @@ open class IntegrationTestBase {
     }
 
     protected fun ScriptedDeckerIcon.injectIc(ic: IC) {
-        context.activeIc.add(ic)
+        context.addIc(ic)
     }
 
     protected fun ScriptedDeckerIcon.equipUtility(utility: Utility) {
@@ -214,8 +214,7 @@ open class IntegrationTestBase {
         fun currentDecker() = context.deckers.first()
 
         init {
-            context.deckers.clear()
-            context.deckers.add(initialDecker)
+            context.resetDeckers(initialDecker)
         }
 
         override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {

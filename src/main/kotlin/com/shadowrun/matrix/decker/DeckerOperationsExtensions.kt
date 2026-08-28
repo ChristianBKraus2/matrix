@@ -114,8 +114,8 @@ fun Decker.analyzeIc(ic: IC, host: Host, diceRoller: DiceRoller): OperationResul
 fun Decker.analyzeIcon(icon: MatrixIcon, host: Host, diceRoller: DiceRoller): OperationResult {
     logger.info { "[$name] analyzeIcon" }
     requireJackedIn()
-    val analyze = cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.ANALYZE }
-    val tn = maxOf(2, host.subsystemRatings.control - (persona?.sensor ?: 0) - (analyze?.currentRating ?: 0))
+    val tn = maxOf(2, host.subsystemRatings.control - (persona?.sensor ?: 0))
+    // Note: SystemTestResolver.resolve() applies the Analyze utility modifier via operation.utility.
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_ICON, tn, host.securityRating.value, diceRoller)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome)
@@ -244,9 +244,14 @@ fun Decker.downloadData(file: DataFile, host: Host, diceRoller: DiceRoller): Pai
     val outcome = SystemTestResolver.resolve(this, SystemOperation.DOWNLOAD_DATA, host.subsystemRatings.files, host.securityRating.value, diceRoller)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) {
-        val turns = ceil(file.sizeMp.toDouble() / cyberdeck.ioSpeedMpPerTurn).toInt().coerceAtLeast(1)
-        val handle = DownloadHandle(file, file.sizeMp, cyberdeck.ioSpeedMpPerTurn, turns)
-        logger.info { "[$name] downloadData started: ${handle.turnsRemaining} turns at ${cyberdeck.ioSpeedMpPerTurn} Mp/turn" }
+        val ioSpeed = cyberdeck.ioSpeedMpPerTurn
+        if (ioSpeed <= 0) {
+            logger.warn { "[$name] downloadData: ioSpeedMpPerTurn is 0 — cyberdeck cannot transfer data" }
+            return Pair(OperationResult.Failure(updated, outcome), null)
+        }
+        val turns = ceil(file.sizeMp.toDouble() / ioSpeed).toInt().coerceAtLeast(1)
+        val handle = DownloadHandle(file, file.sizeMp, ioSpeed, turns)
+        logger.info { "[$name] downloadData started: ${handle.turnsRemaining} turns at $ioSpeed Mp/turn" }
         Pair(OperationResult.Success(updated, outcome), handle)
     } else {
         logger.warn { "[$name] downloadData failed" }
@@ -391,7 +396,7 @@ fun Decker.invokeMediac(diceRoller: DiceRoller): MedicResult {
 /** PRD: SO-03, SO-04 */
 fun Decker.resolvePointerChain(file: DataFile, diceRoller: DiceRoller): PointerChain {
     require(file.isPointer) { "resolvePointerChain called on a non-pointer DataFile" }
-    val chainLength = diceRoller.roll(1, 2).let { it.dice.first() % 6 + 1 } // 1D6
+    val chainLength = diceRoller.roll(1, 6).dice.first() // 1D6
     val links = buildList {
         var current = file.pointerToHost!!
         repeat(chainLength - 1) {

@@ -36,8 +36,7 @@ fun main() {
     val context = GameContext(
         host = host,
         securityCode = SecurityCode.GREEN,
-        deckers = mutableListOf(decker),
-        activeIc = mutableListOf()
+        deckers = listOf(decker)
     )
     val controller = WebSocketDeckerController(registry, decker)
 

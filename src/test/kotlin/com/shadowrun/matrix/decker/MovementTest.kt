@@ -8,6 +8,8 @@ import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.common.SecurityRating
 import com.shadowrun.matrix.common.SubsystemRatings
 import com.shadowrun.matrix.common.TopologyType
+import com.shadowrun.matrix.combat.BlackIcPinState
+import com.shadowrun.matrix.ic.LethalBlackIC
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.Jackpoint
 import com.shadowrun.matrix.network.LTG
@@ -510,7 +512,8 @@ class MovementTest {
         val l = ltg()
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
         val d = decker(currentLocation = MatrixLocation.OnLTG(l), persona = persona)
-        assertFailsWith<IllegalStateException> { d.jackOut(pinnedByBlackIc = true) }
+            .copy(blackIcPin = BlackIcPinState(LethalBlackIC(rating = 6)))
+        assertFailsWith<IllegalStateException> { d.jackOut() }
     }
 
     // ── Security tally accumulation ──────────────────────────────────────────────

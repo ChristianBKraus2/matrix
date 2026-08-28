@@ -198,11 +198,13 @@ class WebSocketDeckerController(
                 decker.analyzeHost(host, items, diceRoller).toDispatch()
             }
             SystemOperation.ANALYZE_IC -> {
-                val ic = (action.target as MatrixObject.IcProgram).ic
+                val ic = (action.target as? MatrixObject.IcProgram)?.ic
+                    ?: return DispatchResult(decker, false, 0, 0, "ANALYZE_IC requires an IcProgram target")
                 decker.analyzeIc(ic, host, diceRoller).toDispatch()
             }
             SystemOperation.ANALYZE_ICON -> {
-                val ic = (action.target as MatrixObject.IcProgram).ic
+                val ic = (action.target as? MatrixObject.IcProgram)?.ic
+                    ?: return DispatchResult(decker, false, 0, 0, "ANALYZE_ICON requires an IcProgram target")
                 decker.analyzeIcon(MatrixIcon.IcIcon(ic), host, diceRoller).toDispatch()
             }
             SystemOperation.ANALYZE_SECURITY  -> decker.analyzeSecurity(host, diceRoller).toDispatch()
@@ -239,7 +241,9 @@ class WebSocketDeckerController(
         return when (action.operation) {
             SystemOperation.DOWNLOAD_DATA -> {
                 val file = (action.target as MatrixObject.File).file
-                decker.downloadData(file, host, diceRoller).first.toDispatch()
+                val (opResult, handle) = decker.downloadData(file, host, diceRoller)
+                val extra = handle?.let { "${it.turnsRemaining} turn(s) at ${it.ioSpeedMpPerTurn} Mp/turn" } ?: ""
+                opResult.toDispatch(extra)
             }
             SystemOperation.EDIT_FILE -> {
                 val file = (action.target as MatrixObject.File).file
@@ -349,7 +353,7 @@ class WebSocketDeckerController(
 
     private fun AnalyzeSecurityResult.toDispatch(): DispatchResult {
         val details = "Security ${securityRating.code}(${securityRating.value}), tally=$currentTally, alert=$alertStatus"
-        return DispatchResult(decker, true, outcome.deckerSuccesses, outcome.hostSuccesses, details)
+        return DispatchResult(decker, outcome.deckerWins, outcome.deckerSuccesses, outcome.hostSuccesses, details)
     }
 
     private fun EditFileResult.toDispatch(): DispatchResult {

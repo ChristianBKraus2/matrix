@@ -32,6 +32,7 @@ import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.utility.DiceRoller
 import kotlin.random.Random
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -139,8 +140,8 @@ class GameTest {
     ) = GameContext(
         host = host(securityCode),
         securityCode = securityCode,
-        deckers = deckers.toMutableList(),
-        activeIc = activeIc.toMutableList()
+        deckers = deckers,
+        activeIc = activeIc
     )
 
     // ── GameContext ───────────────────────────────────────────────────────────────
@@ -195,12 +196,13 @@ class GameTest {
     }
 
     @Test
-    fun `updateDecker does nothing when old not in list`() {
+    fun `updateDecker throws when old not in list`() {
         val decker = intrudingDecker()
         val stranger = intrudingDecker(name = "Stranger")
         val ctx = context(deckers = listOf(decker))
-        ctx.updateDecker(stranger, decker.copy(name = "ShouldNotAppear"))
-        assertEquals(decker, ctx.deckers[0])
+        assertFailsWith<IllegalStateException> {
+            ctx.updateDecker(stranger, decker.copy(name = "ShouldNotAppear"))
+        }
     }
 
     @Test
@@ -556,7 +558,7 @@ class GameTest {
         while (states.any { it.currentInitiative > 0 }) {
             val state = states.filter { it.currentInitiative > 0 }.maxByOrNull { it.currentInitiative }!!
             val idx = states.indexOf(state)
-            runBlocking { state.icon.action(GameContext(host(SecurityCode.ORANGE), SecurityCode.ORANGE, mutableListOf(), mutableListOf()), allFaces(1)) }
+            runBlocking { state.icon.action(GameContext(host(SecurityCode.ORANGE), SecurityCode.ORANGE, emptyList()), allFaces(1)) }
             states[idx] = state.copy(currentInitiative = state.currentInitiative - 10)
         }
 

@@ -29,9 +29,15 @@ class SessionRegistry {
     suspend fun setPendingAction(deferred: CompletableDeferred<ActionCommand>?) =
         turns.setPendingAction(deferred)
 
-    suspend fun register(session: DefaultWebSocketServerSession) {
-        mutex.withLock { sessions.add(session) }
+    suspend fun register(session: DefaultWebSocketServerSession, maxConnections: Int = Int.MAX_VALUE): Boolean {
+        val allowed = mutex.withLock {
+            if (sessions.size >= maxConnections) return@withLock false
+            sessions.add(session)
+            true
+        }
+        if (!allowed) return false
         session.send(Frame.Text(MatrixJson.encodeToString(ControlMessage(role = SessionRole.OBSERVER))))
+        return true
     }
 
     suspend fun receiveJoin(session: DefaultWebSocketServerSession, msg: JoinMessage) {

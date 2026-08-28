@@ -36,7 +36,7 @@ object CombatResolver {
         val commPenalty = if (meatworldComm) 1 else 0
         val numDice = max(1, 1 + decker.cyberdeck.responseIncrease - commPenalty)
         val roll = diceRoller.roll(numDice, 2)
-        val score = roll.dice.sum() + decker.persona!!.reaction
+        val score = roll.dice.sum() + requireNotNull(decker.persona) { "rollDeckerInitiative: decker has no active persona" }.reaction
         return CombatInitiative(score, numDice)
     }
 
@@ -86,7 +86,7 @@ object CombatResolver {
     // ── Icon Damage and Secondary Effects ─────────────────────────────────────────
 
     fun applyIcDamage(decker: Decker, attack: AttackResult.Hit, ic: IC, diceRoller: DiceRoller): IcDamageResult {
-        val persona = decker.persona!!
+        val persona = requireNotNull(decker.persona) { "applyIcDamage: decker has no active persona" }
         val newCm = persona.conditionMonitor.applyDamage(attack.stagedDamageLevel)
         var updatedDecker = decker.copy(persona = persona.copy(conditionMonitor = newCm))
 
@@ -154,7 +154,7 @@ object CombatResolver {
     fun resolveCrippler(decker: Decker, ic: Crippler, securityCode: SecurityCode, diceRoller: DiceRoller): CripplerResult {
         val sv = securityCode.securityValue
         val icSuccesses = diceRoller.roll(sv, decker.effectiveDetectionFactor).successes
-        val persona = decker.persona!!
+        val persona = requireNotNull(decker.persona) { "resolveCrippler: decker has no active persona" }
         val currentAttr = persona.attribute(ic.targetAttribute)
         val deckerSuccesses = diceRoller.roll(currentAttr, ic.rating).successes
         val net = icSuccesses - deckerSuccesses
@@ -182,7 +182,7 @@ object CombatResolver {
             )
             TarBabyResult(decker.copy(cyberdeck = updatedDeck), bothCrashed = true, deckerNoticed = false)
         } else {
-            val noticed = diceRoller.roll(decker.persona!!.sensor, ic.rating).successes >= 1
+            val noticed = diceRoller.roll(requireNotNull(decker.persona) { "resolveTarBaby: decker has no active persona" }.sensor, ic.rating).successes >= 1
             TarBabyResult(decker, bothCrashed = false, deckerNoticed = noticed)
         }
     }
@@ -204,9 +204,9 @@ object CombatResolver {
     fun resolveRipper(decker: Decker, ic: Ripper, securityCode: SecurityCode, diceRoller: DiceRoller): CripplerResult {
         val sv = securityCode.securityValue
         val icSuccesses = diceRoller.roll(sv, decker.effectiveDetectionFactor).successes
-        val persona = decker.persona!!
+        val persona = requireNotNull(decker.persona) { "resolveRipper: decker has no active persona" }
         val currentAttr = persona.attribute(ic.targetAttribute)
-        val deckerSuccesses = diceRoller.roll(currentAttr, ic.rating).successes
+        val deckerSuccesses = if (currentAttr > 0) diceRoller.roll(currentAttr, ic.rating).successes else 0
         val net = icSuccesses - deckerSuccesses
         val reduction = max(0, net / 2)
         val newValue = max(0, currentAttr - reduction)
@@ -257,7 +257,7 @@ object CombatResolver {
             )
             TarBabyResult(decker.copy(cyberdeck = updatedDeck), bothCrashed = true, deckerNoticed = false)
         } else {
-            val noticed = diceRoller.roll(decker.persona!!.sensor, ic.rating).successes >= 1
+            val noticed = diceRoller.roll(requireNotNull(decker.persona) { "resolveTarPit: decker has no active persona" }.sensor, ic.rating).successes >= 1
             TarBabyResult(decker, bothCrashed = false, deckerNoticed = noticed)
         }
     }
@@ -287,7 +287,7 @@ object CombatResolver {
         val power = ic.rating
         val effectivePower = max(0, power - decker.cyberdeck.hardening)
 
-        val persona = decker.persona!!
+        val persona = requireNotNull(decker.persona) { "resolveLethalBlackIc: decker has no active persona" }
         val iconDefSuccesses = if (power >= 2) diceRoller.roll(persona.bod, power).successes else 0
         val iconStaged = stage(rawLevel, -iconDefSuccesses)
         val newCm = persona.conditionMonitor.applyDamage(iconStaged)
@@ -334,7 +334,7 @@ object CombatResolver {
         val power = ic.rating
         val effectivePower = max(0, power - decker.cyberdeck.hardening)
 
-        val persona = decker.persona!!
+        val persona = requireNotNull(decker.persona) { "resolveNonLethalBlackIc: decker has no active persona" }
         val iconDefSuccesses = if (power >= 2) diceRoller.roll(persona.bod, power).successes else 0
         val iconStaged = stage(rawLevel, -iconDefSuccesses)
         val newCm = persona.conditionMonitor.applyDamage(iconStaged)
@@ -376,7 +376,7 @@ object CombatResolver {
     fun resolveBlackHammer(targetDecker: Decker, attack: AttackResult.Hit, diceRoller: DiceRoller): IcDamageResult {
         val power = attack.power
         val effectivePower = max(0, power - targetDecker.cyberdeck.hardening)
-        val persona = targetDecker.persona!!
+        val persona = requireNotNull(targetDecker.persona) { "resolveBlackHammer: decker has no active persona" }
         val newCm = persona.conditionMonitor.applyDamage(attack.stagedDamageLevel)
         val bodySuccesses = if (effectivePower >= 2) diceRoller.roll(targetDecker.body, effectivePower).successes else 0
         val bodyStaged = stage(attack.stagedDamageLevel, -bodySuccesses)
@@ -392,7 +392,7 @@ object CombatResolver {
     fun resolveKilljoy(targetDecker: Decker, attack: AttackResult.Hit, diceRoller: DiceRoller): IcDamageResult {
         val power = attack.power
         val effectivePower = max(0, power - targetDecker.cyberdeck.hardening)
-        val persona = targetDecker.persona!!
+        val persona = requireNotNull(targetDecker.persona) { "resolveKilljoy: decker has no active persona" }
         val newCm = persona.conditionMonitor.applyDamage(attack.stagedDamageLevel)
         val mentalSuccesses = if (effectivePower >= 2) diceRoller.roll(targetDecker.willpower, effectivePower).successes else 0
         val mentalStaged = stage(attack.stagedDamageLevel, -mentalSuccesses)
@@ -408,7 +408,7 @@ object CombatResolver {
     // ── Track Utility ─────────────────────────────────────────────────────────────
 
     fun resolveTrackLock(attack: AttackResult.Hit, targetDecker: Decker, trackRating: Int, diceRoller: DiceRoller): TrackState? {
-        val evadeSuccesses = diceRoller.roll(targetDecker.persona!!.evasion, max(2, trackRating)).successes
+        val evadeSuccesses = diceRoller.roll(requireNotNull(targetDecker.persona) { "resolveTrackLock: decker has no active persona" }.evasion, max(2, trackRating)).successes
         if (evadeSuccesses >= attack.attackerSuccesses) return null
         val net = attack.attackerSuccesses - evadeSuccesses
         val cycleTurns = ceil(10.0 / net).toInt()

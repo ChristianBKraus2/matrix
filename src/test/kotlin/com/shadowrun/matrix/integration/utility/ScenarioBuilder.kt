@@ -233,7 +233,6 @@ class ScenarioBuilder(private val matrix: Matrix) {
         val result = old.analyzeSubsystem(host, subsystem, roller)
         if (succeed) assertIs<OperationResult.Success>(result, "$name should succeed")
         else assertIs<OperationResult.Failure>(result, "$name should fail")
-        updateCurrentDecker(result.decker)
         context.applyDeckerOperationResult(old, result.decker)
     }
 
@@ -258,7 +257,6 @@ class ScenarioBuilder(private val matrix: Matrix) {
         val result = old.decryptAccess(host, roller)
         if (succeed) assertIs<OperationResult.Success>(result, "$name should succeed")
         else assertIs<OperationResult.Failure>(result, "$name should fail")
-        updateCurrentDecker(result.decker)
         context.applyDeckerOperationResult(old, result.decker)
     }
 
@@ -270,7 +268,6 @@ class ScenarioBuilder(private val matrix: Matrix) {
         val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
         val old = currentDecker()
         val result = old.analyzeSecurity(host, roller)
-        updateCurrentDecker(result.decker)
         context.applyDeckerOperationResult(old, result.decker)
         if (assertTallyAtLeast != null)
             assertTrue(result.currentTally >= assertTallyAtLeast, "Expected tally >= $assertTallyAtLeast but was ${result.currentTally}")
@@ -287,7 +284,6 @@ class ScenarioBuilder(private val matrix: Matrix) {
         val result = old.analyzeHost(host, items, roller)
         if (succeed) assertTrue(result.outcome.deckerWins, "$name: decker should win the System Test")
         else assertFalse(result.outcome.deckerWins, "$name: host should win the System Test")
-        updateCurrentDecker(result.decker)
         context.applyDeckerOperationResult(old, result.decker)
     }
 
@@ -308,7 +304,6 @@ class ScenarioBuilder(private val matrix: Matrix) {
         val result = old.analyzeIc(ic, host, roller)
         if (succeed) assertIs<OperationResult.Success>(result, "$name should succeed")
         else assertIs<OperationResult.Failure>(result, "$name should fail")
-        updateCurrentDecker(result.decker)
         context.applyDeckerOperationResult(old, result.decker)
     }
 
@@ -323,7 +318,6 @@ class ScenarioBuilder(private val matrix: Matrix) {
         val result = old.analyzeIc(ic, host, roller)
         if (succeed) assertIs<OperationResult.Success>(result, "$name should succeed")
         else assertIs<OperationResult.Failure>(result, "$name should fail")
-        updateCurrentDecker(result.decker)
         context.applyDeckerOperationResult(old, result.decker)
     }
 

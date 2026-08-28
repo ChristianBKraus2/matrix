@@ -90,8 +90,7 @@ class GameContextTest {
     ) = GameContext(
         host = h,
         securityCode = SecurityCode.GREEN,
-        deckers = deckers.toMutableList(),
-        activeIc = mutableListOf()
+        deckers = deckers
     )
 
     // ── updateHost ────────────────────────────────────────────────────────────────

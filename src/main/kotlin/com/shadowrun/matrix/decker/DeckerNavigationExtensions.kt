@@ -221,10 +221,10 @@ fun Decker.gracefulLogoff(diceRoller: DiceRoller): LogoffResult {
 }
 
 /** PRD: M-17, M-18 */
-fun Decker.jackOut(pinnedByBlackIc: Boolean = false): LogoffResult {
-    logger.info { "[$name] jackOut (pinnedByBlackIc=$pinnedByBlackIc) from ${currentLocation.label()}" }
+fun Decker.jackOut(): LogoffResult {
+    logger.info { "[$name] jackOut from ${currentLocation.label()}" }
     requireJackedIn()
-    check(!pinnedByBlackIc) { "Cannot jack out while pinned by Black IC" }
+    check(!isPinnedByBlackIc) { "Cannot jack out while pinned by Black IC" }
     val shock = !cyberdeck.immuneToDumpShock
     return LogoffResult.JackOut(copy(persona = null, currentLocation = null), dumpShock = shock).also {
         logger.info { "[$name] jackOut complete: dumpShock=$shock" }
@@ -249,18 +249,22 @@ private fun Decker.performLogon(
     val outcome = SystemTestResolver.resolve(this, operation, accessRating, securityValue, diceRoller)
     val newLocation = buildLocation(outcome.hostSuccesses)
     return if (outcome.deckerWins) {
-        val newPersona = persona ?: Persona(
-            bod = cyberdeck.personaPrograms
-                .firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.BOD }?.rating ?: 0,
-            evasion = cyberdeck.personaPrograms
-                .firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.EVASION }?.rating ?: 0,
-            masking = cyberdeck.personaPrograms
-                .firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.MASKING }?.rating ?: 0,
-            sensor = cyberdeck.personaPrograms
-                .firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.SENSORS }?.rating ?: 0,
-            reaction = reaction + cyberdeck.responseIncrease * 2,
-            status = com.shadowrun.matrix.common.PersonaStatus.INTRUDING
-        )
+        val newPersona = persona ?: run {
+            val bod     = cyberdeck.personaPrograms.firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.BOD }?.rating ?: 0
+            val evasion = cyberdeck.personaPrograms.firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.EVASION }?.rating ?: 0
+            val masking = cyberdeck.personaPrograms.firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.MASKING }?.rating ?: 0
+            val sensor  = cyberdeck.personaPrograms.firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.SENSORS }?.rating ?: 0
+            require(bod >= 1 && evasion >= 1 && masking >= 1 && sensor >= 1) {
+                "Cannot log on: all persona attributes must be ≥ 1 " +
+                "(bod=$bod, evasion=$evasion, masking=$masking, sensor=$sensor) — " +
+                "ensure matching persona programs are installed"
+            }
+            Persona(
+                bod = bod, evasion = evasion, masking = masking, sensor = sensor,
+                reaction = reaction + cyberdeck.responseIncrease * 2,
+                status = com.shadowrun.matrix.common.PersonaStatus.INTRUDING
+            )
+        }
         LogonResult.Success(copy(persona = newPersona, currentLocation = newLocation), newLocation)
     } else {
         LogonResult.Failure(this, currentLocation)
