@@ -20,6 +20,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
@@ -54,6 +55,8 @@ fun Application.matrixModule(registry: SessionRegistry) {
                                 ErrorMessage(message = ErrorCode.UNKNOWN_MESSAGE_TYPE, details = msgType?.take(64))
                             )))
                         }
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         logger.error(e) { "Frame dispatch error" }
                         runCatching {

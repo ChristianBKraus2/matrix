@@ -151,7 +151,7 @@ fun Decker.logonToPltg(pltg: PLTG, diceRoller: DiceRoller): LogonResult {
         else -> throw IllegalStateException("Cannot logon to PLTG from $currentLocation")
     }
     return performLogon(
-        operation = SystemOperation.LOGON_TO_LTG,
+        operation = SystemOperation.LOGON_TO_PLTG,
         accessRating = pltg.subsystemRatings.access,
         securityValue = pltg.securityRating.value,
         diceRoller = diceRoller,

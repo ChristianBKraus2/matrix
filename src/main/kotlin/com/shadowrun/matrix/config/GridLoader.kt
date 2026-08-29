@@ -27,6 +27,7 @@ object GridLoader {
 
         // Second pass: wire connectedRtgs by id reference
         val rtgById = rtgs.associateBy { it.name }
+        require(rtgs.size == rtgById.size) { "Duplicate RTG IDs in grid.yaml: ${rtgs.map { it.name }.groupBy { it }.filter { it.value.size > 1 }.keys}" }
         @Suppress("UNCHECKED_CAST")
         val wiredRtgs = rtgs.zip(rtgData).map { (rtg, data) ->
             val ids = (data["connected_rtgs"] as? List<String>) ?: emptyList()
@@ -73,7 +74,9 @@ object GridLoader {
 
         val finalRtg = placeholder.copy(ltgs = ltgsWithPltgs)
         val fixedLtgs = ltgsWithPltgs.map { it.copy(parentRtg = finalRtg) }
-        return finalRtg.copy(ltgs = fixedLtgs)
+        val trulyFinalRtg = finalRtg.copy(ltgs = fixedLtgs)
+        val rewiredLtgs = fixedLtgs.map { it.copy(parentRtg = trulyFinalRtg) }
+        return trulyFinalRtg.copy(ltgs = rewiredLtgs)
     }
 
     private fun buildLtg(
@@ -143,8 +146,7 @@ object GridLoader {
     }
 
     private fun parseSubsystemRatings(value: Any?): SubsystemRatings {
-        @Suppress("UNCHECKED_CAST")
-        val map = value as Map<String, Int>
+        val map = ConfigUtils.parseSubsystemRatings(value)
         return SubsystemRatings(
             access  = map["access"]  ?: error("missing access rating"),
             control = map["control"] ?: error("missing control rating"),

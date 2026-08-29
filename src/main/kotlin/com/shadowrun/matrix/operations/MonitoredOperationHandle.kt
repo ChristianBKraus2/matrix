@@ -1,5 +1,16 @@
 package com.shadowrun.matrix.operations
 
+import com.shadowrun.matrix.network.Host
+import com.shadowrun.matrix.network.RemoteDevice
+
+/** Typed target for a monitored operation. */
+sealed class MonitoredTarget {
+    /** A remote device controlled or observed via a Slave subsystem. */
+    data class SlaveDevice(val device: RemoteDevice) : MonitoredTarget()
+    /** A host node targeted by a comcall operation. */
+    data class ComcallHost(val host: Host) : MonitoredTarget()
+}
+
 /**
  * Handle for an active monitored operation (Control Slave, Edit Slave, Monitor Slave,
  * Make Comcall, Tap Comcall). The caller must supply a Free Action every Initiative Pass
@@ -8,7 +19,7 @@ package com.shadowrun.matrix.operations
  */
 data class MonitoredOperationHandle(
     val operation: SystemOperation,
-    /** The target resource (RemoteDevice, commcode string, etc.). */
-    val target: Any,
+    /** The target resource. */
+    val target: MonitoredTarget,
     val active: Boolean = true
 )

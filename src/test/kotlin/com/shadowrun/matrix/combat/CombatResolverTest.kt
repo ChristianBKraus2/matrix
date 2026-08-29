@@ -282,7 +282,7 @@ class CombatResolverTest {
         val opponent = ManeuverParticipant(evasion = 4, sensor = 4)
         val result = CombatResolver.resolveManeuver(CombatManeuverType.EVADE_DETECTION, mover, opponent, roller)
         assertIs<ManeuverResult.Success>(result)
-        assertEquals(9, (result as ManeuverResult.Success).netSuccesses)
+        assertEquals(9, result.netSuccesses)
     }
 
     @Test
@@ -333,7 +333,7 @@ class CombatResolverTest {
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.BLUE)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
-        assertEquals(4, (result as AttackResult.Hit).attackerSuccesses)
+        assertEquals(4, result.attackerSuccesses)
     }
 
     @Test
@@ -353,7 +353,7 @@ class CombatResolverTest {
         val defender = DefenderParticipant(bod = 4, armorCurrentRating = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
-        assertEquals(3, (result as AttackResult.Hit).power)  // effectivePower stored as power
+        assertEquals(3, result.power)  // effectivePower stored as power
     }
 
     @Test
@@ -365,7 +365,7 @@ class CombatResolverTest {
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
-        assertEquals(DamageLevel.SERIOUS, (result as AttackResult.Hit).stagedDamageLevel)
+        assertEquals(DamageLevel.SERIOUS, result.stagedDamageLevel)
     }
 
     @Test
@@ -379,7 +379,7 @@ class CombatResolverTest {
         val defender = DefenderParticipant(bod = 5, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
-        assertEquals(DamageLevel.LIGHT, (result as AttackResult.Hit).stagedDamageLevel)
+        assertEquals(DamageLevel.LIGHT, result.stagedDamageLevel)
     }
 
     @Test
@@ -413,7 +413,7 @@ class CombatResolverTest {
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
-        assertEquals(6, (result as AttackResult.Hit).power)
+        assertEquals(6, result.power)
     }
 
     // ── applyIcDamage – White/Gray IC ─────────────────────────────────────────────

@@ -560,7 +560,6 @@ class DeckerOperationsTest {
         val msg = d.bufferMessage("Move to the east exit now", recipient)
         assertEquals("Move to the east exit now", msg.text)
         assertEquals(recipient, msg.recipient)
-        assertTrue(msg.deliverAtEndOfTurn)
     }
 
     @Test

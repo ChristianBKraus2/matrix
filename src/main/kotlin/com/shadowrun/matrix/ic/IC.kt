@@ -90,6 +90,11 @@ class Probe(rating: Int, guardedNode: Node? = null) :
     }
 }
 
+/**
+ * Scramble is a reactive IC that does not perform proactive actions. It responds to decker
+ * operations (e.g. destructing a file) via the game engine, not through the standard action
+ * turn. This action implementation is intentionally a no-op.
+ */
 class Scramble(rating: Int, guardedNode: Node? = null) :
     WhiteIC("Scramble", rating, IcBehavior.REACTIVE, guardedNode) {
 

@@ -14,4 +14,14 @@ data class TriggerStep(
     val securityDeckerCount: Int = 0
 )
 
-data class SecuritySheaf(val triggerSteps: List<TriggerStep> = emptyList())
+data class SecuritySheaf(val triggerSteps: List<TriggerStep> = emptyList()) {
+    init {
+        val thresholds = triggerSteps.map { it.tallyThreshold }
+        require(thresholds.size == thresholds.distinct().size) {
+            "SecuritySheaf triggerSteps must have unique tallyThreshold values, but found duplicates: $thresholds"
+        }
+        require(thresholds == thresholds.sorted()) {
+            "SecuritySheaf triggerSteps must be sorted ascending by tallyThreshold, but got: $thresholds"
+        }
+    }
+}

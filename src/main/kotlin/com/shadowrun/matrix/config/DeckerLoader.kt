@@ -57,11 +57,18 @@ object DeckerLoader {
         val personaPrograms = buildPersonaPrograms(ppData)
         val utilities       = utilData.map { buildUtility(it) }
 
+        // Build Map<UtilityType, Boolean> once — O(n) lookup, detects duplicate types
+        val activeByType = mutableMapOf<UtilityType, Boolean>()
+        for (m in utilData) {
+            val typeName = (m["type"] as? String)?.uppercase()?.replace(' ', '_')?.replace('/', '_') ?: continue
+            val type = UtilityType.valueOf(typeName)
+            require(type !in activeByType) { "Duplicate utility type '$type' in decker YAML" }
+            activeByType[type] = (m["active"] as? Boolean) ?: false
+        }
+
         // Partition utilities by active flag; pre-loaded ones go into activeUtilities.
         val (activeUtils, storedOnly) = utilities.partition { u ->
-            utilData.firstOrNull { m ->
-                (m["type"] as? String)?.uppercase()?.replace(' ', '_')?.replace('/', '_') == u.type.name
-            }?.get("active") as? Boolean ?: false
+            activeByType[u.type] ?: false
         }
 
         return Cyberdeck(

@@ -115,7 +115,9 @@ open class IntegrationTestBase {
     protected fun runActions(icon: ActiveIcon, context: GameContext, count: Int, diceRoller: DiceRoller) {
         val states = mutableListOf(ActiveIconState(icon, count * 10))
         while (states.any { it.currentInitiative > 0 }) {
-            val state = states.filter { it.currentInitiative > 0 }.maxByOrNull { it.currentInitiative }!!
+            val state = requireNotNull(states.filter { it.currentInitiative > 0 }.maxByOrNull { it.currentInitiative }) {
+                "initiative list unexpectedly empty"
+            }
             val idx = states.indexOf(state)
             runBlocking { state.icon.action(context, diceRoller) }
             states[idx] = state.copy(currentInitiative = state.currentInitiative - 10)
@@ -123,9 +125,9 @@ open class IntegrationTestBase {
     }
 
     protected fun ScriptedDeckerIcon.runCombatTurn(diceRoller: DiceRoller): Int {
-        val damageBefore = currentDecker().persona!!.conditionMonitor.damage
-        runBlocking { Game(context = context, diceRoller = diceRoller, inCombat = true).runCombatTurn() }
-        return currentDecker().persona!!.conditionMonitor.damage - damageBefore
+        val damageBefore = requireNotNull(currentDecker().persona) { "decker persona must not be null in runCombatTurn" }.conditionMonitor.damage
+        runBlocking { Game(context = context, diceRoller = diceRoller).runCombatTurn() }
+        return requireNotNull(currentDecker().persona) { "decker persona must not be null in runCombatTurn" }.conditionMonitor.damage - damageBefore
     }
 
     protected fun ScriptedDeckerIcon.assertOnHost(name: String) {
@@ -186,7 +188,7 @@ open class IntegrationTestBase {
 
     protected fun ScriptedDeckerIcon.runCombatTurnForPhysicalDamage(diceRoller: DiceRoller): Int {
         val before = currentDecker().physicalConditionMonitor.damage
-        runBlocking { Game(context = context, diceRoller = diceRoller, inCombat = true).runCombatTurn() }
+        runBlocking { Game(context = context, diceRoller = diceRoller).runCombatTurn() }
         return currentDecker().physicalConditionMonitor.damage - before
     }
 
@@ -214,7 +216,7 @@ open class IntegrationTestBase {
         fun currentDecker() = context.deckers.first()
 
         init {
-            context.resetDeckers(initialDecker)
+            context.resetToSingleDecker(initialDecker)
         }
 
         override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {

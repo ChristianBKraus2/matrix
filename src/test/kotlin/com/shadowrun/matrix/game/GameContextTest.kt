@@ -218,15 +218,15 @@ class GameContextTest {
         assertEquals(4, ctx.host.securityTally)
     }
 
-    // ── resetDeckers ──────────────────────────────────────────────────────────────
+    // ── resetToSingleDecker ───────────────────────────────────────────────────────
 
     @Test
-    fun `resetDeckers replaces all deckers with a single new decker`() {
+    fun `resetToSingleDecker replaces all deckers with a single new decker`() {
         val d1 = deckerOnHost(host())
         val d2 = deckerOnHost(host()).copy(name = "Second")
         val ctx = context(deckers = listOf(d1, d2))
         val newDecker = deckerOnHost(host()).copy(name = "Rebuilt")
-        ctx.resetDeckers(newDecker)
+        ctx.resetToSingleDecker(newDecker)
         assertEquals(1, ctx.deckers.size)
         assertEquals("Rebuilt", ctx.deckers[0].name)
     }

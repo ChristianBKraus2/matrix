@@ -300,7 +300,6 @@ class WebSocketDeckerController(
         }
 
     private fun dispatchCommsOp(action: AvailableAction.Operation, cmd: ActionCommand, host: Host, diceRoller: DiceRoller): DispatchResult {
-        val p = cmd.params
         return when (action.operation) {
             SystemOperation.MAKE_COMCALL -> decker.makeComcall(host, diceRoller, false).first.toDispatch() // TODO: passcode ledger — see pass_3_security_complete.md
             SystemOperation.TAP_COMCALL  -> decker.tapComcall(host, 0, diceRoller).first.toDispatch() // TODO: derive scanner rating from server-side device inventory — see pass_3_security_complete.md

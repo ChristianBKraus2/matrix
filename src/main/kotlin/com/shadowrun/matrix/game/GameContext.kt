@@ -30,7 +30,7 @@ class GameContext(
 
     fun removeIc(ic: IC) { _activeIc.remove(ic) }
 
-    fun resetDeckers(decker: Decker) { _deckers.clear(); _deckers.add(decker) }
+    fun resetToSingleDecker(decker: Decker) { _deckers.clear(); _deckers.add(decker) }
 
     fun deckerByName(name: String): Decker? = _deckers.firstOrNull { it.name == name }
 

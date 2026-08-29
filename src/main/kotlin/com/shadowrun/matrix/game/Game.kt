@@ -5,18 +5,21 @@ import com.shadowrun.matrix.decker.Decker
 import com.shadowrun.matrix.ic.IC
 import com.shadowrun.matrix.utility.DiceRoller
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.CancellationException
 
 class Game(
     val context: GameContext,
-    val diceRoller: DiceRoller,
-    val inCombat: Boolean
+    val diceRoller: DiceRoller
 ) {
     private val logger = KotlinLogging.logger {}
 
     suspend fun runOutOfCombatTurn() {
         for (decker in context.deckers.toList()) {
             try { decker.action(context, diceRoller) }
-            catch (e: Exception) { logger.error(e) { "Out-of-combat action error for ${decker.name}" } }
+            catch (e: Exception) {
+                if (e is CancellationException) throw e
+                logger.error(e) { "Out-of-combat action error for ${decker.name}" }
+            }
         }
     }
 
@@ -28,10 +31,13 @@ class Game(
             return
         }
         while (states.any { it.currentInitiative > 0 }) {
-            val state = states.filter { it.currentInitiative > 0 }.maxByOrNull { it.currentInitiative } ?: break
+            val state = states.filter { it.currentInitiative > 0 }.maxByOrNull { it.currentInitiative }!!
             val idx = states.indexOf(state)
             try { state.icon.action(context, diceRoller) }
-            catch (e: Exception) { logger.error(e) { "Combat action error" } }
+            catch (e: Exception) {
+                if (e is CancellationException) throw e
+                logger.error(e) { "Combat action error" }
+            }
             states[idx] = state.copy(currentInitiative = state.currentInitiative - 10)
         }
     }

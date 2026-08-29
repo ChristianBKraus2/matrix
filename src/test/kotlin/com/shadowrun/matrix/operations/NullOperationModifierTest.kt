@@ -51,10 +51,10 @@ class NullOperationModifierTest {
     }
 
     @Test
-    fun `totalBonusForDuration accumulates 1 extra per 12-hour window beyond first hour`() {
-        // exactly 1 extra 12h block after the first hour: 3600 + 43200 = 46800
-        assertEquals(5, NullOperationModifier.totalBonusForDuration(46800))
-        // 2 extra blocks: 3600 + 43200*2 = 90000
-        assertEquals(6, NullOperationModifier.totalBonusForDuration(90000))
+    fun `totalBonusForDuration accumulates 1 extra per 12-hour window beyond first 12 hours`() {
+        // exactly 1 extra 12h block after the first 12h: 43200 + 43200 = 86400
+        assertEquals(5, NullOperationModifier.totalBonusForDuration(86400))
+        // 2 extra blocks: 43200 + 43200*2 = 129600
+        assertEquals(6, NullOperationModifier.totalBonusForDuration(129600))
     }
 }

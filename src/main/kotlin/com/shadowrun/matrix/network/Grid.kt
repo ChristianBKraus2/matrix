@@ -23,7 +23,11 @@ data class RTG(
     override val alertStatus: AlertStatus = AlertStatus.NO_ALERT,
     val ltgs: List<LTG> = emptyList(),
     val connectedRtgs: List<RTG> = emptyList()
-) : Grid(name, securityRating, subsystemRatings, securitySheaf, securityTally, alertStatus)
+) : Grid(name, securityRating, subsystemRatings, securitySheaf, securityTally, alertStatus) {
+    override fun equals(other: Any?) = other is RTG && name == other.name
+    override fun hashCode() = name.hashCode()
+    override fun toString() = "RTG(name=$name, region=$region, security=${securityRating.code}(${securityRating.value}), ltgs=${ltgs.size}, connectedRtgs=${connectedRtgs.size})"
+}
 
 data class LTG(
     override val name: String,
@@ -36,7 +40,11 @@ data class LTG(
     val hosts: List<Host> = emptyList(),
     val pltgs: List<PLTG> = emptyList(),
     val region: String = ""
-) : Grid(name, securityRating, subsystemRatings, securitySheaf, securityTally, alertStatus)
+) : Grid(name, securityRating, subsystemRatings, securitySheaf, securityTally, alertStatus) {
+    override fun equals(other: Any?) = other is LTG && name == other.name
+    override fun hashCode() = name.hashCode()
+    override fun toString() = "LTG(name=$name, parentRtg=${parentRtg.name}, security=${securityRating.code}(${securityRating.value}))"
+}
 
 data class PLTG(
     override val name: String,
@@ -48,4 +56,8 @@ data class PLTG(
     override val securityTally: Int = 0,
     override val alertStatus: AlertStatus = AlertStatus.NO_ALERT,
     val hosts: List<Host> = emptyList()
-) : Grid(name, securityRating, subsystemRatings, securitySheaf, securityTally, alertStatus)
+) : Grid(name, securityRating, subsystemRatings, securitySheaf, securityTally, alertStatus) {
+    override fun equals(other: Any?) = other is PLTG && name == other.name
+    override fun hashCode() = name.hashCode()
+    override fun toString() = "PLTG(name=$name, owner=$owner, parentLtg=${parentLtg.name})"
+}

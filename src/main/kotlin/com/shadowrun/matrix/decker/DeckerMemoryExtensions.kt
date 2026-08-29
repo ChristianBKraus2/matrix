@@ -2,6 +2,7 @@ package com.shadowrun.matrix.decker
 
 import com.shadowrun.matrix.programs.Utility
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlin.math.ceil
 
 private val logger = KotlinLogging.logger {}
 
@@ -24,7 +25,7 @@ fun Decker.loadUtility(utility: Utility): LoadUtilityResult {
         logger.warn { "[$name] loadUtility ${utility.type}: ioSpeedMpPerTurn is 0 — treating as instant load" }
         0
     } else {
-        Math.ceil(utility.mpSize.toDouble() / cyberdeck.ioSpeedMpPerTurn).toInt()
+        ceil(utility.mpSize.toDouble() / cyberdeck.ioSpeedMpPerTurn).toInt()
     }
     val updatedDeck = if (turnsRequired == 0) {
         cyberdeck.copy(activeUtilities = cyberdeck.activeUtilities + utility)

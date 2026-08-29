@@ -9,4 +9,12 @@ data class DataFile(
     val sizeMp: Int = 0
 ) {
     val isPointer: Boolean get() = pointerToHost != null
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is DataFile) return false
+        return name == other.name && isScrambleProtected == other.isScrambleProtected && sizeMp == other.sizeMp
+    }
+    override fun hashCode(): Int = 31 * (31 * name.hashCode() + isScrambleProtected.hashCode()) + sizeMp
+    override fun toString() = "DataFile(name=$name, scramble=$isScrambleProtected, size=${sizeMp}Mp" + (if (isPointer) ", ->pointer" else "") + ")"
 }

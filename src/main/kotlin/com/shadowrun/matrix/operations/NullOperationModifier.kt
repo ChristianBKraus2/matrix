@@ -26,7 +26,7 @@ enum class NullOperationModifier(val bonus: Int) {
         fun totalBonusForDuration(seconds: Int): Int {
             val base = forDuration(seconds).bonus
             if (seconds < 43200) return base          // < 12 hours: no extra increments
-            val extraIncrements = (seconds - 3600) / 43200   // additional 12-hr blocks after the first hour
+            val extraIncrements = (seconds - 43200) / 43200   // additional complete 12-hr blocks beyond the first 12 hours
             return base + extraIncrements
         }
     }

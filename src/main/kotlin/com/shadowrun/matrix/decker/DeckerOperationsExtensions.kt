@@ -18,8 +18,10 @@ import com.shadowrun.matrix.operations.InterrogationState
 import com.shadowrun.matrix.operations.LinkedObserver
 import com.shadowrun.matrix.operations.LocateDeckerResult
 import com.shadowrun.matrix.operations.LocateResult
+import com.shadowrun.matrix.operations.LocatedTarget
 import com.shadowrun.matrix.operations.MatrixIcon
 import com.shadowrun.matrix.operations.MonitoredOperationHandle
+import com.shadowrun.matrix.operations.MonitoredTarget
 import com.shadowrun.matrix.operations.OperationResult
 import com.shadowrun.matrix.operations.PointerChain
 import com.shadowrun.matrix.operations.QueryPrecision
@@ -51,7 +53,7 @@ fun Decker.noticeIcon(icon: MatrixIcon, diceRoller: DiceRoller, friendlyReveal: 
         is MatrixIcon.PersonaIcon -> icon.persona.masking + icon.sleazeRating
         is MatrixIcon.IcIcon     -> icon.ic.rating
     }
-    val p = requireNotNull(persona) { "noticeIcon requires a jacked-in persona" }
+    val p = persona
     val result = diceRoller.roll(p.sensor, maxOf(2, tn))
     logger.info { "[$name] noticeIcon: sensor=${p.sensor} dice vs TN=$tn → ${result.successes} successes" }
     return if (result.successes == 0) SensorTestResult.Undetected
@@ -62,7 +64,7 @@ fun Decker.noticeIcon(icon: MatrixIcon, diceRoller: DiceRoller, friendlyReveal: 
 fun Decker.noticeTriggeredIc(ic: IC, diceRoller: DiceRoller): IcDetectionResult {
     logger.info { "[$name] noticeTriggeredIc: IC=${ic.name} rating=${ic.rating}" }
     check(persona != null) { "noticeTriggeredIc requires a jacked-in persona" }
-    val p = requireNotNull(persona) { "noticeTriggeredIc requires a jacked-in persona" }
+    val p = persona
     val result = diceRoller.roll(p.sensor, maxOf(2, ic.rating))
     logger.info { "[$name] noticeTriggeredIc: sensor=${p.sensor} dice vs TN=${ic.rating} → ${result.successes} successes" }
     return when {
@@ -78,7 +80,7 @@ fun Decker.noticeTriggeredIc(ic: IC, diceRoller: DiceRoller): IcDetectionResult 
 fun Decker.analyzeHost(host: Host, requestedItems: List<HostInfoItem>, diceRoller: DiceRoller): AnalyzeHostResult {
     logger.info { "[$name] analyzeHost → ${host.name}" }
     requireJackedIn()
-    require(currentLocation is MatrixLocation.OnHost && (currentLocation as MatrixLocation.OnHost).host == host) {
+    require(currentLocation is MatrixLocation.OnHost && currentLocation.host === host) {
         "analyzeHost requires the decker to be on the target host"
     }
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_HOST, host.subsystemRatings.control, host.securityRating.value, diceRoller)
@@ -184,7 +186,7 @@ fun Decker.locateFile(host: Host, query: String = "", precision: QueryPrecision,
     val locateResult = when {
         newState.accumulatedSuccesses >= 5 -> {
             val file = host.dataFiles.firstOrNull { it.name.contains(state.query, ignoreCase = true) }
-            if (file != null) LocateResult.Located(file, newState.accumulatedSuccesses)
+            if (file != null) LocateResult.Located(LocatedTarget.FileTarget(file), newState.accumulatedSuccesses)
             else LocateResult.NotFound
         }
         newState.accumulatedSuccesses >= 3 && host.dataFiles.none { it.name.contains(state.query, ignoreCase = true) } ->
@@ -193,7 +195,7 @@ fun Decker.locateFile(host: Host, query: String = "", precision: QueryPrecision,
     }
     logger.info { "[$name] locateFile result: $locateResult" }
     val newStates = when (locateResult) {
-        is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_FILE to state.copy(accumulatedSuccesses = locateResult.accumulatedSuccesses))
+        is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_FILE to newState)
         else -> interrogationStates - SystemOperation.LOCATE_FILE
     }
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
@@ -211,14 +213,14 @@ fun Decker.locateSlave(host: Host, query: String = "", precision: QueryPrecision
     val locateResult = when {
         newState.accumulatedSuccesses >= 3 -> {
             val device = host.remoteDevices.firstOrNull { it.name.contains(state.query, ignoreCase = true) }
-            if (device != null) LocateResult.Located(device, newState.accumulatedSuccesses)
+            if (device != null) LocateResult.Located(LocatedTarget.SlaveTarget(device), newState.accumulatedSuccesses)
             else LocateResult.NotFound
         }
         else -> LocateResult.Ongoing(newState.accumulatedSuccesses)
     }
     logger.info { "[$name] locateSlave result: $locateResult" }
     val newStates = when (locateResult) {
-        is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_SLAVE to state.copy(accumulatedSuccesses = locateResult.accumulatedSuccesses))
+        is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_SLAVE to newState)
         else -> interrogationStates - SystemOperation.LOCATE_SLAVE
     }
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
@@ -233,10 +235,10 @@ fun Decker.locateAccessNode(host: Host, query: String = "", precision: QueryPrec
     logger.info { "[$name] locateAccessNode on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
     requireJackedIn()
     val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_ACCESS_NODE, host, state, precision, diceRoller)
-    val locateResult = if (newState.accumulatedSuccesses >= 5) LocateResult.Located(state.query, newState.accumulatedSuccesses)
+    val locateResult = if (newState.accumulatedSuccesses >= 5) LocateResult.Located(LocatedTarget.AccessNodeTarget(state.query), newState.accumulatedSuccesses)
     else LocateResult.Ongoing(newState.accumulatedSuccesses)
     val newStates = when (locateResult) {
-        is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_ACCESS_NODE to state.copy(accumulatedSuccesses = locateResult.accumulatedSuccesses))
+        is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_ACCESS_NODE to newState)
         else -> interrogationStates - SystemOperation.LOCATE_ACCESS_NODE
     }
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
@@ -318,7 +320,7 @@ fun Decker.controlSlave(
     logger.info { "[$name] controlSlave: decker=$skill dice TN=$tn → ${deckerResult.successes}; host=${hostResult.successes}" }
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins)
-        Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.CONTROL_SLAVE, device))
+        Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.CONTROL_SLAVE, MonitoredTarget.SlaveDevice(device)))
     else
         Pair(OperationResult.Failure(updated, outcome), null)
 }
@@ -328,7 +330,7 @@ fun Decker.editSlave(device: RemoteDevice, host: Host, diceRoller: DiceRoller): 
     requireJackedIn()
     val outcome = SystemTestResolver.resolve(this, SystemOperation.EDIT_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller)
     val updated = withUpdatedTally(outcome.hostSuccesses)
-    return if (outcome.deckerWins) Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.EDIT_SLAVE, device))
+    return if (outcome.deckerWins) Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.EDIT_SLAVE, MonitoredTarget.SlaveDevice(device)))
     else Pair(OperationResult.Failure(updated, outcome), null)
 }
 
@@ -337,7 +339,7 @@ fun Decker.monitorSlave(device: RemoteDevice, host: Host, diceRoller: DiceRoller
     requireJackedIn()
     val outcome = SystemTestResolver.resolve(this, SystemOperation.MONITOR_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller)
     val updated = withUpdatedTally(outcome.hostSuccesses)
-    return if (outcome.deckerWins) Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.MONITOR_SLAVE, device))
+    return if (outcome.deckerWins) Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.MONITOR_SLAVE, MonitoredTarget.SlaveDevice(device)))
     else Pair(OperationResult.Failure(updated, outcome), null)
 }
 
@@ -408,7 +410,7 @@ fun Decker.invokeMediac(diceRoller: DiceRoller): MedicResult {
 /** PRD: SO-03, SO-04 */
 fun Decker.resolvePointerChain(file: DataFile, diceRoller: DiceRoller): PointerChain {
     require(file.isPointer) { "resolvePointerChain called on a non-pointer DataFile" }
-    val chainLength = diceRoller.roll(1, 6).dice.first() // 1D6
+    val chainLength = diceRoller.roll(1, 6).dice.firstOrNull() ?: error("DiceRoller.roll(1, 6) returned empty dice list") // 1D6
     val links = buildList {
         var current = requireNotNull(file.pointerToHost) { "resolvePointerChain: DataFile has null pointerToHost" }
         repeat(chainLength - 1) {
@@ -463,11 +465,11 @@ fun Decker.makeComcall(host: Host, diceRoller: DiceRoller, hasValidPasscode: Boo
     if (hasValidPasscode) {
         logger.info { "[$name] makeComcall: licensed decker with valid passcode — System Test skipped" }
         val syntheticOutcome = SystemTestOutcome(1, 0, true)
-        return Pair(OperationResult.Success(this, syntheticOutcome), MonitoredOperationHandle(SystemOperation.MAKE_COMCALL, host))
+        return Pair(OperationResult.Success(this, syntheticOutcome), MonitoredOperationHandle(SystemOperation.MAKE_COMCALL, MonitoredTarget.ComcallHost(host)))
     }
     val outcome = SystemTestResolver.resolve(this, SystemOperation.MAKE_COMCALL, host.subsystemRatings.files, host.securityRating.value, diceRoller)
     val updated = withUpdatedTally(outcome.hostSuccesses)
-    return if (outcome.deckerWins) Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.MAKE_COMCALL, host))
+    return if (outcome.deckerWins) Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.MAKE_COMCALL, MonitoredTarget.ComcallHost(host)))
     else Pair(OperationResult.Failure(updated, outcome), null)
 }
 
@@ -491,7 +493,7 @@ fun Decker.tapComcall(host: Host, scannerDeviceRating: Int = 0, diceRoller: Dice
             return Pair(OperationResult.Failure(updated, outcome), null)
         }
     }
-    return Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.TAP_COMCALL, host))
+    return Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.TAP_COMCALL, MonitoredTarget.ComcallHost(host)))
 }
 
 // ── Relocate Icon ──────────────────────────────────────────────────────────────

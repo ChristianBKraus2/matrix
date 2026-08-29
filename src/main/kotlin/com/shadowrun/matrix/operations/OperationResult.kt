@@ -4,6 +4,8 @@ import com.shadowrun.matrix.common.AlertStatus
 import com.shadowrun.matrix.common.SecurityRating
 import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.decker.Decker
+import com.shadowrun.matrix.network.DataFile
+import com.shadowrun.matrix.network.RemoteDevice
 
 /** Common return type for system operations that involve a System Test. PRD: operations.md */
 sealed class OperationResult {
@@ -59,12 +61,22 @@ data class EditFileResult(
     val authenticationSuccesses: Int?
 )
 
+/** Typed target for the result of a successful interrogation operation. */
+sealed class LocatedTarget {
+    /** A data file found on the host. */
+    data class FileTarget(val file: DataFile) : LocatedTarget()
+    /** A remote device (slave) found on the host. */
+    data class SlaveTarget(val device: RemoteDevice) : LocatedTarget()
+    /** An access node identified by its address string. */
+    data class AccessNodeTarget(val address: String) : LocatedTarget()
+}
+
 /** Shared result type for interrogation operations (Locate File/Slave/Access Node). */
 sealed class LocateResult {
     /** Accumulated successes below threshold; still searching. */
     data class Ongoing(val accumulatedSuccesses: Int) : LocateResult()
     /** Accumulated successes ≥ threshold; target located. */
-    data class Located(val target: Any, val accumulatedSuccesses: Int) : LocateResult()
+    data class Located(val target: LocatedTarget, val accumulatedSuccesses: Int) : LocateResult()
     /** Host confirmed the queried data does not exist (≥ 3 successes with no data present). */
     object NotFound : LocateResult()
 }

@@ -8,7 +8,7 @@ import kotlinx.coroutines.sync.withLock
 
 class TurnCoordinator {
     private val mutex = Mutex()
-    private var activeController: DefaultWebSocketServerSession? = null
+    @Volatile private var activeController: DefaultWebSocketServerSession? = null
     private var pendingAction: CompletableDeferred<ActionCommand>? = null
 
     suspend fun setPendingAction(deferred: CompletableDeferred<ActionCommand>?) = mutex.withLock {

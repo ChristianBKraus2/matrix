@@ -12,19 +12,20 @@ import com.shadowrun.matrix.server.startMatrixServer
 import com.shadowrun.matrix.utility.DiceRoller
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CancellationException
 
 private val logger = KotlinLogging.logger {}
 
 fun main() {
     val classLoader = Thread.currentThread().contextClassLoader
 
-    val catalog = classLoader.getResourceAsStream("decks.yaml")!!
+    val catalog = requireNotNull(classLoader.getResourceAsStream("decks.yaml")) { "Resource not found: decks.yaml" }
         .use { DeckCatalogLoader.load(it) }
 
-    val decker = classLoader.getResourceAsStream("headcrash.yaml")!!
+    val decker = requireNotNull(classLoader.getResourceAsStream("headcrash.yaml")) { "Resource not found: headcrash.yaml" }
         .use { DeckerLoader.load(it, catalog) }
 
-    val host = classLoader.getResourceAsStream("hosts/MitsuhamaPagoda.yaml")!!
+    val host = requireNotNull(classLoader.getResourceAsStream("hosts/MitsuhamaPagoda.yaml")) { "Resource not found: hosts/MitsuhamaPagoda.yaml" }
         .use { HostLoader.load(it) }
 
     GridInitializer.initialize()
@@ -39,12 +40,15 @@ fun main() {
         deckers = listOf(decker)
     )
     val controller = WebSocketDeckerController(registry, decker)
+    val diceRoller = DiceRoller()
 
     while (true) {
         try {
-            runBlocking { controller.conductTurn(context, DiceRoller()) }
+            runBlocking { controller.conductTurn(context, diceRoller) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            logger.warn { "Game loop: ${e.message}" }
+            logger.error(e) { "Game loop error" }
             Thread.sleep(500)
         }
     }

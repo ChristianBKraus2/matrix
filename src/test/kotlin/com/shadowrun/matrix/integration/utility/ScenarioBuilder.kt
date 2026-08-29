@@ -66,7 +66,9 @@ class ScenarioBuilder(private val matrix: Matrix) {
     }
 
     fun logonToParentRtg(name: String = "move to parent RTG", succeed: Boolean = true) = step(name) {
-        val currentLtg = (currentDecker().currentLocation as MatrixLocation.OnLTG).ltg
+        val loc = currentDecker().currentLocation
+        require(loc is MatrixLocation.OnLTG) { "Expected OnLTG but was $loc" }
+        val currentLtg = loc.ltg
         assertVisible({ it is MatrixObject.GridNode && it.rtg.name == currentLtg.parentRtg.name }, "parent RTG '${currentLtg.parentRtg.name}'")
         assertActionable({ it is AvailableAction.LogonToRtg && it.rtg.name == currentLtg.parentRtg.name }, "LogonToRtg '${currentLtg.parentRtg.name}'")
         val r = currentDecker().logonToRtg(currentLtg.parentRtg, roller)
@@ -228,7 +230,9 @@ class ScenarioBuilder(private val matrix: Matrix) {
             it.target is MatrixObject.HostSubsystem &&
             (it.target as MatrixObject.HostSubsystem).node.subsystemType == subsystem
         }, "ANALYZE_SUBSYSTEM $subsystem")
-        val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
+        val loc = currentDecker().currentLocation
+        require(loc is MatrixLocation.OnHost) { "Expected OnHost but was $loc" }
+        val host = loc.host
         val old = currentDecker()
         val result = old.analyzeSubsystem(host, subsystem, roller)
         if (succeed) assertIs<OperationResult.Success>(result, "$name should succeed")
@@ -252,7 +256,9 @@ class ScenarioBuilder(private val matrix: Matrix) {
         succeed: Boolean = true
     ) = step(name) {
         assertActionable({ it is AvailableAction.Operation && it.operation == SystemOperation.DECRYPT_ACCESS }, "DECRYPT_ACCESS")
-        val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
+        val loc = currentDecker().currentLocation
+        require(loc is MatrixLocation.OnHost) { "Expected OnHost but was $loc" }
+        val host = loc.host
         val old = currentDecker()
         val result = old.decryptAccess(host, roller)
         if (succeed) assertIs<OperationResult.Success>(result, "$name should succeed")
@@ -265,7 +271,9 @@ class ScenarioBuilder(private val matrix: Matrix) {
         assertTallyAtLeast: Int? = null
     ) = step(name) {
         assertActionable({ it is AvailableAction.Operation && it.operation == SystemOperation.ANALYZE_SECURITY }, "ANALYZE_SECURITY")
-        val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
+        val loc = currentDecker().currentLocation
+        require(loc is MatrixLocation.OnHost) { "Expected OnHost but was $loc" }
+        val host = loc.host
         val old = currentDecker()
         val result = old.analyzeSecurity(host, roller)
         context.applyDeckerOperationResult(old, result.decker)
@@ -279,7 +287,9 @@ class ScenarioBuilder(private val matrix: Matrix) {
         succeed: Boolean = true
     ) = step(name) {
         assertActionable({ it is AvailableAction.Operation && it.operation == SystemOperation.ANALYZE_HOST }, "ANALYZE_HOST")
-        val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
+        val loc = currentDecker().currentLocation
+        require(loc is MatrixLocation.OnHost) { "Expected OnHost but was $loc" }
+        val host = loc.host
         val old = currentDecker()
         val result = old.analyzeHost(host, items, roller)
         if (succeed) assertTrue(result.outcome.deckerWins, "$name: decker should win the System Test")
@@ -299,7 +309,9 @@ class ScenarioBuilder(private val matrix: Matrix) {
             it.target is MatrixObject.IcProgram &&
             (it.target as MatrixObject.IcProgram).ic == ic
         }, "ANALYZE_IC '${ic.name}'")
-        val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
+        val loc = currentDecker().currentLocation
+        require(loc is MatrixLocation.OnHost) { "Expected OnHost but was $loc" }
+        val host = loc.host
         val old = currentDecker()
         val result = old.analyzeIc(ic, host, roller)
         if (succeed) assertIs<OperationResult.Success>(result, "$name should succeed")
@@ -313,7 +325,9 @@ class ScenarioBuilder(private val matrix: Matrix) {
     ) = step(name) {
         assertActionable({ it is AvailableAction.Operation && it.operation == SystemOperation.ANALYZE_IC }, "ANALYZE_IC")
         val ic = context.activeIc.first()
-        val host = (currentDecker().currentLocation as MatrixLocation.OnHost).host
+        val loc = currentDecker().currentLocation
+        require(loc is MatrixLocation.OnHost) { "Expected OnHost but was $loc" }
+        val host = loc.host
         val old = currentDecker()
         val result = old.analyzeIc(ic, host, roller)
         if (succeed) assertIs<OperationResult.Success>(result, "$name should succeed")

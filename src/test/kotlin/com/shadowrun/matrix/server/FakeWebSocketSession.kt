@@ -13,6 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
+import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.CoroutineContext
 
 @OptIn(InternalAPI::class)
@@ -35,5 +36,5 @@ class FakeWebSocketSession : DefaultWebSocketServerSession {
     override fun terminate() = Unit
     override fun start(negotiatedExtensions: List<WebSocketExtension<*>>) = Unit
 
-    suspend fun nextText(): String = (_outgoing.receive() as Frame.Text).readText()
+    suspend fun nextText(): String = (withTimeout(5_000) { _outgoing.receive() } as Frame.Text).readText()
 }

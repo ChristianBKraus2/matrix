@@ -142,7 +142,8 @@ object CombatResolver {
 
     fun resolveJackOutWithPin(decker: Decker, diceRoller: DiceRoller): JackOutPinResult {
         require(decker.isPinnedByBlackIc) { "Decker is not pinned by Black IC" }
-        val successes = diceRoller.roll(decker.willpower, decker.blackIcPin!!.pinningIc.rating).successes
+        val pin = requireNotNull(decker.blackIcPin) { "resolveJackOutWithPin: decker.blackIcPin is null despite isPinnedByBlackIc guard" }
+        val successes = diceRoller.roll(decker.willpower, pin.pinningIc.rating).successes
         return if (successes >= 1) {
             JackOutPinResult(succeeded = true, finalIcAttackTriggered = true)
         } else {
@@ -245,6 +246,13 @@ object CombatResolver {
 
     // ── Black IC ──────────────────────────────────────────────────────────────────
 
+    /**
+     * Resolves a Lethal Black IC attack on [decker].
+     *
+     * `attackerSuccesses = 1` in the returned [AttackResult.Hit] is a sentinel value representing
+     * a hit; Black IC does not use the standard attack roll mechanism. Callers (e.g. TrackLock)
+     * must not use this field for cycling calculations.
+     */
     fun resolveLethalBlackIc(
         decker: Decker,
         ic: LethalBlackIC,
@@ -292,6 +300,13 @@ object CombatResolver {
         return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered, mpcpReductionOnKill = mpcpReduction)
     }
 
+    /**
+     * Resolves a Non-Lethal Black IC attack on [decker].
+     *
+     * `attackerSuccesses = 1` in the returned [AttackResult.Hit] is a sentinel value representing
+     * a hit; Black IC does not use the standard attack roll mechanism. Callers (e.g. TrackLock)
+     * must not use this field for cycling calculations.
+     */
     fun resolveNonLethalBlackIc(
         decker: Decker,
         ic: NonLethalBlackIC,
@@ -377,7 +392,8 @@ object CombatResolver {
     // ── Track Utility ─────────────────────────────────────────────────────────────
 
     fun resolveTrackLock(attack: AttackResult.Hit, targetDecker: Decker, trackRating: Int, diceRoller: DiceRoller): TrackState? {
-        val evadeSuccesses = diceRoller.roll(requireNotNull(targetDecker.persona) { "resolveTrackLock: decker has no active persona" }.evasion, max(2, trackRating)).successes
+        val persona = requireNotNull(targetDecker.persona) { "resolveTrackLock: targetDecker has no persona" }
+        val evadeSuccesses = diceRoller.roll(persona.evasion, max(2, trackRating)).successes
         if (evadeSuccesses >= attack.attackerSuccesses) return null
         val net = attack.attackerSuccesses - evadeSuccesses
         val cycleTurns = ceil(10.0 / net).toInt()

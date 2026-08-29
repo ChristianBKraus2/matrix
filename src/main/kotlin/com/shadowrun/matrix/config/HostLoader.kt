@@ -202,8 +202,7 @@ object HostLoader {
     }
 
     private fun parseSubsystemRatings(value: Any?): SubsystemRatings {
-        @Suppress("UNCHECKED_CAST")
-        val map = value as Map<String, Int>
+        val map = ConfigUtils.parseSubsystemRatings(value)
         return SubsystemRatings(
             access  = map["access"]  ?: error("missing access rating"),
             control = map["control"] ?: error("missing control rating"),

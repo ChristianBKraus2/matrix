@@ -11,7 +11,8 @@ object DeckCatalogLoader {
     fun load(input: InputStream): List<DeckCatalogEntry> {
         val yaml = Yaml(SafeConstructor(LoaderOptions()))
         val data = yaml.load<Map<String, Any>>(input)
-        val entries = data["decks"] as List<Map<String, Any>>
+        @Suppress("UNCHECKED_CAST")
+        val entries = (data["decks"] as? List<Map<String, Any>>) ?: error("missing 'decks' key in deck catalog YAML")
         return entries.map { buildEntry(it) }
     }
 

@@ -165,6 +165,6 @@ class SessionRegistry {
             session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = errorCode))))
             return
         }
-        future!!.complete(cmd)
+        requireNotNull(future) { "claimAction returned null future with null errorKey — invariant violated" }.complete(cmd)
     }
 }

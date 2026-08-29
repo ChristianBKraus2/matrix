@@ -424,7 +424,7 @@ class SystemOperationsTest {
     @Test
     fun `abortMonitoredOperation sets active to false`() {
         val d = decker(jackedIn = true)
-        val handle = MonitoredOperationHandle(SystemOperation.EDIT_SLAVE, "target", active = true)
+        val handle = MonitoredOperationHandle(SystemOperation.EDIT_SLAVE, MonitoredTarget.SlaveDevice(RemoteDevice("test", "test")), active = true)
         val aborted = d.abortMonitoredOperation(handle)
         assertEquals(false, aborted.active)
     }
@@ -432,7 +432,7 @@ class SystemOperationsTest {
     @Test
     fun `maintainMonitoredOperation keeps active handle active`() {
         val d = decker(jackedIn = true)
-        val handle = MonitoredOperationHandle(SystemOperation.MONITOR_SLAVE, "device", active = true)
+        val handle = MonitoredOperationHandle(SystemOperation.MONITOR_SLAVE, MonitoredTarget.SlaveDevice(RemoteDevice("test", "test")), active = true)
         val maintained = d.maintainMonitoredOperation(handle)
         assertTrue(maintained.active)
     }
@@ -526,7 +526,7 @@ class SystemOperationsTest {
 
     @Test
     fun `MonitoredOperationHandle active defaults to true`() {
-        val h = MonitoredOperationHandle(SystemOperation.CONTROL_SLAVE, "target")
+        val h = MonitoredOperationHandle(SystemOperation.CONTROL_SLAVE, MonitoredTarget.SlaveDevice(RemoteDevice("test", "test")))
         assertTrue(h.active)
     }
 

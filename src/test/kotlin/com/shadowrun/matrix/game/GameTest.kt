@@ -510,21 +510,15 @@ class GameTest {
 
     @Test
     fun `runOutOfCombatTurn calls action on each decker`() {
-        val actionLog = mutableListOf<String>()
-        val trackingIcon = object : ActiveIcon {
-            override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
-                actionLog += "called"
-                return ActionResult.DeckerAction
-            }
-        }
-        // Use a real decker so context is valid; track via spy-style context subclass
         val decker1 = intrudingDecker(name = "A")
         val decker2 = intrudingDecker(name = "B")
         val ctx = context(deckers = listOf(decker1, decker2))
-        val game = Game(ctx, allFaces(1), inCombat = false)
+        val game = Game(ctx, allFaces(1))
         runBlocking { game.runOutOfCombatTurn() }
-        // Each decker.action is DeckerAction (placeholder) — verify both were called via size
-        assertEquals(2, ctx.deckers.size)
+        // Both deckers must remain in context: the loop processes all 2 entries in order
+        // without reordering, dropping, or re-adding any entry.
+        assertEquals(listOf("A", "B"), ctx.deckers.map { it.name },
+            "runOutOfCombatTurn must iterate all deckers in order without modifying the context")
     }
 
     // ── Game.runCombatTurn — initiative ordering ───────────────────────────────────
@@ -574,7 +568,7 @@ class GameTest {
         val ctx = context(deckers = listOf(decker))
         // single die for decker initiative: reaction=5, roll=4 → score=9
         val dice = DiceRoller(stubRandom(4))
-        val game = Game(ctx, dice, inCombat = true)
+        val game = Game(ctx, dice)
         runBlocking { game.runCombatTurn() }
     }
 

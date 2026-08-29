@@ -1,6 +1,7 @@
 package com.shadowrun.matrix.decker
 
 import com.shadowrun.matrix.common.ConditionMonitor
+import com.shadowrun.matrix.common.PersonaAttributeType
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.Jackpoint
 import com.shadowrun.matrix.network.MatrixLocation
@@ -52,7 +53,7 @@ data class Decker(
      *  Recalculated dynamically — Sleaze in pendingUploads does not count. PRD: CD-17, CD-18 */
     val detectionFactor: Int get() {
         val masking = cyberdeck.personaPrograms
-            .firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.MASKING }
+            .firstOrNull { it.attributeType == PersonaAttributeType.MASKING }
             ?.rating ?: 0
         val sleaze = cyberdeck.activeUtilities
             .firstOrNull { it.type == UtilityType.SLEAZE }?.currentRating

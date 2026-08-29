@@ -136,6 +136,7 @@ class WebSocketServerTest {
         assertFalse(result.success)
         assertTrue(result.details.contains("turn skipped"))
         thread.join(3000)
+        assertFalse(thread.isAlive, "background thread did not terminate")
     }
 
     @Test
@@ -170,6 +171,7 @@ class WebSocketServerTest {
 
         session.nextText() // demotion ControlMessage(registered_decker)
         thread.join(3000)
+        assertFalse(thread.isAlive, "background thread did not terminate")
     }
 
     // ── Reconnect and name validation ────────────────────────────────────────────
@@ -273,5 +275,6 @@ class WebSocketServerTest {
         assertFalse(result.success)
         assertTrue(result.details.contains("forfeit"))
         thread.join(6000)
+        assertFalse(thread.isAlive, "background thread did not terminate")
     }
 }

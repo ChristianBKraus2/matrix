@@ -36,4 +36,8 @@ data class Host(
             "Host must have at least one node per subsystem type"
         }
     }
+
+    override fun equals(other: Any?) = other is Host && name == other.name
+    override fun hashCode() = name.hashCode()
+    override fun toString() = "Host(name=$name, security=${securityRating.code}(${securityRating.value}), alert=$alertStatus, tally=$securityTally)"
 }

@@ -111,7 +111,7 @@ object DeckerMock {
         )
     }
     fun load(decker: InputStream, decks: InputStream) : Decker {
-        val decks = DeckCatalogLoader.load(decks)
-        return com.shadowrun.matrix.config.DeckerLoader.load(decker,decks)
+        val deckCatalog = DeckCatalogLoader.load(decks)
+        return com.shadowrun.matrix.config.DeckerLoader.load(decker, deckCatalog)
     }
 }

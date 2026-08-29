@@ -62,6 +62,10 @@
 - PointerTargetHost: Host? — the host where the actual data resides (non-null when IsPointer = true)
 - PointerTargetFile: DataFile? — the specific file on the target host (may be another pointer, forming a chain)
 
+### Implementation Notes
+
+**Equality semantics:** RTG, LTG, PLTG, Host, and DataFile are Kotlin data classes whose generated equals/hashCode/toString have been overridden to prevent unbounded recursion over the graph structure. Equality is based on the name field alone for RTG, LTG, PLTG, and Host. For DataFile, equality is based on name, isScrambleProtected, and sizeMp (the pointerToHost back-reference is excluded). The copy() method is unaffected and continues to work normally.
+
 ---
 
 ## Decker
