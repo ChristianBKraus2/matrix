@@ -9,8 +9,7 @@ export interface JoinMessage {
 export interface ActionParams {
   newContent?: string | null
   precision?: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'
-  hasValidPasscode?: boolean
-  scannerDeviceRating?: number
+  query?: string
   inactivitySeconds?: number
 }
 
@@ -40,6 +39,7 @@ export interface ActiveUtility {
 export interface DeckerStateDto {
   name: string
   location: string
+  locationIndex?: number
   isPinnedByBlackIc: boolean
   physicalDamage: number
   physicalMaxBoxes: number
@@ -77,9 +77,9 @@ export type ActionType = 'FREE' | 'SIMPLE' | 'COMPLEX'
 export type SystemOperation =
   | 'ANALYZE_HOST' | 'ANALYZE_IC' | 'ANALYZE_ICON' | 'ANALYZE_SECURITY' | 'ANALYZE_SUBSYSTEM'
   | 'CONTROL_SLAVE' | 'DECRYPT_ACCESS' | 'DECRYPT_FILE' | 'DECRYPT_SLAVE' | 'DOWNLOAD_DATA'
-  | 'EDIT_FILE' | 'EDIT_SLAVE' | 'GRACEFUL_LOGOFF' | 'LOCATE_ACCESS_NODE' | 'LOCATE_DECKER'
-  | 'LOCATE_FILE' | 'LOCATE_IC' | 'LOCATE_SLAVE' | 'LOGON_TO_HOST' | 'LOGON_TO_LTG'
-  | 'LOGON_TO_RTG' | 'MAKE_COMCALL' | 'MONITOR_SLAVE' | 'NULL_OPERATION' | 'SWAP_MEMORY'
+  | 'EDIT_FILE' | 'EDIT_SLAVE' | 'LOCATE_ACCESS_NODE'
+  | 'LOCATE_FILE' | 'LOCATE_IC' | 'LOCATE_SLAVE'
+  | 'MAKE_COMCALL' | 'MONITOR_SLAVE' | 'NULL_OPERATION'
   | 'RELOCATE_ICON' | 'TAP_COMCALL' | 'UPLOAD_DATA'
 
 export type AvailableActionDto =

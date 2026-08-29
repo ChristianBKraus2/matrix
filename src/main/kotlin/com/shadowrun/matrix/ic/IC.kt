@@ -106,6 +106,7 @@ class TarBaby(rating: Int, val targetCategory: UtilityCategory = UtilityCategory
             ?: return ActionResult.IcAttack("TarBaby: no $targetCategory utility to trap on ${target.name}")
         val result = CombatResolver.resolveTarBaby(target, this, utility, diceRoller)
         context.updateDecker(target, result.updatedDecker)
+        if (result.bothCrashed) context.removeIc(this)
         return ActionResult.IcAttack("TarBaby trapped utility on ${target.name}")
     }
 }
@@ -158,10 +159,13 @@ class Sparky(rating: Int, guardedNode: Node? = null) :
         val attacker = CombatResolver.icAttackParticipant(this, context.securityCode)
         val result = CombatResolver.resolveSparky(attacker, target.asDefenderParticipant(), diceRoller)
         if (result is AttackResult.Hit) {
-            val (afterMpcp, sparkySuccesses) = CombatResolver.resolveSparkyMpcpTest(target, this, diceRoller)
-            val finalDecker = CombatResolver.resolveSparkyBodyDamage(afterMpcp, this, sparkySuccesses, diceRoller)
+            val dmg = CombatResolver.applyIcDamage(target, result, this, diceRoller)
+            val finalDecker = if (dmg.dumpShockTriggered) {
+                val (afterMpcp, sparkySuccesses) = CombatResolver.resolveSparkyMpcpTest(dmg.updatedDecker, this, diceRoller)
+                CombatResolver.resolveSparkyBodyDamage(afterMpcp, this, sparkySuccesses, diceRoller)
+            } else dmg.updatedDecker
             context.updateDecker(target, finalDecker)
-            return ActionResult.IcAttack("Sparky hit ${target.name}: MPCP reduced")
+            return ActionResult.IcAttack("Sparky hit ${target.name}: ${dmg.iconDamage}")
         }
         return ActionResult.IcAttack("Sparky missed ${target.name}")
     }
@@ -176,7 +180,13 @@ class TarPit(rating: Int, val targetCategory: UtilityCategory = UtilityCategory.
         val utility = target.cyberdeck.activeUtilities.firstOrNull { it.type.category == targetCategory }
             ?: return ActionResult.IcAttack("TarPit: no $targetCategory utility to trap on ${target.name}")
         val result = CombatResolver.resolveTarPit(target, this, utility, diceRoller)
-        context.updateDecker(target, result.updatedDecker)
+        if (result.bothCrashed) {
+            val afterMpcp = CombatResolver.resolveTarPitMpcpTest(result.updatedDecker, this, utility, diceRoller)
+            context.updateDecker(target, afterMpcp)
+            context.removeIc(this)
+        } else {
+            context.updateDecker(target, result.updatedDecker)
+        }
         return ActionResult.IcAttack("TarPit trapped utility on ${target.name}")
     }
 }

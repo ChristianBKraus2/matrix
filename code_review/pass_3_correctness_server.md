@@ -14,6 +14,8 @@ The server layer is structurally sound and handles the most dangerous concurrenc
 
 **Recommendation:** Invert the guard to require a valid match: `if (stored == null || msg.reconnectToken != stored)`. This rejects reconnection when no token is stored and when the supplied token does not match.
 
+**[RESOLVED]** — Fixed in `SessionRegistry.kt`: guard now reads `if (stored == null || msg.reconnectToken != stored)`.
+
 ---
 
 ### [MEDIUM] Unsafe casts in dispatch helpers throw ClassCastException instead of returning clean errors
@@ -23,6 +25,8 @@ The server layer is structurally sound and handles the most dangerous concurrenc
 **Issue:** `dispatchAnalyzeOp` casts `action.target as MatrixObject.HostSubsystem` (hard cast) for `ANALYZE_SUBSYSTEM`, while the immediately preceding `ANALYZE_IC` and `ANALYZE_ICON` branches use the safe `as?` pattern with an explicit early-return `DispatchResult`. The same hard-cast pattern is repeated in `dispatchDataOp` (lines 243, 249, 259 — `as MatrixObject.File`) and `dispatchSlaveOp` (lines 270, 274, 279 — `as MatrixObject.Device`). If the game layer ever produces an `AvailableAction.Operation` with a null or mistyped target, the cast throws a `ClassCastException` that escapes the inner dispatch call, is caught by the outer `catch (e: Exception)` in `action()`, and results in the generic "Internal error — turn aborted" broadcast with no diagnostic details. The actual error is swallowed.
 
 **Recommendation:** Replace every bare `as Type` in the dispatch helpers with `as? Type ?: return DispatchResult(decker, false, 0, 0, "…requires a Type target")`, matching the safe pattern already used for `ANALYZE_IC` and `ANALYZE_ICON`.
+
+**[RESOLVED]** — Fixed in `WebSocketDeckerController.kt`: all hard casts in dispatch helpers replaced with safe casts (`as?`) and explicit guard returns.
 
 ---
 
@@ -34,6 +38,8 @@ The server layer is structurally sound and handles the most dangerous concurrenc
 
 **Recommendation:** Either complete the deferred inside the mutex (if the API allows it), or mark the pending action as "claimed" atomically (e.g., set `pendingAction = null` once claimed) so the second concurrent caller receives `NO_ACTION_PENDING`. The current behaviour is unlikely to cause a visible bug under normal single-user operation, but could produce silent drops under network retransmission or client bugs.
 
+**[DEFERRED]** — Race window under normal single-user operation is low-risk; not addressed in this session.
+
 ---
 
 ### [LOW] Capacity-refused WebSocket connection receives no error frame before close
@@ -43,6 +49,8 @@ The server layer is structurally sound and handles the most dangerous concurrenc
 **Issue:** When `registry.register` returns `false` the `webSocket` block returns immediately. Ktor closes the underlying TCP connection cleanly, but the client receives no WebSocket-level error frame explaining why it was dropped. A newly connected client will see a silent close with no `error` message, making capacity rejection indistinguishable from a network interruption.
 
 **Recommendation:** Before returning, send an `ErrorMessage(message = ErrorCode.BAD_REQUEST, details = "server at capacity")` (or a dedicated error code) so the client can display a meaningful message.
+
+**[DEFERRED]** — Capacity-refusal error frame not added; out of scope for this session.
 
 ## No Issues Found In
 

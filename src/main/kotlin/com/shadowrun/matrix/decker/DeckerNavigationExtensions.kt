@@ -101,7 +101,7 @@ fun Decker.logonToRtg(rtg: RTG, diceRoller: DiceRoller): LogonResult {
         securityValue = rtg.securityRating.value,
         diceRoller = diceRoller,
         buildLocation = { hostTallyDelta ->
-            MatrixLocation.OnRTG(rtg.copy(securityTally = hostTallyDelta))
+            MatrixLocation.OnRTG(rtg.copy(securityTally = rtg.securityTally + hostTallyDelta))
         }
     ).also { result ->
         when (result) {
@@ -209,12 +209,12 @@ fun Decker.gracefulLogoff(diceRoller: DiceRoller): LogoffResult {
     if (trackPenalty > 0) logger.info { "[$name] gracefulLogoff: Track penalty +$trackPenalty applied to TN" }
     val outcome = SystemTestResolver.resolve(this, SystemOperation.GRACEFUL_LOGOFF, effectiveTn, securityValue, diceRoller)
     return if (outcome.deckerWins) {
-        LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null)).also {
+        LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null, interrogationStates = emptyMap())).also {
             logger.info { "[$name] gracefulLogoff succeeded: traces cleared, no dump shock" }
         }
     } else {
         val shock = !cyberdeck.immuneToDumpShock
-        LogoffResult.JackOut(copy(persona = null, currentLocation = null), dumpShock = shock).also {
+        LogoffResult.JackOut(copy(persona = null, currentLocation = null, interrogationStates = emptyMap()), dumpShock = shock).also {
             logger.warn { "[$name] gracefulLogoff failed: falling back to jack-out (dumpShock=$shock)" }
         }
     }
@@ -226,7 +226,7 @@ fun Decker.jackOut(): LogoffResult {
     requireJackedIn()
     check(!isPinnedByBlackIc) { "Cannot jack out while pinned by Black IC" }
     val shock = !cyberdeck.immuneToDumpShock
-    return LogoffResult.JackOut(copy(persona = null, currentLocation = null), dumpShock = shock).also {
+    return LogoffResult.JackOut(copy(persona = null, currentLocation = null, interrogationStates = emptyMap()), dumpShock = shock).also {
         logger.info { "[$name] jackOut complete: dumpShock=$shock" }
     }
 }

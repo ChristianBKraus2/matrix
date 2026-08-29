@@ -3,8 +3,9 @@ package com.shadowrun.matrix.server
 import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.decker.*
 import com.shadowrun.matrix.game.ActionResult
-import com.shadowrun.matrix.game.ActiveIcon
 import com.shadowrun.matrix.game.GameContext
+import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.CancellationException
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.operations.AnalyzeHostResult
@@ -34,16 +35,17 @@ class WebSocketDeckerController(
     private val registry: SessionRegistry,
     initialDecker: Decker,
     private val actionTimeoutSeconds: Long = 120
-) : ActiveIcon {
+) {
+
+    private val logger = KotlinLogging.logger {}
 
     var decker: Decker = initialDecker
         private set
 
-    override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+    suspend fun conductTurn(context: GameContext, diceRoller: DiceRoller): ActionResult {
+        decker = context.deckers.firstOrNull { it.name == decker.name } ?: decker
         val visibleObjects = decker.visibleObjects()
         val availableActions = decker.availableActions()
-            .filterNot { it is AvailableAction.Operation &&
-                         it.operation in setOf(SystemOperation.SWAP_MEMORY, SystemOperation.LOCATE_DECKER) }
 
         // Set pendingAction BEFORE promoteForTurn so receiveAction never sees a null future
         // after the client learns it is the active controller (fixes TOCTOU race).
@@ -73,6 +75,8 @@ class WebSocketDeckerController(
             registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Decker disconnected — turn forfeit")))
             registry.demoteAfterTurn(decker.name)
             return ActionResult.DeckerAction
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Unexpected error — turn aborted")))
             registry.demoteAfterTurn(decker.name)
@@ -109,7 +113,18 @@ class WebSocketDeckerController(
                 details = result.details
             )))
             registry.demoteAfterTurn(decker.name)
+            val postVisible = decker.visibleObjects()
+            val postActions = decker.availableActions()
+            registry.broadcastWithRoles(StateMessage(
+                role = SessionRole.OBSERVER,
+                decker = decker.toDto(),
+                visibleObjects = postVisible.toDto(),
+                availableActions = postActions.toDto()
+            ))
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
+            logger.error(e) { "dispatch failed for decker ${decker.name}, action $chosen" }
             registry.broadcast(MatrixJson.encodeToString(ResultMessage(
                 success = false, deckerSuccesses = 0, hostSuccesses = 0,
                 details = "Internal error — turn aborted"
@@ -146,15 +161,12 @@ class WebSocketDeckerController(
         @Suppress("UNUSED_PARAMETER") cmd: ActionCommand,
         diceRoller: DiceRoller
     ): DispatchResult = when (action.operation) {
-        SystemOperation.RELOCATE_ICON -> {
-            val trackState = decker.trackState
-            decker.relocateIcon(
-                opponentSensor = trackState?.trackingIcRating ?: 0,
-                trackerMcpRating = trackState?.trackingIcRating ?: 0,
-                diceRoller
-            ).toDispatch()
-        }
-        else -> DispatchResult(decker, false, 0, 0, "${action.operation} requires host context")
+        SystemOperation.RELOCATE_ICON    -> dispatchRelocateIcon(diceRoller)
+        SystemOperation.NULL_OPERATION   -> DispatchResult(decker, true, 0, 0, "Turn passed")
+        SystemOperation.ANALYZE_SECURITY -> DispatchResult(decker, false, 0, 0, "ANALYZE_SECURITY is only available inside a host")
+        SystemOperation.LOCATE_IC        -> DispatchResult(decker, false, 0, 0, "LOCATE_IC is only available inside a host")
+        SystemOperation.ANALYZE_IC       -> DispatchResult(decker, false, 0, 0, "ANALYZE_IC is only available inside a host")
+        else -> DispatchResult(decker, false, 0, 0, "${action.operation} not supported on grid")
     }
 
     private fun dispatchHostOperation(
@@ -185,8 +197,7 @@ class WebSocketDeckerController(
         SystemOperation.MAKE_COMCALL,
         SystemOperation.TAP_COMCALL         -> dispatchCommsOp(action, cmd, host, diceRoller)
         SystemOperation.NULL_OPERATION,
-        SystemOperation.RELOCATE_ICON,
-        SystemOperation.SWAP_MEMORY         -> dispatchMiscOp(action, cmd, host, diceRoller)
+        SystemOperation.RELOCATE_ICON       -> dispatchMiscOp(action, cmd, host, diceRoller)
         else -> DispatchResult(decker, false, 0, 0, "Unsupported: ${action.operation}")
     }
 
@@ -209,7 +220,8 @@ class WebSocketDeckerController(
             }
             SystemOperation.ANALYZE_SECURITY  -> decker.analyzeSecurity(host, diceRoller).toDispatch()
             SystemOperation.ANALYZE_SUBSYSTEM -> {
-                val node = (action.target as MatrixObject.HostSubsystem).node
+                val node = (action.target as? MatrixObject.HostSubsystem)?.node
+                    ?: return DispatchResult(decker, false, 0, 0, "ANALYZE_SUBSYSTEM requires a HostSubsystem target")
                 decker.analyzeSubsystem(host, node.subsystemType, diceRoller).toDispatch()
             }
             else -> DispatchResult(decker, false, 0, 0, "Unsupported analyze op: ${action.operation}")
@@ -219,15 +231,15 @@ class WebSocketDeckerController(
         val p = cmd.params
         return when (action.operation) {
             SystemOperation.LOCATE_FILE -> {
-                val (opResult, locateResult) = locateWithState(p) { prec -> decker.locateFile(host, prec, diceRoller) }
+                val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateFile(host, q, prec, diceRoller) }
                 opResult.toDispatch(locateResult.label())
             }
             SystemOperation.LOCATE_SLAVE -> {
-                val (opResult, locateResult) = locateWithState(p) { prec -> decker.locateSlave(host, prec, diceRoller) }
+                val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateSlave(host, q, prec, diceRoller) }
                 opResult.toDispatch(locateResult.label())
             }
             SystemOperation.LOCATE_ACCESS_NODE -> {
-                val (opResult, locateResult) = locateWithState(p) { prec -> decker.locateAccessNode(host, prec, diceRoller) }
+                val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateAccessNode(host, q, prec, diceRoller) }
                 opResult.toDispatch(locateResult.label())
             }
             SystemOperation.LOCATE_DECKER -> DispatchResult(decker, false, 0, 0, "LOCATE_DECKER requires a target Persona — not supported via WebSocket")
@@ -240,15 +252,17 @@ class WebSocketDeckerController(
         val p = cmd.params
         return when (action.operation) {
             SystemOperation.DOWNLOAD_DATA -> {
-                val file = (action.target as MatrixObject.File).file
+                val file = (action.target as? MatrixObject.File)?.file
+                    ?: return DispatchResult(decker, false, 0, 0, "DOWNLOAD_DATA requires a File target")
                 val (opResult, handle) = decker.downloadData(file, host, diceRoller)
                 val extra = handle?.let { "${it.turnsRemaining} turn(s) at ${it.ioSpeedMpPerTurn} Mp/turn" } ?: ""
                 opResult.toDispatch(extra)
             }
             SystemOperation.EDIT_FILE -> {
-                val file = (action.target as MatrixObject.File).file
+                val file = (action.target as? MatrixObject.File)?.file
+                    ?: return DispatchResult(decker, false, 0, 0, "EDIT_FILE requires a File target")
                 val content = p?.newContent
-                if (content != null && content.length > 4096) {
+                if (content != null && content.toByteArray(Charsets.UTF_8).size > 4096) {
                     return DispatchResult(decker, false, 0, 0, "File content exceeds maximum allowed size")
                 }
                 decker.editFile(file, host, content?.toByteArray(), diceRoller).toDispatch()
@@ -256,7 +270,8 @@ class WebSocketDeckerController(
             SystemOperation.UPLOAD_DATA    -> decker.uploadData(host, diceRoller).toDispatch()
             SystemOperation.DECRYPT_ACCESS -> decker.decryptAccess(host, diceRoller).toDispatch()
             SystemOperation.DECRYPT_FILE -> {
-                val file = (action.target as MatrixObject.File).file
+                val file = (action.target as? MatrixObject.File)?.file
+                    ?: return DispatchResult(decker, false, 0, 0, "DECRYPT_FILE requires a File target")
                 decker.decryptFile(file, host, diceRoller).toDispatch()
             }
             SystemOperation.DECRYPT_SLAVE -> decker.decryptSlave(host, diceRoller).toDispatch()
@@ -267,15 +282,18 @@ class WebSocketDeckerController(
     private fun dispatchSlaveOp(action: AvailableAction.Operation, host: Host, diceRoller: DiceRoller): DispatchResult =
         when (action.operation) {
             SystemOperation.CONTROL_SLAVE -> {
-                val device = (action.target as MatrixObject.Device).device
+                val device = (action.target as? MatrixObject.Device)?.device
+                    ?: return DispatchResult(decker, false, 0, 0, "CONTROL_SLAVE requires a Device target")
                 decker.controlSlave(device, host, diceRoller).first.toDispatch()
             }
             SystemOperation.EDIT_SLAVE -> {
-                val device = (action.target as MatrixObject.Device).device
+                val device = (action.target as? MatrixObject.Device)?.device
+                    ?: return DispatchResult(decker, false, 0, 0, "EDIT_SLAVE requires a Device target")
                 decker.editSlave(device, host, diceRoller).first.toDispatch()
             }
             SystemOperation.MONITOR_SLAVE -> {
-                val device = (action.target as MatrixObject.Device).device
+                val device = (action.target as? MatrixObject.Device)?.device
+                    ?: return DispatchResult(decker, false, 0, 0, "MONITOR_SLAVE requires a Device target")
                 decker.monitorSlave(device, host, diceRoller).first.toDispatch()
             }
             else -> DispatchResult(decker, false, 0, 0, "Unsupported slave op: ${action.operation}")
@@ -284,8 +302,8 @@ class WebSocketDeckerController(
     private fun dispatchCommsOp(action: AvailableAction.Operation, cmd: ActionCommand, host: Host, diceRoller: DiceRoller): DispatchResult {
         val p = cmd.params
         return when (action.operation) {
-            SystemOperation.MAKE_COMCALL -> decker.makeComcall(host, diceRoller, p?.hasValidPasscode ?: false).first.toDispatch()
-            SystemOperation.TAP_COMCALL  -> decker.tapComcall(host, p?.scannerDeviceRating ?: 0, diceRoller).first.toDispatch()
+            SystemOperation.MAKE_COMCALL -> decker.makeComcall(host, diceRoller, false).first.toDispatch() // TODO: passcode ledger — see pass_3_security_complete.md
+            SystemOperation.TAP_COMCALL  -> decker.tapComcall(host, 0, diceRoller).first.toDispatch() // TODO: derive scanner rating from server-side device inventory — see pass_3_security_complete.md
             else -> DispatchResult(decker, false, 0, 0, "Unsupported comms op: ${action.operation}")
         }
     }
@@ -293,26 +311,28 @@ class WebSocketDeckerController(
     private fun dispatchMiscOp(action: AvailableAction.Operation, cmd: ActionCommand, host: Host, diceRoller: DiceRoller): DispatchResult {
         val p = cmd.params
         return when (action.operation) {
-            SystemOperation.NULL_OPERATION -> decker.nullOperation(host, p?.inactivitySeconds ?: 0, diceRoller).toDispatch()
-            SystemOperation.RELOCATE_ICON  -> {
-                val trackState = decker.trackState
-                decker.relocateIcon(
-                    opponentSensor = trackState?.trackingIcRating ?: 0,
-                    trackerMcpRating = trackState?.trackingIcRating ?: 0,
-                    diceRoller
-                ).toDispatch()
-            }
-            SystemOperation.SWAP_MEMORY -> DispatchResult(decker, false, 0, 0, "SWAP_MEMORY requires utility selection — not supported via WebSocket")
+            SystemOperation.NULL_OPERATION -> decker.nullOperation(host, p?.inactivitySeconds?.coerceIn(0, 3600) ?: 0, diceRoller).toDispatch()
+            SystemOperation.RELOCATE_ICON  -> dispatchRelocateIcon(diceRoller)
             else -> DispatchResult(decker, false, 0, 0, "Unsupported misc op: ${action.operation}")
         }
     }
 
+    private fun dispatchRelocateIcon(diceRoller: DiceRoller): DispatchResult {
+        val trackState = decker.trackState
+        return decker.relocateIcon(
+            opponentSensor = trackState?.trackingIcRating ?: 0,
+            trackerMcpRating = trackState?.trackingIcRating ?: 0,
+            diceRoller
+        ).toDispatch()
+    }
+
     private fun locateWithState(
         params: com.shadowrun.matrix.server.dto.ActionParams?,
-        call: (QueryPrecision) -> Pair<OperationResult, LocateResult>
+        call: (QueryPrecision, String) -> Pair<OperationResult, LocateResult>
     ): Pair<OperationResult, LocateResult> {
         val precision = params?.precision?.let { runCatching { QueryPrecision.valueOf(it) }.getOrNull() } ?: QueryPrecision.NORMAL
-        return call(precision)
+        val query = params?.query?.trim() ?: ""
+        return call(precision, query)
     }
 
     // ── Result converters ──────────────────────────────────────────────────────

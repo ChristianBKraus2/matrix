@@ -1,10 +1,13 @@
 import type { GameEvent } from '../types/messages'
 
 const ERROR_LABELS: Record<string, string> = {
-  not_your_turn:      'Not your turn',
-  no_action_pending:  'No action pending',
-  already_registered: 'Already registered',
-  name_already_taken: 'Decker name already taken',
+  not_your_turn:        'Not your turn',
+  no_action_pending:    'No action pending',
+  already_registered:   'Already registered',
+  name_already_taken:   'Decker name already taken',
+  name_too_long:        'Name too long',
+  unknown_message_type: 'Unknown message type',
+  bad_request:          'Bad request',
 }
 
 interface Props {

@@ -62,8 +62,8 @@ export default function DeckerPanel({ decker }: Props) {
                 <div key={i} className="program-row">
                   <span className="program-name">{u.type}</span>
                   <span className="program-rating">
-                    {'●'.repeat(Math.min(u.rating, 10))}
-                    {'○'.repeat(Math.max(0, 10 - u.rating))} ({u.rating})
+                    {'●'.repeat(Math.min(Math.max(0, u.rating), 10))}
+                    {'○'.repeat(Math.max(0, 10 - Math.max(0, u.rating)))} ({u.rating})
                   </span>
                 </div>
               ))}

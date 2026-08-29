@@ -146,7 +146,9 @@ data class Decker(...) : ActiveIcon {
 }
 ```
 
-`DeckerAction` is a placeholder. A future callback to the user will be added here.
+`DeckerAction` is a placeholder. In simulation and testing, the `Game` loop calls `decker.action()` which returns immediately without side effects. In production, the WebSocket server layer bypasses `Game` entirely for decker turns: **`WebSocketDeckerController.conductTurn(context, diceRoller)`** handles player input, dispatches the chosen action, and broadcasts result/state messages. It is never called via `ActiveIcon` and does not implement `ActiveIcon`.
+
+This separation means the `Game` class handles IC turns (called via `action()`) while `WebSocketDeckerController.conductTurn()` handles player decker turns. The game loop in `Game.runCombatTurn()` therefore sees `Decker.action()` as a no-op placeholder for the player's turn slot.
 
 ---
 
@@ -236,10 +238,11 @@ override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult 
 override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
-    val utility = target.cyberdeck.activeUtilities.firstOrNull()
-        ?: return ActionResult.IcAttack("TarBaby: no active utility to trap on ${target.name}")
+    val utility = target.cyberdeck.activeUtilities.firstOrNull { it.type.category == targetCategory }
+        ?: return ActionResult.IcAttack("TarBaby: no $targetCategory utility to trap on ${target.name}")
     val result = CombatResolver.resolveTarBaby(target, this, utility, diceRoller)
     context.updateDecker(target, result.updatedDecker)
+    if (result.bothCrashed) context.removeIc(this)
     return ActionResult.IcAttack("TarBaby trapped utility on ${target.name}")
 }
 ```
@@ -254,9 +257,12 @@ override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult 
     val attacker = CombatResolver.icAttackParticipant(this, context.securityCode)
     val result = CombatResolver.resolveBlaster(attacker, target.asDefenderParticipant(), diceRoller)
     if (result is AttackResult.Hit) {
-        val updated = CombatResolver.resolveBlasterMpcpTest(target, this, diceRoller)
-        context.updateDecker(target, updated)
-        return ActionResult.IcAttack("Blaster hit ${target.name}")
+        val dmg = CombatResolver.applyIcDamage(target, result, this, diceRoller)
+        val finalDecker = if (dmg.dumpShockTriggered)
+            CombatResolver.resolveBlasterMpcpTest(dmg.updatedDecker, this, diceRoller)
+        else dmg.updatedDecker
+        context.updateDecker(target, finalDecker)
+        return ActionResult.IcAttack("Blaster hit ${target.name}: ${dmg.iconDamage}")
     }
     return ActionResult.IcAttack("Blaster missed ${target.name}")
 }
@@ -281,9 +287,13 @@ override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult 
     val attacker = CombatResolver.icAttackParticipant(this, context.securityCode)
     val result = CombatResolver.resolveSparky(attacker, target.asDefenderParticipant(), diceRoller)
     if (result is AttackResult.Hit) {
-        val (updated, _) = CombatResolver.resolveSparkyMpcpTest(target, this, diceRoller)
-        context.updateDecker(target, updated)
-        return ActionResult.IcAttack("Sparky hit ${target.name}")
+        val dmg = CombatResolver.applyIcDamage(target, result, this, diceRoller)
+        val finalDecker = if (dmg.dumpShockTriggered) {
+            val (afterMpcp, sparkySuccesses) = CombatResolver.resolveSparkyMpcpTest(dmg.updatedDecker, this, diceRoller)
+            CombatResolver.resolveSparkyBodyDamage(afterMpcp, this, sparkySuccesses, diceRoller)
+        } else dmg.updatedDecker
+        context.updateDecker(target, finalDecker)
+        return ActionResult.IcAttack("Sparky hit ${target.name}: ${dmg.iconDamage}")
     }
     return ActionResult.IcAttack("Sparky missed ${target.name}")
 }
@@ -294,10 +304,16 @@ override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult 
 override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
-    val utility = target.cyberdeck.activeUtilities.firstOrNull()
-        ?: return ActionResult.IcAttack("TarPit: no active utility to trap on ${target.name}")
+    val utility = target.cyberdeck.activeUtilities.firstOrNull { it.type.category == targetCategory }
+        ?: return ActionResult.IcAttack("TarPit: no $targetCategory utility to trap on ${target.name}")
     val result = CombatResolver.resolveTarPit(target, this, utility, diceRoller)
-    context.updateDecker(target, result.updatedDecker)
+    if (result.bothCrashed) {
+        val afterMpcp = CombatResolver.resolveTarPitMpcpTest(result.updatedDecker, this, utility, diceRoller)
+        context.updateDecker(target, afterMpcp)
+        context.removeIc(this)
+    } else {
+        context.updateDecker(target, result.updatedDecker)
+    }
     return ActionResult.IcAttack("TarPit trapped utility on ${target.name}")
 }
 ```

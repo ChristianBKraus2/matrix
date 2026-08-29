@@ -74,11 +74,13 @@ export default function LocationPanel({ gameState }: Props) {
 
   const locationObj = decker.location === 'not jacked in'
     ? null
-    : visibleObjects.find(
-        (o) =>
-          (o.kind === 'GridNode' || o.kind === 'LocalGrid' || o.kind === 'PrivateGrid' || o.kind === 'HostNode') &&
-          o.name === name
-      ) ?? null
+    : decker.locationIndex != null
+      ? (visibleObjects[decker.locationIndex] as MatrixObjectDto | undefined) ?? null
+      : visibleObjects.find(
+          (o) =>
+            (o.kind === 'GridNode' || o.kind === 'LocalGrid' || o.kind === 'PrivateGrid' || o.kind === 'HostNode') &&
+            o.name === name
+        ) ?? null
 
   return (
     <div className="panel location-panel">

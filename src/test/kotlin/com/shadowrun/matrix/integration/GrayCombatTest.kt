@@ -83,8 +83,8 @@ class GrayCombatTest : IntegrationTestBase() {
     }
 
     @Test
-    fun `Sparky IC does not deal icon damage — only MPCP reduction`() {
-        // Sparky.action() calls resolveSparkyMpcpTest but NOT applyIcDamage; icon damage is zero.
+    fun `Sparky IC deals icon damage on hit and reduces MPCP when dump shock is triggered`() {
+        // Phase 1 fix: Sparky now calls applyIcDamage before the MPCP test, matching Blaster's pattern.
         val icon = scenario(securityCode = SecurityCode.ORANGE) {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
@@ -94,8 +94,10 @@ class GrayCombatTest : IntegrationTestBase() {
 
         icon.runCombatTurn(hitRoller())
 
-        assertEquals(damageBefore, icon.currentDecker().persona!!.conditionMonitor.damage,
-            "Sparky applies MPCP reduction only — no icon damage is dealt")
+        assertTrue(
+            icon.currentDecker().persona!!.conditionMonitor.damage > damageBefore,
+            "Sparky must apply icon (persona CM) damage when it hits"
+        )
     }
 
     @Test

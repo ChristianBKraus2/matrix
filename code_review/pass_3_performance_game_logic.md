@@ -29,6 +29,8 @@ while (true) {
 ```
 Or, cleaner: use `states.withIndex().maxByOrNull { if (it.value.currentInitiative > 0) it.value.currentInitiative else Int.MIN_VALUE }`, check that the winner's initiative is > 0, and use the returned index directly. Either way the `filter` allocation and the `indexOf` scan are eliminated.
 
+**[DEFERRED]** — Combat loop allocation not optimised; out of scope for this session.
+
 ---
 
 ### [MEDIUM] `Cyberdeck.init` validation reruns on every data-class copy
@@ -39,6 +41,8 @@ Or, cleaner: use `states.withIndex().maxByOrNull { if (it.value.currentInitiativ
 
 **Recommendation:** Extract the invariant checks (persona program ratings ≤ MPCP, `totalPersonaRatings ≤ MPCP×3`, `activeMp ≤ activeMemoryMp`, `storageMp ≤ storageMemoryMp`) into a separate `validate()` function and call it only from factory/builder entry points, not from `init`. For mutations that can only affect a single field (e.g. reducing `mcpRating`), a targeted assertion is cheaper than a full re-scan. Alternatively, replace the data class with a plain class that uses a private constructor plus a companion factory.
 
+**[DEFERRED]** — `Cyberdeck.init` not refactored to skip re-validation on copy; out of scope for this session.
+
 ---
 
 ### [LOW] `DiceResult` always allocates a boxed `List<Int>` even when only successes are needed
@@ -48,6 +52,8 @@ Or, cleaner: use `states.withIndex().maxByOrNull { if (it.value.currentInitiativ
 **Issue:** `DiceRoller.roll` is the innermost hot path — every system test, every IC attack, and every combat resolution calls it, typically multiple times per action. It always builds a `List<Int>` of individual face values and stores it on the heap in `DiceResult`. Inspection of all callers shows that the dice list is used in only two places: `roll.dice.sum()` in `CombatResolver.rollDeckerInitiative` / `rollIcInitiative` (sum of raw faces for initiative score), and `roll.dice.first()` in `resolvePointerChain` (1d6 chain length). Every other caller — all system tests, all attack rolls, all willpower checks — accesses only `.successes`. The list is an unnecessary allocation in the vast majority of calls.
 
 **Recommendation:** Replace the stored `List<Int>` with the pre-computed `sum` and keep the list construction only when explicitly requested, or add a `rollSum` overload that returns `(sum, successes)` without persisting the list. At minimum, replace `List(numberOfDice) { rollOne() }` with a plain `IntArray` to avoid boxing.
+
+**[DEFERRED]** — `DiceResult` list allocation not optimised; out of scope for this session.
 
 ---
 
@@ -63,6 +69,8 @@ private val WHITESPACE_REGEX = "\\s+".toRegex()
 ```
 and reference it in the word-count check.
 
+**[DEFERRED]** — `bufferMessage` regex not hoisted to file-level constant; out of scope for this session.
+
 ---
 
 ### [LOW] `addGridSystemActions` builds the full visible-objects list just to extract IC programs
@@ -72,6 +80,8 @@ and reference it in the word-count check.
 **Issue:** `addGridSystemActions()` calls `visibleObjects()`, which allocates a `buildList` of all visible Matrix objects, only to immediately call `.filterIsInstance<MatrixObject.IcProgram>()` on it — allocating a second filtered list. On a grid location there are no IC programs anyway, making this doubly wasteful in the common case.
 
 **Recommendation:** When on a grid location there are no `IcProgram` objects to enumerate (only RTG/LTG/PLTG nodes and hosts appear on grids). The call can be removed, or if it is intentional for completeness, pass the already-known location's IC list directly rather than calling `visibleObjects()`.
+
+**[DEFERRED]** — `addGridSystemActions` redundant allocation not removed; out of scope for this session.
 
 ---
 
@@ -83,6 +93,8 @@ and reference it in the word-count check.
 
 **Recommendation:** Build a `Set<UtilityType>` from `depleted` first (`depleted.mapTo(mutableSetOf()) { it.type }`) and use an O(1) set lookup in the `filterNot`.
 
+**[DEFERRED]** — Nested `any` in `filterNot` not optimised; out of scope for this session.
+
 ---
 
 ### [INFO] `Host.init` allocates a list and a set on every copy for subsystem-type validation
@@ -92,6 +104,8 @@ and reference it in the word-count check.
 **Issue:** `nodes.map { it.subsystemType }.toSet()` allocates an intermediate `List` and a `HashSet` every time a `Host` is constructed or copied. `Host` is a `data class` copied frequently (every tally update, every `updateHost` call, every logon). The check enforces a structural invariant that should not change across copies.
 
 **Recommendation:** Skip the check on copy paths, or validate only when `nodes` itself changes. A short-circuit using `nodes.size >= SubsystemType.entries.size && nodes.all { ... }` avoids the intermediate collection, though the cleanest fix is the same factory-vs-copy pattern suggested for `Cyberdeck`.
+
+**[DEFERRED]** — `Host.init` copy-path validation not optimised; out of scope for this session.
 
 ---
 

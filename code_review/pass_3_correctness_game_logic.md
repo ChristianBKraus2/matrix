@@ -28,6 +28,8 @@ MatrixLocation.OnRTG(rtg.copy(securityTally = rtg.securityTally + hostTallyDelta
 ```
 This matches the pattern used in every other navigation function.
 
+**[RESOLVED]** — Fixed in `DeckerNavigationExtensions.kt`: tally now accumulates as `rtg.securityTally + hostTallyDelta`.
+
 ---
 
 ### [HIGH] `TarPit.action` never invokes `resolveTarPitMpcpTest` — stored-utility corruption step is skipped
@@ -45,6 +47,8 @@ val finalDecker = if (result.bothCrashed)
 else result.updatedDecker
 context.updateDecker(target, finalDecker)
 ```
+
+**[RESOLVED]** — Fixed in `IC.kt`: `TarPit.action` now calls `resolveTarPitMpcpTest` when `bothCrashed` is true and calls `context.removeIc(this)`.
 
 ---
 
@@ -80,6 +84,8 @@ val state = interrogationStates.getOrDefault(
 
 This makes the intent explicit and prevents silent mis-hits.
 
+**[RESOLVED]** — Fixed in `DeckerOperationsExtensions.kt`: `locateFile`, `locateSlave`, `locateAccessNode` now require a non-blank `query` parameter; empty first-call query is rejected with `require`.
+
 ---
 
 ### [MEDIUM] `logonToPltg` inherits RTG tally instead of current LTG tally
@@ -99,6 +105,8 @@ A decker who has been operating on an LTG (accruing tally there) and then steps 
 
 **Recommendation:** Change `loc.ltg.parentRtg.securityTally` to `loc.ltg.securityTally` to carry the LTG tally forward consistently with how other upward/downward navigation handles existing tally.
 
+**[DEFERRED]** — Not in scope for this session; `logonToPltg` LTG tally inheritance not addressed.
+
 ---
 
 ### [LOW] Dead code in `loadUtility`: `turnsRequired == 0` branch is unreachable for any real utility
@@ -109,6 +117,8 @@ A decker who has been operating on an LTG (accruing tally there) and then steps 
 
 **Recommendation:** Remove the `if (turnsRequired == 0)` branch (or replace with `if (utility.mpSize == 0)` if truly instant-load semantics are desired for zero-size utilities) to avoid misleading readers about when instant loading occurs.
 
+**[DEFERRED]** — Dead code branch; not in scope for this session.
+
 ---
 
 ### [INFO] `applyIcDamage` contains a dead `ic is BlackIC` branch — Black IC never routes through this method
@@ -118,6 +128,8 @@ A decker who has been operating on an LTG (accruing tally there) and then steps 
 **Issue:** `applyIcDamage` has a branch `when { ic is BlackIC -> ... }` that pins the decker. In practice, `LethalBlackIC.action` and `NonLethalBlackIC.action` use `resolveLethalBlackIc` / `resolveNonLethalBlackIc` directly (which apply the pin themselves) and never call `applyIcDamage`. The other callers (`Killer.action`, `Blaster.action`) pass `WhiteIC` / `GrayIC` instances for which `ic is BlackIC` is false. The Black IC pin logic in `applyIcDamage` is therefore unreachable in the current codebase.
 
 **Recommendation:** Remove the `ic is BlackIC` branch from `applyIcDamage` to prevent confusion about which code path actually pins the decker (the dedicated resolvers). Add a comment on the method signature noting it is not intended for Black IC types.
+
+**[DEFERRED]** — Dead `ic is BlackIC` branch not removed; out of scope for this session.
 
 ## No Issues Found In
 

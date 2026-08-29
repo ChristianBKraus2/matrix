@@ -21,6 +21,8 @@ class TurnCoordinator {
 
     suspend fun currentController(): DefaultWebSocketServerSession? = mutex.withLock { activeController }
 
+    fun currentControllerUnsafe(): DefaultWebSocketServerSession? = activeController
+
     /**
      * If [session] is the active controller, clears state and returns any pending action so the
      * caller can cancel it. Returns null if [session] was not the active controller.

@@ -14,6 +14,8 @@ The server layer has a solid foundation in its smaller components (TurnCoordinat
 
 **Recommendation:** Introduce a transport-agnostic `DeckerInputPort` (or similar) interface in the game layer that receives a pre-resolved `ActionCommand` value. `WebSocketDeckerController` handles all WebSocket concerns (timeout, deferred, broadcast) and then calls the port with the resolved command. The game engine depends only on the port, not on any server class. This cleanly separates the turn-input protocol from game execution.
 
+**[RESOLVED]** — Fixed: `WebSocketDeckerController` no longer implements `ActiveIcon`; `action()` renamed to `conductTurn()`, called by `Main.kt` directly.
+
 ---
 
 ### [HIGH] SessionRegistry conflates session store, identity management, and protocol messaging
@@ -23,6 +25,8 @@ The server layer has a solid foundation in its smaller components (TurnCoordinat
 **Issue:** `SessionRegistry` holds three distinct responsibilities. (1) Raw connection tracking: `sessions`, `deckerSessions`, `sessionDecker`. (2) Decker identity and reconnection logic: name validation, UUID token generation, `disconnectedDeckerNames`, token verification in `receiveJoin`. (3) Protocol message serialization and send: every method calls `MatrixJson.encodeToString(ControlMessage(...))`, `ErrorMessage(...)`, or `StateMessage(...)` and pushes the result into the WebSocket frame. The class therefore knows about `SessionRole`, message shapes, and wire encoding in addition to its storage duties. A bug in reconnection logic, a protocol change, and a connection-limit change all touch the same file.
 
 **Recommendation:** Extract a `DeckerIdentityService` (or `RegistrationService`) that encapsulates name validation, token issuance, and the `disconnectedDeckerNames` / `reconnectTokens` maps. Extract a `SessionMessenger` (or fold into the controller) that owns `broadcast`, `broadcastWithRoles`, and the individual `session.send(...)` calls. `SessionRegistry` then becomes a thin, thread-safe map of sessions to names, delegating to those two collaborators.
+
+**[DEFERRED]** — `SessionRegistry` responsibility split not in scope for this session.
 
 ---
 
@@ -34,6 +38,8 @@ The server layer has a solid foundation in its smaller components (TurnCoordinat
 
 **Recommendation:** Extract a `DeckerActionDispatcher` class that receives a `Decker`, an `AvailableAction`, an `ActionCommand`, and a `DiceRoller` and returns a `DispatchResult`. The `toDispatch()` converters belong there as well. `WebSocketDeckerController` then reduces to turn orchestration only: acquire deferred, promote, await, hand off to dispatcher, broadcast result, demote.
 
+**[DEFERRED]** — Full `DeckerActionDispatcher` extraction not done; `RELOCATE_ICON` was extracted to a helper as a minor improvement.
+
 ---
 
 ### [MEDIUM] TurnCoordinator exposes string error keys across a layer boundary
@@ -43,6 +49,8 @@ The server layer has a solid foundation in its smaller components (TurnCoordinat
 **Issue:** `claimAction()` returns `Pair(null, "NOT_YOUR_TURN")` and `Pair(null, "NO_ACTION_PENDING")` as raw `String` error discriminators. The caller in `SessionRegistry.receiveAction()` maps these back to `ErrorCode` enum values using a `when` with a catch-all `else -> ErrorCode.BAD_REQUEST`. Any new error key added to `TurnCoordinator` that is not listed in the `when` will silently become `BAD_REQUEST`, making the error invisible.
 
 **Recommendation:** Replace the string return with a sealed class or an enum defined alongside `TurnCoordinator` (e.g., `ClaimError.NotYourTurn`, `ClaimError.NoActionPending`). The `when` in `receiveAction` then becomes exhaustive and the compiler enforces coverage.
+
+**[DEFERRED]** — `ClaimError` sealed class not introduced; out of scope for this session.
 
 ---
 
@@ -54,6 +62,8 @@ The server layer has a solid foundation in its smaller components (TurnCoordinat
 
 **Recommendation:** Make `turns` private. The single delegation method `setPendingAction` can stay or be inlined. Callers should only ever see `SessionRegistry`'s interface; `TurnCoordinator` is an implementation detail.
 
+**[DEFERRED]** — `turns` field visibility not changed; out of scope for this session.
+
 ---
 
 ### [LOW] `MatrixJson` serialization configuration defined in a DTO file
@@ -64,6 +74,8 @@ The server layer has a solid foundation in its smaller components (TurnCoordinat
 
 **Recommendation:** Move `MatrixJson` to a dedicated `MatrixSerialization.kt` file (or to the server bootstrap in `MatrixServer.kt`), with a comment explaining the `encodeDefaults = true` requirement (needed so fields with default values, e.g. `reconnect = false`, are included in control messages consumed by the frontend).
 
+**[DEFERRED]** — `MatrixJson` not moved to dedicated file; out of scope for this session.
+
 ---
 
 ### [INFO] Manual enum-name contract between Kotlin DTOs and TypeScript frontend
@@ -73,6 +85,8 @@ The server layer has a solid foundation in its smaller components (TurnCoordinat
 **Issue:** Five Kotlin enums (`AlertStatus`, `SecurityCode`, `TopologyType`, `SubsystemType`, `IcBehavior`) are serialized using raw `.name` strings (not `@SerialName`), and the comment explicitly warns that the matching TypeScript union types must be kept in sync by hand. There is no compile-time or test-time enforcement of this contract.
 
 **Recommendation:** Add an integration or schema test that enumerates the Kotlin enum members for these five types and asserts they match the TypeScript union string literals (or a shared schema file). Alternatively, adopt a code-generation step (e.g., kotlin-js, ts-poet, or a JSON Schema round-trip) to make the contract machine-verified.
+
+**[DEFERRED]** — No contract test added for enum-name alignment; out of scope for this session.
 
 ---
 

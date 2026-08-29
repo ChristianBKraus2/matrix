@@ -152,8 +152,7 @@ data class Decker(
         add(AvailableAction.Operation(SystemOperation.ANALYZE_SECURITY))
         add(AvailableAction.Operation(SystemOperation.RELOCATE_ICON))
         add(AvailableAction.Operation(SystemOperation.LOCATE_IC))
-        visibleObjects().filterIsInstance<MatrixObject.IcProgram>()
-            .forEach { add(AvailableAction.Operation(SystemOperation.ANALYZE_IC, it)) }
+        visibleObjects().filterIsInstance<MatrixObject.IcProgram>()            .forEach { add(AvailableAction.Operation(SystemOperation.ANALYZE_IC, it)) }
     }
 
     private fun MutableList<AvailableAction>.addHostSystemActions(host: Host) {
@@ -164,14 +163,12 @@ data class Decker(
         add(AvailableAction.Operation(SystemOperation.LOCATE_FILE))
         add(AvailableAction.Operation(SystemOperation.LOCATE_SLAVE))
         add(AvailableAction.Operation(SystemOperation.LOCATE_ACCESS_NODE))
-        add(AvailableAction.Operation(SystemOperation.LOCATE_DECKER))
         add(AvailableAction.Operation(SystemOperation.LOCATE_IC))
         add(AvailableAction.Operation(SystemOperation.DECRYPT_ACCESS))
         add(AvailableAction.Operation(SystemOperation.DECRYPT_SLAVE))
         add(AvailableAction.Operation(SystemOperation.UPLOAD_DATA))
         add(AvailableAction.Operation(SystemOperation.MAKE_COMCALL))
         add(AvailableAction.Operation(SystemOperation.TAP_COMCALL))
-        add(AvailableAction.Operation(SystemOperation.SWAP_MEMORY))
         host.nodes.forEach {
             add(AvailableAction.Operation(SystemOperation.ANALYZE_SUBSYSTEM, MatrixObject.HostSubsystem(it)))
         }

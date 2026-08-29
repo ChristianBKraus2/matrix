@@ -103,7 +103,7 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
         joinAsDecker(jackedInDecker.name)
 
         // Turn 1: on UCAS-SEA LTG — logon to parent RTG (UCAS)
-        val turn1 = Thread { runBlocking { controller.action(context, winRoller()) } }.also { it.start() }
+        val turn1 = Thread { runBlocking { controller.conductTurn(context, winRoller()) } }.also { it.start() }
         incoming.receive() // active_controller
         val state1 = receiveJson()
         val rtgIndex = state1["availableActions"]!!.jsonArray
@@ -111,10 +111,11 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
         send(Frame.Text("""{"type":"action","actionIndex":$rtgIndex}"""))
         incoming.receive() // result
         incoming.receive() // registered_decker
+        incoming.receive() // post-action StateMessage broadcast
         turn1.join()
 
         // Turn 2: now on UCAS RTG — all 4 LTGs must appear as available actions
-        val turn2 = Thread { runBlocking { controller.action(context, winRoller()) } }.also { it.start() }
+        val turn2 = Thread { runBlocking { controller.conductTurn(context, winRoller()) } }.also { it.start() }
         incoming.receive() // active_controller
         val state2 = receiveJson()
         val ltgNames = state2["availableActions"]!!.jsonArray
@@ -152,5 +153,5 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
     }
 
     private fun deckerState(name: String) =
-        DeckerStateDto(name, "not jacked in", false, 0, 10, 0, 10, 6, 4, emptyList())
+        DeckerStateDto(name, "not jacked in", null, false, 0, 10, 0, 10, 6, 4, emptyList())
 }

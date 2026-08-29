@@ -11,6 +11,8 @@ import com.shadowrun.matrix.common.TopologyType
 import com.shadowrun.matrix.combat.BlackIcPinState
 import com.shadowrun.matrix.ic.LethalBlackIC
 import com.shadowrun.matrix.network.Host
+import com.shadowrun.matrix.operations.InterrogationState
+import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.network.Jackpoint
 import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.MatrixLocation
@@ -554,5 +556,67 @@ class MovementTest {
         assertEquals(1, d.cyberdeck.activeUtilities.size)
         assertEquals(UtilityType.DECEPTION, d.cyberdeck.activeUtilities[0].type)
         assertEquals(4, d.cyberdeck.activeUtilities[0].rating)
+    }
+
+    // ── logonToRtg tally accumulation ─────────────────────────────────────────────
+
+    @Test
+    fun `logonToRtg accumulates host successes on top of existing RTG security tally`() {
+        val existingTally = 5
+        val r = rtg().copy(securityTally = existingTally)
+        val l = ltg(parentRtg = r)
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
+        val d = decker(currentLocation = MatrixLocation.OnLTG(l), persona = persona)
+        // Decker rolls: face~6 ≥ TN 4 (success); Host rolls: face~4 ≥ detectionFactor 3 (success)
+        val roller = DiceRoller(object : Random() {
+            private var call = 0
+            override fun nextBits(bitCount: Int) = 0
+            override fun nextInt(from: Int, until: Int): Int {
+                call++
+                return if (call <= 6) 5 else 3
+            }
+        })
+        val result = d.logonToRtg(r, roller)
+        assertIs<LogonResult.Success>(result)
+        val newTally = (result.location as MatrixLocation.OnRTG).rtg.securityTally
+        assertTrue(newTally > existingTally,
+            "RTG tally ($newTally) should accumulate on top of existing tally ($existingTally)")
+    }
+
+    // ── interrogationStates cleared on logoff/jackOut ─────────────────────────────
+
+    @Test
+    fun `gracefulLogoff clears interrogationStates`() {
+        val l = ltg()
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
+        val d = decker(currentLocation = MatrixLocation.OnLTG(l), persona = persona).copy(
+            interrogationStates = mapOf(
+                SystemOperation.LOCATE_FILE to InterrogationState(SystemOperation.LOCATE_FILE, "paydata", 2)
+            )
+        )
+        assertEquals(1, d.interrogationStates.size)
+        val result = d.gracefulLogoff(DiceRoller(Random(42)))
+        val finalDecker = when (result) {
+            is LogoffResult.GracefulSuccess -> result.decker
+            is LogoffResult.JackOut         -> result.decker
+        }
+        assertTrue(finalDecker.interrogationStates.isEmpty(),
+            "interrogationStates should be cleared after gracefulLogoff")
+    }
+
+    @Test
+    fun `jackOut clears interrogationStates`() {
+        val l = ltg()
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
+        val d = decker(currentLocation = MatrixLocation.OnLTG(l), persona = persona).copy(
+            interrogationStates = mapOf(
+                SystemOperation.LOCATE_FILE to InterrogationState(SystemOperation.LOCATE_FILE, "paydata", 3)
+            )
+        )
+        assertEquals(1, d.interrogationStates.size)
+        val result = d.jackOut()
+        assertIs<LogoffResult.JackOut>(result)
+        assertTrue(result.decker.interrogationStates.isEmpty(),
+            "interrogationStates should be cleared after jackOut")
     }
 }

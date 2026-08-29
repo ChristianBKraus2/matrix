@@ -27,6 +27,7 @@ import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.utility.DiceRoller
 import kotlin.math.ceil
 import kotlin.math.max
+import kotlin.math.min
 
 object CombatResolver {
 
@@ -173,33 +174,16 @@ object CombatResolver {
         return diceRoller.roll(ic.rating, decker.effectiveDetectionFactor).successes
     }
 
-    fun resolveTarBaby(decker: Decker, ic: TarBaby, utility: Utility, diceRoller: DiceRoller): TarBabyResult {
-        val icSuccesses = diceRoller.roll(ic.rating, utility.currentRating).successes
-        val utilitySuccesses = diceRoller.roll(utility.currentRating, ic.rating).successes
-        return if (icSuccesses >= utilitySuccesses) {
-            val updatedDeck = decker.cyberdeck.copy(
-                activeUtilities = decker.cyberdeck.activeUtilities.filterNot { it.type == utility.type }
-            )
-            TarBabyResult(decker.copy(cyberdeck = updatedDeck), bothCrashed = true, deckerNoticed = false)
-        } else {
-            val noticed = diceRoller.roll(requireNotNull(decker.persona) { "resolveTarBaby: decker has no active persona" }.sensor, ic.rating).successes >= 1
-            TarBabyResult(decker, bothCrashed = false, deckerNoticed = noticed)
-        }
-    }
+    fun resolveTarBaby(decker: Decker, ic: TarBaby, utility: Utility, diceRoller: DiceRoller): TarBabyResult =
+        resolveTarContest(decker, ic.rating, utility, "resolveTarBaby", diceRoller)
 
     // ── Gray IC ───────────────────────────────────────────────────────────────────
 
     fun resolveBlaster(attacker: AttackParticipant, defender: DefenderParticipant, diceRoller: DiceRoller): AttackResult =
         resolveAttack(attacker, defender, diceRoller)
 
-    fun resolveBlasterMpcpTest(decker: Decker, ic: Blaster, diceRoller: DiceRoller): Decker {
-        val tn = decker.cyberdeck.hardening + decker.cyberdeck.mcpRating
-        val successes = diceRoller.roll(ic.rating, max(2, tn)).successes
-        val reduction = successes / 2
-        return decker.copy(
-            cyberdeck = decker.cyberdeck.copy(mcpRating = max(0, decker.cyberdeck.mcpRating - reduction))
-        )
-    }
+    fun resolveBlasterMpcpTest(decker: Decker, ic: Blaster, diceRoller: DiceRoller): Decker =
+        reduceMcpRating(decker, ic.rating, diceRoller)
 
     fun resolveRipper(decker: Decker, ic: Ripper, securityCode: SecurityCode, diceRoller: DiceRoller): CripplerResult {
         val sv = securityCode.securityValue
@@ -216,14 +200,8 @@ object CombatResolver {
         return CripplerResult(updatedDecker, ic.targetAttribute, reduction)
     }
 
-    fun resolveRipperMpcpTest(decker: Decker, ic: Ripper, diceRoller: DiceRoller): Decker {
-        val tn = decker.cyberdeck.hardening + decker.cyberdeck.mcpRating
-        val successes = diceRoller.roll(ic.rating, max(2, tn)).successes
-        val reduction = successes / 2
-        return decker.copy(
-            cyberdeck = decker.cyberdeck.copy(mcpRating = max(0, decker.cyberdeck.mcpRating - reduction))
-        )
-    }
+    fun resolveRipperMpcpTest(decker: Decker, ic: Ripper, diceRoller: DiceRoller): Decker =
+        reduceMcpRating(decker, ic.rating, diceRoller)
 
     fun resolveSparky(attacker: AttackParticipant, defender: DefenderParticipant, diceRoller: DiceRoller): AttackResult =
         resolveAttack(attacker, defender, diceRoller)
@@ -232,8 +210,10 @@ object CombatResolver {
         val tn = decker.cyberdeck.hardening + decker.cyberdeck.mcpRating + 2
         val successes = diceRoller.roll(ic.rating, max(2, tn)).successes
         val reduction = successes / 2
+        val newMcp = max(0, decker.cyberdeck.mcpRating - reduction)
+        val newRi = min(decker.cyberdeck.responseIncrease, newMcp / 4)
         val updatedDecker = decker.copy(
-            cyberdeck = decker.cyberdeck.copy(mcpRating = max(0, decker.cyberdeck.mcpRating - reduction))
+            cyberdeck = decker.cyberdeck.copy(mcpRating = newMcp, responseIncrease = newRi)
         )
         return Pair(updatedDecker, successes)
     }
@@ -248,19 +228,8 @@ object CombatResolver {
         )
     }
 
-    fun resolveTarPit(decker: Decker, ic: TarPit, utility: Utility, diceRoller: DiceRoller): TarBabyResult {
-        val icSuccesses = diceRoller.roll(ic.rating, utility.currentRating).successes
-        val utilitySuccesses = diceRoller.roll(utility.currentRating, ic.rating).successes
-        return if (icSuccesses >= utilitySuccesses) {
-            val updatedDeck = decker.cyberdeck.copy(
-                activeUtilities = decker.cyberdeck.activeUtilities.filterNot { it.type == utility.type }
-            )
-            TarBabyResult(decker.copy(cyberdeck = updatedDeck), bothCrashed = true, deckerNoticed = false)
-        } else {
-            val noticed = diceRoller.roll(requireNotNull(decker.persona) { "resolveTarPit: decker has no active persona" }.sensor, ic.rating).successes >= 1
-            TarBabyResult(decker, bothCrashed = false, deckerNoticed = noticed)
-        }
-    }
+    fun resolveTarPit(decker: Decker, ic: TarPit, utility: Utility, diceRoller: DiceRoller): TarBabyResult =
+        resolveTarContest(decker, ic.rating, utility, "resolveTarPit", diceRoller)
 
     fun resolveTarPitMpcpTest(decker: Decker, ic: TarPit, utility: Utility, diceRoller: DiceRoller): Decker {
         val tn = decker.cyberdeck.hardening + decker.cyberdeck.mcpRating
@@ -311,10 +280,10 @@ object CombatResolver {
             val mpcpSuccesses = diceRoller.roll(ic.rating * 2, max(2, mpcpTn)).successes
             mpcpReduction = mpcpSuccesses / 2
             if (mpcpReduction > 0) {
+                val newMcp = max(0, updatedDecker.cyberdeck.mcpRating - mpcpReduction)
+                val newRi = min(updatedDecker.cyberdeck.responseIncrease, newMcp / 4)
                 updatedDecker = updatedDecker.copy(
-                    cyberdeck = updatedDecker.cyberdeck.copy(
-                        mcpRating = max(0, updatedDecker.cyberdeck.mcpRating - mpcpReduction)
-                    )
+                    cyberdeck = updatedDecker.cyberdeck.copy(mcpRating = newMcp, responseIncrease = newRi)
                 )
             }
         }
@@ -359,10 +328,10 @@ object CombatResolver {
             val mpcpSuccesses = diceRoller.roll(ic.rating * 2, max(2, mpcpTn)).successes
             mpcpReduction = mpcpSuccesses / 2
             if (mpcpReduction > 0) {
+                val newMcp = max(0, updatedDecker.cyberdeck.mcpRating - mpcpReduction)
+                val newRi = min(updatedDecker.cyberdeck.responseIncrease, newMcp / 4)
                 updatedDecker = updatedDecker.copy(
-                    cyberdeck = updatedDecker.cyberdeck.copy(
-                        mcpRating = max(0, updatedDecker.cyberdeck.mcpRating - mpcpReduction)
-                    )
+                    cyberdeck = updatedDecker.cyberdeck.copy(mcpRating = newMcp, responseIncrease = newRi)
                 )
             }
         }
@@ -503,6 +472,30 @@ object CombatResolver {
         val shift = net / 2
         val ordinal = (base.ordinal + shift).coerceIn(0, DamageLevel.entries.size - 1)
         return DamageLevel.entries[ordinal]
+    }
+
+    private fun reduceMcpRating(decker: Decker, icRating: Int, diceRoller: DiceRoller): Decker {
+        val tn = decker.cyberdeck.hardening + decker.cyberdeck.mcpRating
+        val successes = diceRoller.roll(icRating, max(2, tn)).successes
+        val reduction = successes / 2
+        if (reduction == 0) return decker
+        val newMcp = max(0, decker.cyberdeck.mcpRating - reduction)
+        val newRi = min(decker.cyberdeck.responseIncrease, newMcp / 4)
+        return decker.copy(cyberdeck = decker.cyberdeck.copy(mcpRating = newMcp, responseIncrease = newRi))
+    }
+
+    private fun resolveTarContest(decker: Decker, icRating: Int, utility: Utility, context: String, diceRoller: DiceRoller): TarBabyResult {
+        val icSuccesses = diceRoller.roll(icRating, utility.currentRating).successes
+        val utilitySuccesses = diceRoller.roll(utility.currentRating, icRating).successes
+        return if (icSuccesses >= utilitySuccesses) {
+            val updatedDeck = decker.cyberdeck.copy(
+                activeUtilities = decker.cyberdeck.activeUtilities.filterNot { it.type == utility.type }
+            )
+            TarBabyResult(decker.copy(cyberdeck = updatedDeck), bothCrashed = true, deckerNoticed = false)
+        } else {
+            val noticed = diceRoller.roll(requireNotNull(decker.persona) { "$context: decker has no active persona" }.sensor, icRating).successes >= 1
+            TarBabyResult(decker, bothCrashed = false, deckerNoticed = noticed)
+        }
     }
 }
 

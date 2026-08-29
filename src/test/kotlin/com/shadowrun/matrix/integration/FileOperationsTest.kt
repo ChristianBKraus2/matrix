@@ -38,7 +38,7 @@ class FileOperationsTest : IntegrationTestBase() {
 
         val state = InterrogationState(SystemOperation.LOCATE_FILE, "Personnel")
         val decker = icon.currentDecker()
-        val result = decker.locateFile(host, QueryPrecision.VERY_SPECIFIC, hitRoller())
+        val result = decker.locateFile(host, "Personnel", QueryPrecision.VERY_SPECIFIC, hitRoller())
         icon.context.updateDecker(decker, result.first.decker)
 
         assertIs<LocateResult.Located>(result.second, "Should accumulate 5+ successes and locate the file")
@@ -56,7 +56,7 @@ class FileOperationsTest : IntegrationTestBase() {
         val seedDecker = icon.currentDecker().copy(interrogationStates = mapOf(
             SystemOperation.LOCATE_FILE to InterrogationState(SystemOperation.LOCATE_FILE, "", 1)
         ))
-        val result = seedDecker.locateFile(host, QueryPrecision.VAGUE, failRoller())
+        val result = seedDecker.locateFile(host, "", QueryPrecision.VAGUE, failRoller())
 
         // failRoller → host wins → decker gets 0 net successes — stays Ongoing or NotFound but not Located
         assertIs<OperationResult.Failure>(result.first, "failRoller should make the decker lose")

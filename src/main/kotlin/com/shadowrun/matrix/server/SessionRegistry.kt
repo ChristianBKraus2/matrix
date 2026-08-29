@@ -46,6 +46,10 @@ class SessionRegistry {
             session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = ErrorCode.NAME_TOO_LONG))))
             return
         }
+        if (!name.matches(Regex("[A-Za-z0-9 _\\-]{1,32}"))) {
+            session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = ErrorCode.BAD_REQUEST, details = "Name contains invalid characters"))))
+            return
+        }
 
         val (error, isReconnect, token) = mutex.withLock {
             when {
@@ -55,7 +59,7 @@ class SessionRegistry {
                     Triple(ErrorCode.NAME_ALREADY_TAKEN, false, null)
                 disconnectedDeckerNames.contains(name) -> {
                     val stored = reconnectTokens[name]
-                    if (stored != null && msg.reconnectToken != stored) {
+                    if (stored == null || msg.reconnectToken != stored) {
                         Triple(ErrorCode.NAME_ALREADY_TAKEN, false, null)
                     } else {
                         deckerSessions[name] = session
@@ -104,10 +108,10 @@ class SessionRegistry {
 
     suspend fun promoteForTurn(deckerName: String): Boolean {
         val session = mutex.withLock { deckerSessions[deckerName] } ?: return false
-        turns.setActive(session)
         session.send(Frame.Text(MatrixJson.encodeToString(
             ControlMessage(role = SessionRole.ACTIVE_CONTROLLER, deckerName = deckerName)
         )))
+        turns.setActive(session)
         return true
     }
 
@@ -127,8 +131,8 @@ class SessionRegistry {
     }
 
     suspend fun broadcastWithRoles(base: StateMessage) {
-        val controller = turns.currentController()
         val snapshot = mutex.withLock {
+            val controller = turns.currentControllerUnsafe()
             sessions.map { s ->
                 val role = when {
                     s == controller              -> SessionRole.ACTIVE_CONTROLLER

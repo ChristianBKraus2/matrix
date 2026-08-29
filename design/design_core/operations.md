@@ -405,22 +405,37 @@ data class AnalyzeSecurityResult(
 
 ### Locate Operations (Interrogation)
 
-All three (`Locate Access Node`, `Locate File`, `Locate Slave`) share the interrogation mechanic.
+All three (`Locate Access Node`, `Locate File`, `Locate Slave`) share the interrogation mechanic. Each takes a `query` string — the search goal the decker states on the first call. On subsequent calls for the same operation the query is already stored in the `InterrogationState` and the parameter is ignored.
 
 ```kotlin
 fun locateFile(
     host: Host,
-    state: InterrogationState,
+    query: String,
+    precision: QueryPrecision,
+    diceRoller: DiceRoller
+): Pair<OperationResult, InterrogationState>
+
+fun locateSlave(
+    host: Host,
+    query: String,
+    precision: QueryPrecision,
+    diceRoller: DiceRoller
+): Pair<OperationResult, InterrogationState>
+
+fun locateAccessNode(
+    host: Host,
+    query: String,
     precision: QueryPrecision,
     diceRoller: DiceRoller
 ): Pair<OperationResult, InterrogationState>
 ```
 
 **Algorithm:**
-1. Call `SystemTestResolver.resolveInterrogation(...)` → `(outcome, newState)`.
-2. If `newState.accumulatedSuccesses >= 5`: file is located → `OperationResult.Success`.
-3. If `newState.accumulatedSuccesses >= 3` and file does not exist on this host: reveal "not found".
-4. Otherwise: `OperationResult.Failure` (still searching; caller updates `state`).
+1. If no existing `InterrogationState` for this operation, create one with the provided `query`. If `query` is blank on a first call, the server rejects with `bad_request`.
+2. Call `SystemTestResolver.resolveInterrogation(...)` → `(outcome, newState)`.
+3. If `newState.accumulatedSuccesses >= 5`: file is located → `OperationResult.Success`.
+4. If `newState.accumulatedSuccesses >= 3` and file does not exist on this host: reveal "not found".
+5. Otherwise: `OperationResult.Failure` (still searching; caller updates `state`).
 
 `Locate Slave` requires only **3** accumulated successes (not 5) to locate a slave (PRD SO individual table).
 

@@ -68,14 +68,24 @@ All messages are JSON objects. Every message has a `"type"` discriminator field.
 
 ### `JoinMessage` (client → server)
 ```json
-{ "type": "join", "deckerName": "Kylie" }
+{ "type": "join", "deckerName": "Kylie", "reconnectToken": "<string|omit>" }
 ```
+`reconnectToken` is required when rejoining after a disconnect to reclaim the same decker slot. Omit on first join. If the token is missing or wrong for a disconnected name, the server responds with `name_already_taken`.
 
 ### `ActionCommand` (client → server)
 ```json
 { "type": "action", "actionIndex": 2, "params": { ... } }
 ```
 `actionIndex` is a 0-based index into the `availableActions` array from the most recent `state` message.
+
+`params` is optional. When present, the relevant fields are:
+
+| Operation | params fields |
+|---|---|
+| `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE` | `precision` (QueryPrecision), `query` (string — required on first call, ignored on continuation) |
+| `EDIT_FILE` | `newContent` (string or null to erase) |
+| `NULL_OPERATION` | `inactivitySeconds` (int, 0–3600) |
+| `TAP_COMCALL` | `scannerDeviceRating` (int, 0–10) |
 
 ---
 
@@ -116,10 +126,13 @@ Server                                    Client (active_controller)
   │                                              │
   ├── ResultMessage ─────────────────────────────►│ (broadcast to all)
   ├── ControlMessage(registered_decker) ──────────►│
+  ├── StateMessage (post-action, all roles) ───────► (broadcast to all)
   │                                              │
 ```
 
-Timeout: if no `ActionCommand` arrives within 120 seconds, the server broadcasts a `ResultMessage(success: false, details: "Action timed out")` and demotes the controller.
+The post-action `StateMessage` is broadcast after demotion and reflects the decker's new location and available actions. Clients should update their UI on this message.
+
+Timeout: if no `ActionCommand` arrives within 120 seconds, the server broadcasts a `ResultMessage(success: false, details: "Action timed out")` and demotes the controller (no post-action StateMessage is sent on timeout).
 
 ---
 
@@ -137,6 +150,28 @@ Timeout: if no `ActionCommand` arrives within 120 seconds, the server broadcasts
 
 ---
 
+## `DeckerStateDto` Fields
+
+The `decker` object within `StateMessage` has the following key fields:
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | Decker name |
+| `location` | string | Human-readable location string (e.g. `"Host: Mitsuhama Pagoda"`) |
+| `locationIndex` | int? | Index into `visibleObjects` identifying the current location object; null if not jacked in or object not visible |
+| `isPinnedByBlackIc` | bool | True if a Black IC pin is active |
+| `mcpRating` | int | Current MPCP rating |
+| `hackingPool` | int | Current hacking pool |
+| `activeUtilities` | array | Loaded utility programs |
+| `physicalDamage` | int | Physical CM damage boxes filled |
+| `mentalDamage` | int | Mental CM damage boxes filled |
+| `physicalMaxBoxes` | int | Physical CM capacity |
+| `mentalMaxBoxes` | int | Mental CM capacity |
+
+`locationIndex` is the preferred lookup key. Fall back to name-based matching in `visibleObjects` only if `locationIndex` is null.
+
+---
+
 ## `AvailableActionDto` Discriminant
 
 Sealed by `"kind"` field (not `"type"`):
@@ -150,6 +185,13 @@ Sealed by `"kind"` field (not `"type"`):
 | `GracefulLogoff` | — |
 | `JackOut` | — |
 | `Operation` | `operation` (SystemOperation), `targetKind`, `targetName` |
+
+**Deferred operations** — never appear in `availableActions`:
+
+| Operation | Status |
+|---|---|
+| `LOCATE_DECKER` | Deferred — requires passcode ledger design (not yet in PRD) |
+| `SWAP_MEMORY` | Deferred — memory management refactor pending |
 
 ## `MatrixObjectDto` Discriminant
 

@@ -171,8 +171,10 @@ fun Decker.decryptSlave(host: Host, diceRoller: DiceRoller): OperationResult {
 
 // ── Interrogation operations ───────────────────────────────────────────────────
 
-fun Decker.locateFile(host: Host, precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
-    val state = interrogationStates.getOrDefault(SystemOperation.LOCATE_FILE, InterrogationState(SystemOperation.LOCATE_FILE, ""))
+fun Decker.locateFile(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
+    val existingState = interrogationStates[SystemOperation.LOCATE_FILE]
+    require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
+    val state = existingState ?: InterrogationState(SystemOperation.LOCATE_FILE, query)
     logger.info { "[$name] locateFile on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
     requireJackedIn()
     val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_FILE, host, state, precision, diceRoller)
@@ -196,8 +198,10 @@ fun Decker.locateFile(host: Host, precision: QueryPrecision, diceRoller: DiceRol
     return Pair(opResult, locateResult)
 }
 
-fun Decker.locateSlave(host: Host, precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
-    val state = interrogationStates.getOrDefault(SystemOperation.LOCATE_SLAVE, InterrogationState(SystemOperation.LOCATE_SLAVE, ""))
+fun Decker.locateSlave(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
+    val existingState = interrogationStates[SystemOperation.LOCATE_SLAVE]
+    require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
+    val state = existingState ?: InterrogationState(SystemOperation.LOCATE_SLAVE, query)
     logger.info { "[$name] locateSlave on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
     requireJackedIn()
     val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_SLAVE, host, state, precision, diceRoller)
@@ -219,8 +223,10 @@ fun Decker.locateSlave(host: Host, precision: QueryPrecision, diceRoller: DiceRo
     return Pair(opResult, locateResult)
 }
 
-fun Decker.locateAccessNode(host: Host, precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
-    val state = interrogationStates.getOrDefault(SystemOperation.LOCATE_ACCESS_NODE, InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, ""))
+fun Decker.locateAccessNode(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
+    val existingState = interrogationStates[SystemOperation.LOCATE_ACCESS_NODE]
+    require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
+    val state = existingState ?: InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, query)
     logger.info { "[$name] locateAccessNode on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
     requireJackedIn()
     val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_ACCESS_NODE, host, state, precision, diceRoller)
@@ -268,6 +274,7 @@ fun Decker.editFile(
 ): EditFileResult {
     logger.info { "[$name] editFile → ${file.name} (delete=${newContent == null})" }
     requireJackedIn()
+    require(newContent == null || newContent.size <= 4096) { "File content too large (max 4096 bytes)" }
     val outcome = SystemTestResolver.resolve(this, SystemOperation.EDIT_FILE, host.subsystemRatings.files, host.securityRating.value, diceRoller)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     val authSuccesses: Int? = if (outcome.deckerWins && attemptAuthentication) {

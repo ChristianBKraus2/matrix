@@ -16,6 +16,8 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 
 **Recommendation:** Extract a private helper `fun reduceMcpRating(decker: Decker, icRating: Int, diceRoller: DiceRoller): Decker` and delegate from both public functions.
 
+**[DEFERRED]** — `reduceMcpRating` helper not extracted; out of scope for this session.
+
 ---
 
 ### [HIGH] MPCP-on-kill block duplicated between `resolveLethalBlackIc` and `resolveNonLethalBlackIc`
@@ -25,6 +27,8 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 **Issue:** The seven-line block that fires when `dumpShockTriggered` — computing `mpcpTn`, rolling `ic.rating * 2` dice, halving successes, capping at 0 — is copy-pasted identically in `resolveLethalBlackIc` (lines 309–320) and `resolveNonLethalBlackIc` (lines 357–368). A rule change to the "final Blaster attack" must be applied in two places.
 
 **Recommendation:** Extract a private helper `fun applyFinalMpcpBlast(decker: Decker, ic: BlackIC, diceRoller: DiceRoller): Pair<Decker, Int>` and call it from both functions.
+
+**[DEFERRED]** — `applyFinalMpcpBlast` helper not extracted; out of scope for this session.
 
 ---
 
@@ -36,6 +40,8 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 
 **Recommendation:** Extract the shared contest-and-sensor logic into a private helper and add the extra TarPit MPCP step only in `resolveTarPit`.
 
+**[DEFERRED]** — Shared TarBaby/TarPit logic not extracted; out of scope for this session.
+
 ---
 
 ### [MEDIUM] `resetDeckers` replaces all deckers with a single one — name is misleading
@@ -45,6 +51,8 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 **Issue:** `fun resetDeckers(decker: Decker)` clears the entire decker list and adds a single replacement. The name suggests a multi-decker reset but the signature takes one decker. Callers reading only the call site will not expect the side-effect of removing all other deckers.
 
 **Recommendation:** Rename to `replaceAllDeckersWith(decker: Decker)` or `setActiveDecker(decker: Decker)` to make the destructive intent explicit.
+
+**[DEFERRED]** — `resetDeckers` not renamed; out of scope for this session.
 
 ---
 
@@ -56,6 +64,8 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 
 **Recommendation:** Change line 104 to `MatrixLocation.OnRTG(rtg.copy(securityTally = rtg.securityTally + hostTallyDelta))` to match the pattern of all other logon functions.
 
+**[RESOLVED]** — Fixed in `DeckerNavigationExtensions.kt`: `logonToRtg` now accumulates `rtg.securityTally + hostTallyDelta`.
+
 ---
 
 ### [MEDIUM] `maintainMonitoredOperation` is a no-op
@@ -65,6 +75,8 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 **Issue:** The function returns `handle` unchanged whether `handle.active` is true or false; in the inactive branch it only logs a warning. The PRD reference is SO-13/SO-14, which should require a maintenance dice roll each turn. As written, the method provides no enforcement and callers get back the same handle regardless.
 
 **Recommendation:** Either implement the maintenance roll (success keeps the handle active, failure deactivates it) or remove the function until the rule is ready to implement, to avoid giving callers false confidence.
+
+**[DEFERRED]** — `maintainMonitoredOperation` stub not removed or implemented; out of scope for this session.
 
 ---
 
@@ -76,6 +88,8 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 
 **Recommendation:** Remove the companion object (or just the logger declaration if the companion is kept for other reasons) to eliminate dead code.
 
+**[DEFERRED]** — Unused logger in `Decker` not removed; out of scope for this session.
+
 ---
 
 ### [MEDIUM] `securityDeckerCount` in `TriggerStep` is never read
@@ -85,6 +99,8 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 **Issue:** The field is documented "AL-02: number of security decker NPCs to spawn on Active Alert," but `GameContext.checkTriggers()` — the only consumer of `TriggerStep` — only reads `activatedIc` and `alertTransition`. The NPC decker spawning logic is absent, so this field is dead configuration that silently does nothing.
 
 **Recommendation:** Either implement the NPC decker spawning in `checkTriggers`, or mark the field with a TODO comment and suppress the IDE warning, so future maintainers know it is intentionally incomplete.
+
+**[DEFERRED]** — `securityDeckerCount` not documented as a planned future feature; out of scope for this session.
 
 ---
 
@@ -96,6 +112,8 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 
 **Recommendation:** Extract a private extension `fun LogonResult.logOutcome(name: String, operation: String, logger: KLogger)` that accepts the decker name and operation label, then call it from each site with a single line.
 
+**[DEFERRED]** — Logon-result logging not extracted to a shared extension; out of scope for this session.
+
 ---
 
 ### [MEDIUM] `controlSlave` builds `SystemTestOutcome` manually, bypassing the standard resolver
@@ -105,6 +123,8 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 **Issue:** Unlike `editSlave` and `monitorSlave` (which call `SystemTestResolver.resolve()`), `controlSlave` constructs `SystemTestOutcome` directly from raw dice results. This bypasses the cyberterminal utility-rating reduction (`effectiveRating()`) applied by the standard resolver, and bypasses the structured logging in the resolver. The three slave operations therefore diverge in behaviour for cyberterminal users.
 
 **Recommendation:** Refactor `SystemTestResolver.resolve()` to accept an optional explicit skill pool override (for `effectiveSkill`), or add a dedicated `resolveControlSlave` overload that handles the Spoof modifier correctly and calls the standard logging path.
+
+**[DEFERRED]** — `controlSlave` resolver bypass not refactored; out of scope for this session.
 
 ---
 
@@ -116,6 +136,8 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 
 **Recommendation:** Rename to `syntheticOutcome` (or `bypassOutcome` / `contestOutcome`) with a one-line comment explaining why a standard `SystemTestOutcome` is constructed manually.
 
+**[DEFERRED]** — `fakeOutcome` not renamed; out of scope for this session.
+
 ---
 
 ### [LOW] `persona!!` used after `check(persona != null)` throughout extension files
@@ -125,6 +147,8 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 **Issue:** Many extension functions call `check(persona != null)` (or `require(persona != null)`) at the top, then dereference `persona!!` multiple times in the same function body (e.g., lines 53–54, 63–64). In Kotlin, extension functions cannot smart-cast a `val` property of the receiver, so the `!!` is technically required, but the resulting code looks unsafe to readers who expect the check to suffice.
 
 **Recommendation:** Adopt the pattern already used in `invokeMediac` and `asDefenderParticipant`: capture `val p = requireNotNull(persona) { "…" }` once, then use `p` throughout.
+
+**[DEFERRED]** — `persona!!` not replaced with `requireNotNull` capture pattern; out of scope for this session.
 
 ---
 

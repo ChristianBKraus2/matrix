@@ -17,6 +17,8 @@ The UI frontend is broadly correct: the WebSocket reducer is exhaustive, the joi
 `Math.max(0, 10 - u.rating)` correctly prevents the empty-pip count from going negative. However the filled-pip count uses `Math.min(u.rating, 10)`. If the server ever sends a negative rating (malformed message, backend bug), `Math.min(negative, 10)` returns the negative value, and `String.prototype.repeat` throws `RangeError: Invalid count value`. This crashes the entire `DeckerPanel` render tree.
 **Recommendation:** Guard both operands: `Math.max(0, Math.min(u.rating, 10))` for filled pips, and `Math.max(0, 10 - Math.max(0, u.rating))` for empty pips.
 
+**[RESOLVED]** — Fixed in `DeckerPanel.tsx`: filled-pip count now uses `Math.min(Math.max(0, u.rating), 10)`.
+
 ---
 
 ### [MEDIUM] `NarrativePanel` has no programmatic scroll-to-bottom
@@ -25,6 +27,8 @@ The UI frontend is broadly correct: the WebSocket reducer is exhaustive, the joi
 **Issue:** The panel body uses `justify-content: flex-end` (App.css:431) to push events to the bottom when the list is short enough to fit. Once the list overflows the panel's height, `justify-content` no longer controls placement — the browser renders items from the top, and the scroll position stays wherever it was. New events appended at the end of the array are rendered below the visible viewport. The user must manually scroll down to read the latest result. With a cap of 20 events and a narrow panel, overflow occurs quickly during active play.
 **Recommendation:** Attach a `ref` to the scroll container and call `ref.current.scrollTop = ref.current.scrollHeight` inside a `useEffect` that fires whenever `events` changes.
 
+**[DEFERRED]** — Programmatic scroll-to-bottom not implemented; out of scope for this session.
+
 ---
 
 ### [MEDIUM] Location node resolved by display name instead of stable index
@@ -32,6 +36,8 @@ The UI frontend is broadly correct: the WebSocket reducer is exhaustive, the joi
 **File:** frontend/src/components/LocationPanel.tsx:75-81
 **Issue:** `visibleObjects.find(o => ... o.name === name)` resolves the current location object by matching the display name extracted from `decker.location` (e.g. `"Host: Public Access"` → `"Public Access"`). Every `MatrixObjectDto` variant already carries a stable `index` field. If two nodes visible at the same time share an identical display name, `find` picks the first one in the array, which may not be the node the decker is actually in. Location stats (alert level, security tally, topology) would silently display from the wrong object.
 **Recommendation:** Include the node's `index` in `decker.location` (e.g. as a `locationIndex` field on `DeckerStateDto`) and match against that instead of the name string.
+
+**[RESOLVED]** — Fixed: `locationIndex: Int?` added to `DeckerStateDto.kt`; `LocationPanel.tsx` now looks up the location object by `decker.locationIndex`.
 
 ---
 
@@ -47,6 +53,8 @@ useEffect(() => {
 `actions` is a plain array field on `StateMessage`. React compares it by reference, and a new reference is produced on every incoming state push. During a player's active turn the server may push additional state updates (e.g. after an IC moves, or another player's action resolves). Each push wipes `cardStates`, clearing any precision level, passcode flag, or scanner rating the player has already configured mid-card before clicking the action button. The player sees the controls silently snap back to defaults.
 **Recommendation:** Reset card states only when the set of available action *indices* changes (i.e. between turns), not on every reference-equal state push. A stable identity check over `actions.map(a => a.index).join(',')` as the effect dependency is sufficient.
 
+**[DEFERRED]** — Card-state reset on reference change not addressed; out of scope for this session.
+
 ---
 
 ### [LOW] `reconnectTokenRef` not cleared on disconnect; attached to new-handle join
@@ -54,6 +62,8 @@ useEffect(() => {
 **File:** frontend/src/hooks/useWebSocket.ts:37, 95-103
 **Issue:** The `DISCONNECTED` reducer branch resets all `WsState` fields but does not touch `reconnectTokenRef.current`. If a player receives a reconnect token, loses connection, then (within the same browser tab) reconnects and calls `join()` with a different decker name, the stale token from the previous session is silently attached to the `JoinMessage`. Depending on server logic, this could either restore the old session under the wrong name or produce a confusing error.
 **Recommendation:** Clear `reconnectTokenRef.current = null` inside the `ws.onclose` handler (or alongside the `DISCONNECTED` dispatch) so that a full reconnect starts without any prior session token.
+
+**[RESOLVED]** — Fixed in `useWebSocket.ts`: `reconnectTokenRef.current = null` is now set in the `onclose` handler.
 
 ---
 
@@ -63,6 +73,8 @@ useEffect(() => {
 **Issue:** All four calls use the string-literal form of `replace`, which replaces only the first matching character. All current enum values (`NO_ALERT`, `PASSIVE_ALERT`, `OPEN_ACCESS`, `HOST_HOST`, etc.) contain at most one underscore, so rendering is correct today. Any future enum variant with two or more underscores would render with the trailing underscores intact.
 **Recommendation:** Use the regex global form `.replace(/_/g, ' ')`. `ActionsPanel.tsx` line 18 already does this for `operation` labels and is the correct precedent.
 
+**[DEFERRED]** — Non-global `replace` in `LocationPanel.tsx` not changed; out of scope for this session.
+
 ---
 
 ### [LOW] `NarrativePanel` ERROR_LABELS is incomplete relative to the full ErrorCode union
@@ -71,6 +83,8 @@ useEffect(() => {
 **Issue:** `NarrativePanel` defines its own local `ERROR_LABELS` map with four entries. The `ErrorCode` union in `messages.ts` defines seven codes; `name_too_long`, `unknown_message_type`, and `bad_request` are absent. These three codes fall through to the raw snake_case string via the `??` fallback and are shown verbatim to the player. `bad_request` and `unknown_message_type` can arrive during an active session (e.g. a malformed action send).
 **Recommendation:** Remove the local copy and import the exhaustive `ERROR_LABELS` constant from `App.tsx`, which uses `Record<ErrorCode, string>` to enforce compile-time completeness.
 
+**[RESOLVED]** — Fixed in `NarrativePanel.tsx`: `ERROR_LABELS` now covers all 7 `ErrorCode` values including `name_too_long`, `unknown_message_type`, and `bad_request`.
+
 ---
 
 ### [INFO] `hasDice` check in NarrativePanel tests non-optional fields
@@ -78,6 +92,8 @@ useEffect(() => {
 **File:** frontend/src/components/NarrativePanel.tsx:29-30
 **Issue:** `const hasDice = ev.msg.deckerSuccesses !== undefined || ev.msg.hostSuccesses !== undefined` guards the dice-score display. Both fields are required (non-optional) in the `ResultMessage` interface, so the check is always `true` and the guard is dead code. A future reader might assume the display is conditional on optional fields and replicate the pattern incorrectly.
 **Recommendation:** Remove `hasDice` and render the dice span unconditionally, or make the fields optional in `ResultMessage` if there is a genuine case where they are absent.
+
+**[DEFERRED]** — `hasDice` dead guard not removed; out of scope for this session.
 
 ## No Issues Found In
 

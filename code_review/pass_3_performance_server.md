@@ -11,6 +11,8 @@ The server layer is lean and well-structured for its scale (max 32 connections, 
 **Issue:** The frame text is parsed twice for every incoming message: once with `Json.parseToJsonElement(json)` to read the `type` discriminator, and again with `Json.decodeFromString<JoinMessage>(json)` or `Json.decodeFromString<ActionCommand>(json)` to fully decode the payload. Deserialization is the single most expensive per-message operation; doubling it for every frame is unnecessary work.
 **Recommendation:** Use a single polymorphic decode pass with a `@JsonClassDiscriminator("type")` sealed class covering `JoinMessage` and `ActionCommand`, or decode once into `JsonElement`, branch on the already-parsed element, and decode the sub-object from that element using `Json.decodeFromJsonElement(...)` rather than re-parsing the raw string.
 
+**[DEFERRED]** — Double JSON parse not consolidated; out of scope for this session.
+
 ---
 
 ### [LOW] New `HashSet` allocated on every game turn
@@ -27,6 +29,8 @@ companion object {
 ```
 Then reference `FILTERED_OPERATIONS` in the `filterNot` call.
 
+**[RESOLVED]** — Moot: `SWAP_MEMORY` and `LOCATE_DECKER` removed from `addHostSystemActions`; the `filterNot` call and its `HashSet` no longer exist.
+
 ---
 
 ### [LOW] Per-session JSON serialization in `broadcastWithRoles`
@@ -42,12 +46,16 @@ for ((session, role) in snapshot) {
 }
 ```
 
+**[DEFERRED]** — Per-session JSON serialization not pre-computed; out of scope for this session.
+
 ---
 
 ### [LOW] `HostInfoItem` list rebuilt on every ANALYZE_HOST operation
 **File:** src/main/kotlin/com/shadowrun/matrix/server/WebSocketDeckerController.kt:197
 **Issue:** `listOf(HostInfoItem.SecurityRating) + SubsystemType.entries.map { HostInfoItem.Subsystem(it) }` constructs and concatenates two lists on every `ANALYZE_HOST` dispatch. The result is deterministic and does not vary per call.
 **Recommendation:** Cache the result in a `companion object` constant so it is built once at class-load time.
+
+**[DEFERRED]** — `HostInfoItem` list not cached; out of scope for this session.
 
 ---
 
@@ -56,12 +64,16 @@ for ((session, role) in snapshot) {
 **Issue:** `target?.let { it::class.simpleName }` uses Kotlin reflection to obtain the class name for every `Operation` action converted to a DTO. Reflection lookups are significantly slower than direct name properties or a `when` branch.
 **Recommendation:** Add a `val kindName: String` property to `MatrixObject` (or use the existing `targetName()` pattern already present in this file) and eliminate the `::class.simpleName` call.
 
+**[DEFERRED]** — Reflection call not replaced; out of scope for this session.
+
 ---
 
 ### [INFO] Sessions list copied to snapshot on every `broadcast`
 **File:** src/main/kotlin/com/shadowrun/matrix/server/SessionRegistry.kt:123
 **Issue:** `sessions.toList()` allocates a new `ArrayList` snapshot inside the mutex on every `broadcast` call. With MAX_CONNECTIONS=32 and frequent broadcasts (once per game turn), this is a minor but avoidable allocation per turn.
 **Recommendation:** At this scale the impact is negligible. If broadcast frequency grows, consider using an immutable persistent-collection approach (e.g. `PersistentList` from `kotlinx.collections.immutable`) so the snapshot copy becomes a zero-cost reference read.
+
+**[DEFERRED]** — Snapshot allocation on broadcast not optimised; out of scope for this session.
 
 ---
 

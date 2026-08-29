@@ -52,8 +52,7 @@ data class ActionParams(
     val newContent: String? = null,
     val inactivitySeconds: Int? = null,
     val precision: String? = null,
-    val hasValidPasscode: Boolean? = null,
-    val scannerDeviceRating: Int? = null
+    val query: String? = null
 )
 
 @Serializable

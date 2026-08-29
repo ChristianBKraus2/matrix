@@ -27,28 +27,34 @@ function needsPrecision(op: string | null) {
   return op === 'LOCATE_FILE' || op === 'LOCATE_SLAVE' || op === 'LOCATE_ACCESS_NODE'
 }
 
-function needsPasscode(op: string | null) { return op === 'MAKE_COMCALL' }
-function needsScanner(op: string | null)  { return op === 'TAP_COMCALL' }
-function needsEdit(op: string | null)     { return op === 'EDIT_FILE' }
+function needsQuery(op: string | null) {
+  return op === 'LOCATE_FILE' || op === 'LOCATE_SLAVE' || op === 'LOCATE_ACCESS_NODE'
+}
+
+function needsScanner(op: string | null)    { return op === 'TAP_COMCALL' }
+function needsEdit(op: string | null)       { return op === 'EDIT_FILE' }
+function needsInactivity(op: string | null) { return op === 'NULL_OPERATION' }
 
 interface CardState {
   precision: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'
-  hasValidPasscode: boolean
+  query: string
   scannerDeviceRating: number
   newContent: string
+  inactivitySeconds: number
 }
 
 function defaultCardState(): CardState {
-  return { precision: 'NORMAL', hasValidPasscode: false, scannerDeviceRating: 0, newContent: '' }
+  return { precision: 'NORMAL', query: '', scannerDeviceRating: 0, newContent: '', inactivitySeconds: 0 }
 }
 
 function buildParams(op: string | null, cs: CardState): ActionParams | undefined {
-  if (needsPrecision(op)) return { precision: cs.precision }
-  if (needsPasscode(op))  return { hasValidPasscode: cs.hasValidPasscode }
-  if (needsScanner(op))   return { scannerDeviceRating: cs.scannerDeviceRating }
+  if (needsPrecision(op)) return { precision: cs.precision, query: cs.query }
   if (needsEdit(op))      return { newContent: cs.newContent === '' ? null : cs.newContent }
+  if (needsInactivity(op)) return { inactivitySeconds: cs.inactivitySeconds }
   return undefined
 }
+
+const SAFE_ACTION_TYPES = new Set(['FREE', 'SIMPLE', 'COMPLEX'])
 
 export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props) {
   const [cardStates, setCardStates] = useState<Record<number, CardState>>({})
@@ -83,6 +89,7 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
             const op = operationOf(action)
             const cs = getState(action.index)
             const disabled = !isActiveTurn
+            const safeActionType = SAFE_ACTION_TYPES.has(action.actionType) ? action.actionType : 'UNKNOWN'
 
             return (
               <div
@@ -92,13 +99,25 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
               >
                 <div className="action-card-header">
                   <span className="action-kind">{actionLabel(action)}</span>
-                  <span className={`action-type ${action.actionType}`}>{action.actionType}</span>
+                  <span className={`action-type ${safeActionType}`}>{action.actionType}</span>
                 </div>
                 {action.kind === 'Operation' && action.targetName && (
                   <div className="action-target">▸ {action.targetName}</div>
                 )}
 
-                {/* Inline controls — stop click propagation so changing a control doesn't fire action */}
+                {needsQuery(op) && (
+                  <div className="action-control" onClick={e => e.stopPropagation()}>
+                    <div className="ctrl-label">SEARCH TERM</div>
+                    <input
+                      type="text"
+                      className="query-input"
+                      placeholder="Search term…"
+                      value={cs.query}
+                      onChange={e => patchState(action.index, { query: e.target.value })}
+                    />
+                  </div>
+                )}
+
                 {needsPrecision(op) && (
                   <div className="action-control" onClick={e => e.stopPropagation()}>
                     <div className="ctrl-label">PRECISION</div>
@@ -114,24 +133,6 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                   </div>
                 )}
 
-                {needsPasscode(op) && (
-                  <div className="action-control" onClick={e => e.stopPropagation()}>
-                    <div className="ctrl-label">VALID PASSCODE</div>
-                    {(['NO', 'YES'] as const).map(v => {
-                      const val = v === 'YES'
-                      return (
-                        <button
-                          key={v}
-                          className={`toggle-btn ${cs.hasValidPasscode === val ? 'active' : ''}`}
-                          onClick={() => patchState(action.index, { hasValidPasscode: val })}
-                        >
-                          {v}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-
                 {needsScanner(op) && (
                   <div className="action-control" onClick={e => e.stopPropagation()}>
                     <div className="ctrl-label">SCANNER RATING</div>
@@ -143,6 +144,7 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                       <span>{cs.scannerDeviceRating}</span>
                       <button
                         className="stepper-btn"
+                        disabled={cs.scannerDeviceRating >= 10}
                         onClick={() => patchState(action.index, { scannerDeviceRating: cs.scannerDeviceRating + 1 })}
                       >+</button>
                     </div>
@@ -159,6 +161,21 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                       rows={3}
                     />
                     <div className="edit-hint">Leave empty to erase file</div>
+                  </div>
+                )}
+
+                {needsInactivity(op) && (
+                  <div className="action-control" onClick={e => e.stopPropagation()}>
+                    <div className="ctrl-label">INACTIVITY (seconds)</div>
+                    <input
+                      type="number"
+                      className="inactivity-input"
+                      min={0}
+                      max={3600}
+                      step={1}
+                      value={cs.inactivitySeconds}
+                      onChange={e => patchState(action.index, { inactivitySeconds: Math.min(3600, Math.max(0, Number(e.target.value) || 0)) })}
+                    />
                   </div>
                 )}
               </div>

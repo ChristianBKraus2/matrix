@@ -17,6 +17,8 @@ if (
 ) return
 ```
 
+**[DEFERRED]** — `CONNECTING` state not added to the reconnect guard; out of scope for this session.
+
 ### [LOW] Post-unmount dispatch not fully guarded in onclose
 **File:** frontend/src/hooks/useWebSocket.ts:121
 **Issue:** The cleanup function sets `isMountedRef.current = false` and then calls `wsRef.current?.close()`. Because WebSocket `onclose` fires asynchronously (queued as a task), the handler executes after cleanup returns. The handler calls `dispatch({ type: 'DISCONNECTED' })` unconditionally before checking `isMountedRef`. The `isMountedRef` guard only prevents scheduling the reconnect timer, not the dispatch itself. In React 18 the stale dispatch is a silent no-op, but it can produce spurious warnings in React 17 environments and test harnesses that assert no state updates after unmount.
@@ -29,10 +31,14 @@ ws.onclose = () => {
 }
 ```
 
+**[DEFERRED]** — `isMountedRef` check not moved to first line of `onclose`; out of scope for this session.
+
 ### [INFO] pendingNameRef auto-rejoin is invisible to React's state model
 **File:** frontend/src/hooks/useWebSocket.ts:96-103
 **Issue:** `pendingNameRef` is never cleared on disconnect. If `join()` is called while the socket is down, the name is stored in the ref. On reconnect, the first `control` message with `role === 'observer'` triggers an automatic join using that stored name. This cross-request mutable state is invisible to the reducer and to React rendering: there is no derived state or UI feedback indicating that a pending join is queued, and there is no cancellation path (e.g., if the user navigates away or the component re-mounts). In a scenario where the socket reconnects very quickly before the user sees the disconnect, the stale ref from a previous session could send an unexpected join.
 **Recommendation:** Either clear `pendingNameRef` inside the `DISCONNECTED` reducer action path (requires lifting it into a ref that is reset on disconnect in `onclose`), or reflect the pending state in the reducer so the UI can show it and the user can cancel it.
+
+**[DEFERRED]** — `pendingNameRef` auto-rejoin state not surfaced to reducer; out of scope for this session.
 
 ## No Issues Found In
 

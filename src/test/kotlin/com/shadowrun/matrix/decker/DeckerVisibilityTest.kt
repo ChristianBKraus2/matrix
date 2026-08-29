@@ -26,6 +26,7 @@ import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.programs.PersonaProgram
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -245,5 +246,13 @@ class DeckerVisibilityTest {
         val subsystemAnalyzeActions = actions.filterIsInstance<AvailableAction.Operation>()
             .filter { it.operation == SystemOperation.ANALYZE_SUBSYSTEM }
         assertEquals(SubsystemType.entries.size, subsystemAnalyzeActions.size)
+    }
+
+    @Test
+    fun `availableActions on Host never includes LOCATE_DECKER or SWAP_MEMORY`() {
+        val d = decker(MatrixLocation.OnHost(host))
+        val ops = d.availableActions().filterIsInstance<AvailableAction.Operation>().map { it.operation }
+        assertFalse(SystemOperation.LOCATE_DECKER in ops, "LOCATE_DECKER must not appear in availableActions")
+        assertFalse(SystemOperation.SWAP_MEMORY in ops, "SWAP_MEMORY must not appear in availableActions")
     }
 }

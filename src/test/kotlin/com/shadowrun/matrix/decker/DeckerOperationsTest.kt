@@ -378,8 +378,7 @@ class DeckerOperationsTest {
     fun `locateAccessNode returns Ongoing when below 5 accumulated successes`() {
         val h = host(secValue = 8, index = 12)
         val d = decker(host = h)
-        val state = InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, "LTG-Seattle", 0)
-        val (_, locate) = d.locateAccessNode(h, QueryPrecision.NORMAL, loseRoller)
+        val (_, locate) = d.locateAccessNode(h, "LTG-Seattle", QueryPrecision.NORMAL, loseRoller)
         assertIs<LocateResult.Ongoing>(locate)
     }
 
@@ -390,7 +389,7 @@ class DeckerOperationsTest {
         val d = decker(host = h).copy(interrogationStates = mapOf(
             SystemOperation.LOCATE_ACCESS_NODE to InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, "", 4)
         ))
-        val (_, locate) = d.locateAccessNode(h, QueryPrecision.NORMAL, winRoller)
+        val (_, locate) = d.locateAccessNode(h, "", QueryPrecision.NORMAL, winRoller)
         assertIs<LocateResult.Located>(locate)
     }
 

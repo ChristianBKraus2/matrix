@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
 data class DeckerStateDto(
     val name: String,
     val location: String,
+    val locationIndex: Int? = null,
     val isPinnedByBlackIc: Boolean,
     val physicalDamage: Int,
     val physicalMaxBoxes: Int,

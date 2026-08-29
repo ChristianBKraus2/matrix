@@ -42,7 +42,7 @@ fun main() {
 
     while (true) {
         try {
-            runBlocking { controller.action(context, DiceRoller()) }
+            runBlocking { controller.conductTurn(context, DiceRoller()) }
         } catch (e: Exception) {
             logger.warn { "Game loop: ${e.message}" }
             Thread.sleep(500)
