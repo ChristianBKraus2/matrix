@@ -76,7 +76,8 @@ export function useWebSocket() {
   const reconnectDelay = useRef(3000)
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return
+    const state = wsRef.current?.readyState
+    if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const ws = new WebSocket(`${proto}//${window.location.host}/decker/ws`)
     wsRef.current = ws
@@ -112,23 +113,25 @@ export function useWebSocket() {
           case 'error':
             dispatch({ type: 'ERROR', msg })
             break
+          default:
+            console.warn('[useWebSocket] unhandled message type:', (msg as { type: string }).type)
         }
-      } catch {
-        // ignore malformed frames
+      } catch (err) {
+        console.error('[useWebSocket] failed to parse message:', err)
       }
     }
 
     ws.onclose = () => {
       reconnectTokenRef.current = null
-      dispatch({ type: 'DISCONNECTED' })
       if (!isMountedRef.current) return
+      dispatch({ type: 'DISCONNECTED' })
       reconnectTimer.current = setTimeout(() => {
         reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000)
         connect()
       }, reconnectDelay.current)
     }
 
-    ws.onerror = () => ws.close()
+    ws.onerror = (ev) => { console.error('[useWebSocket] WebSocket error', ev); ws.close() }
   }, [])
 
   useEffect(() => {

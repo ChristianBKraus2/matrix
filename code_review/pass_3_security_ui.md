@@ -25,7 +25,7 @@ The frontend is a React/TypeScript WebSocket client that communicates with the g
 **Issue:** The `<textarea>` for the EDIT_FILE operation accepts unbounded input. A player can paste megabytes of text, which will be serialised inside the WebSocket frame and sent to the server.  
 **Recommendation:** Add a `maxLength` attribute to the textarea (matching whatever the server enforces for file size) and display the remaining character count to the user.
 
-**[DEFERRED]** — `maxLength` not added to the EDIT_FILE textarea; out of scope for this session.
+**[RESOLVED]** — Fixed in `ActionsPanel.tsx`: `maxLength={4096}` added to the EDIT_FILE textarea.
 
 ### [LOW] CSS class names built directly from server-supplied enum strings
 **File:** frontend/src/components/ActionsPanel.tsx:95  

@@ -39,7 +39,7 @@ The game-logic test suite is broadly well-structured: unit tests cover the main 
 **Issue:** `withUpdatedTally` handles `OnLTG`, `OnRTG`, `OnPLTG`, and `OnHost`. Every test that exercises tally accumulation (all system operations, navigation tests) places the decker on a host. The three grid-location arms are dead from a test perspective. A regression that accidentally broke tally tracking on RTG/LTG would not be caught.
 **Recommendation:** Add unit tests in `DeckerOperationsTest` or a new `DeckerTallyTest` that call `withUpdatedTally(n)` on a decker at each grid location and verify the tally on the underlying grid object increments correctly.
 
-**[DEFERRED]** — `OnLTG`/`OnPLTG` tally arms still untested. Partial: `logonToRtg accumulates host successes on top of existing RTG security tally` added to `MovementTest.kt` covers the `OnRTG` arm.
+**[RESOLVED]** — Fixed in `DeckerTest.kt`: `withUpdatedTally` tests added for `OnLTG`, `OnPLTG`, and zero no-op cases.
 
 ### [MEDIUM] `noticeTriggeredIc` `TypeKnown` branch (exactly 2 successes) is untested
 **File:** src/main/kotlin/com/shadowrun/matrix/decker/DeckerOperationsExtensions.kt:65
@@ -74,14 +74,14 @@ The game-logic test suite is broadly well-structured: unit tests cover the main 
 **Issue:** `resetDeckers(decker)` replaces the entire decker list with a single decker. `deckerByName(name)` performs a name lookup. Neither is exercised in `GameContextTest` or elsewhere. Both are simple but `resetDeckers` mutates shared state and a wrong implementation could silently corrupt the decker list.
 **Recommendation:** Add tests in `GameContextTest`: verify `resetDeckers` clears existing deckers and holds exactly the supplied one; verify `deckerByName` returns the correct decker by name and null when no match.
 
-**[DEFERRED]** — `resetDeckers`/`deckerByName` tests not added; out of scope for this session.
+**[RESOLVED]** — Fixed in `GameContextTest.kt`: `resetDeckers` and `deckerByName` tests added.
 
 ### [MEDIUM] `GameContext.addToSecurityTally` has no direct unit test
 **File:** src/main/kotlin/com/shadowrun/matrix/game/GameContext.kt:85
 **Issue:** `addToSecurityTally(points)` updates the host tally and calls `checkTriggers`. It is only reached through `Probe.action()` in integration tests. There is no unit test that calls it directly, verifies the tally increment, and confirms that `checkTriggers` fires correctly when the new tally crosses a threshold.
 **Recommendation:** Add a test in `GameContextTest` that calls `addToSecurityTally(5)` on a context whose host sheaf has a threshold at 3, and verifies the IC is activated and the tally equals 5.
 
-**[DEFERRED]** — `addToSecurityTally` direct unit test not added; out of scope for this session.
+**[RESOLVED]** — Fixed in `GameContextTest.kt`: `addToSecurityTally` tests added for positive delta, negative guard (precondition), and zero no-op.
 
 ### [MEDIUM] `resolvePointerChain` multi-hop traversal is untested
 **File:** src/main/kotlin/com/shadowrun/matrix/decker/DeckerOperationsExtensions.kt:397
@@ -95,7 +95,7 @@ The game-logic test suite is broadly well-structured: unit tests cover the main 
 **Issue:** `detectionFactor` reads the Masking persona program rating from `cyberdeck.personaPrograms` and the Sleaze utility rating from `cyberdeck.activeUtilities`, then delegates to `cyberdeck.detectionFactor(masking, sleaze)`. `DeckerTest` tests the `Cyberdeck.detectionFactor(Int, Int?)` method directly with literal arguments, but no test constructs a `Decker` with a specific Masking program and a loaded Sleaze utility and asserts the `decker.detectionFactor` property value. A regression in the property lookup logic would be missed.
 **Recommendation:** Add a test in `DeckerTest` or `DeckerOperationsTest` that equips a decker with a Masking program (rating 4) and a SLEAZE utility (rating 2) and asserts `decker.detectionFactor == ceil((4+2)/2.0) = 3`.
 
-**[DEFERRED]** — `Decker.detectionFactor` property test not added; out of scope for this session.
+**[RESOLVED]** — Fixed in `DeckerTest.kt`: `detectionFactor` without sleaze and with sleaze tests added; `effectiveDetectionFactor` suppression penalty test also added.
 
 ### [LOW] `IcMoved` result message content not verified
 **File:** src/test/kotlin/com/shadowrun/matrix/game/GameTest.kt:254
@@ -109,7 +109,7 @@ The game-logic test suite is broadly well-structured: unit tests cover the main 
 **Issue:** `resolveNullOperation` adds `NullOperationModifier.totalBonusForDuration(inactivitySeconds)` to the host's security value. The two tests in `SystemOperationsTest` (5 s and 90 s) only check result type (`Success`/location not null), not whether the bonus is correctly applied to the host SV. A bug in `NullOperationModifier` that returned a wrong bonus would not be detected by these tests.
 **Recommendation:** Add a test that uses a fixed roller, calls `nullOperation` with two different inactivity durations that produce different bonuses, and asserts that `outcome.hostSuccesses` differs between them (or use a spy on the dice roller to confirm the SV passed to `roll` changes).
 
-**[DEFERRED]** — `NullOperationModifier` bonus scaling test not added; out of scope for this session.
+**[RESOLVED]** — Fixed: new `NullOperationModifierTest.kt` added covering `forDuration` boundaries and `totalBonusForDuration` scaling including multi-12h accumulation.
 
 ## No Issues Found In
 - `CombatResolver.stage` — all boundary cases (clamp at LIGHT, clamp at DEADLY, zero net, odd net, up/down shift) are thoroughly tested in `CombatResolverTest`

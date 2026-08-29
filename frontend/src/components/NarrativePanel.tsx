@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { GameEvent } from '../types/messages'
 
 const ERROR_LABELS: Record<string, string> = {
@@ -8,6 +9,7 @@ const ERROR_LABELS: Record<string, string> = {
   name_too_long:        'Name too long',
   unknown_message_type: 'Unknown message type',
   bad_request:          'Bad request',
+  server_full:          'Server at capacity',
 }
 
 interface Props {
@@ -16,6 +18,11 @@ interface Props {
 }
 
 export default function NarrativePanel({ events, isActiveTurn }: Props) {
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [events])
   return (
     <div className={`panel narrative-panel ${isActiveTurn ? 'active-turn' : ''}`}>
       <div className="panel-header">
@@ -29,18 +36,14 @@ export default function NarrativePanel({ events, isActiveTurn }: Props) {
             {events.map((ev, i) => {
               if (ev.kind === 'result') {
                 const cls = ev.msg.success ? 'result-success' : 'result-failure'
-                const hasDice =
-                  ev.msg.deckerSuccesses !== undefined || ev.msg.hostSuccesses !== undefined
                 return (
                   <div key={i} className={`event-item ${cls}`}>
                     <span className="event-badge">
                       {ev.msg.success ? 'SUCCESS' : 'FAILURE'}
                     </span>
-                    {hasDice && (
-                      <span className="event-dice">
-                        [{ev.msg.deckerSuccesses ?? 0}d vs {ev.msg.hostSuccesses ?? 0}h]
-                      </span>
-                    )}
+                    <span className="event-dice">
+                      [{ev.msg.deckerSuccesses}d vs {ev.msg.hostSuccesses}h]
+                    </span>
                     {' '}{ev.msg.details}
                   </div>
                 )
@@ -52,6 +55,7 @@ export default function NarrativePanel({ events, isActiveTurn }: Props) {
                 </div>
               )
             })}
+            <div ref={bottomRef} />
           </div>
         )}
       </div>

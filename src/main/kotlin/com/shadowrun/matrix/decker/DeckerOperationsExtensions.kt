@@ -35,6 +35,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.math.ceil
 
 private val logger = KotlinLogging.logger {}
+private val WORD_SPLIT_REGEX = "\\s+".toRegex()
 
 // ── Matrix Perception ──────────────────────────────────────────────────────────
 
@@ -50,8 +51,9 @@ fun Decker.noticeIcon(icon: MatrixIcon, diceRoller: DiceRoller, friendlyReveal: 
         is MatrixIcon.PersonaIcon -> icon.persona.masking + icon.sleazeRating
         is MatrixIcon.IcIcon     -> icon.ic.rating
     }
-    val result = diceRoller.roll(persona!!.sensor, maxOf(2, tn))
-    logger.info { "[$name] noticeIcon: sensor=${persona!!.sensor} dice vs TN=$tn → ${result.successes} successes" }
+    val p = requireNotNull(persona) { "noticeIcon requires a jacked-in persona" }
+    val result = diceRoller.roll(p.sensor, maxOf(2, tn))
+    logger.info { "[$name] noticeIcon: sensor=${p.sensor} dice vs TN=$tn → ${result.successes} successes" }
     return if (result.successes == 0) SensorTestResult.Undetected
     else SensorTestResult.Detected(icon, result.successes)
 }
@@ -60,8 +62,9 @@ fun Decker.noticeIcon(icon: MatrixIcon, diceRoller: DiceRoller, friendlyReveal: 
 fun Decker.noticeTriggeredIc(ic: IC, diceRoller: DiceRoller): IcDetectionResult {
     logger.info { "[$name] noticeTriggeredIc: IC=${ic.name} rating=${ic.rating}" }
     check(persona != null) { "noticeTriggeredIc requires a jacked-in persona" }
-    val result = diceRoller.roll(persona!!.sensor, maxOf(2, ic.rating))
-    logger.info { "[$name] noticeTriggeredIc: sensor=${persona!!.sensor} dice vs TN=${ic.rating} → ${result.successes} successes" }
+    val p = requireNotNull(persona) { "noticeTriggeredIc requires a jacked-in persona" }
+    val result = diceRoller.roll(p.sensor, maxOf(2, ic.rating))
+    logger.info { "[$name] noticeTriggeredIc: sensor=${p.sensor} dice vs TN=${ic.rating} → ${result.successes} successes" }
     return when {
         result.successes == 0 -> IcDetectionResult.Undetected
         result.successes == 1 -> IcDetectionResult.PresenceOnly(result.successes)
@@ -306,6 +309,7 @@ fun Decker.controlSlave(
     logger.info { "[$name] controlSlave → ${device.name}" }
     requireJackedIn()
     val skill = effectiveSkill ?: computerSkill
+    require(skill in 1..20) { "effectiveSkill must be between 1 and 20 (got $skill)" }
     val spoof = cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.SPOOF }
     val tn = maxOf(2, host.subsystemRatings.slave - (spoof?.let { SystemTestResolver.effectiveRating(it, cyberdeck) } ?: 0))
     val deckerResult = diceRoller.roll(skill, tn)
@@ -365,10 +369,11 @@ fun Decker.nullOperation(host: Host, inactivitySeconds: Int, diceRoller: DiceRol
 /** PRD: CD-26 / G-15 */
 fun Decker.invokeMediac(diceRoller: DiceRoller): MedicResult {
     check(persona != null) { "invokeMediac requires a jacked-in persona" }
+    val p = persona
     val medic = checkNotNull(cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.MEDIC }) {
         "Medic utility is not loaded"
     }
-    val filled = persona!!.conditionMonitor.damage
+    val filled = p.conditionMonitor.damage
     require(filled < 10) { "Cannot use Medic on a Deadly (10-box) condition monitor" }
     val tn = when {
         filled <= 3 -> 4
@@ -377,7 +382,7 @@ fun Decker.invokeMediac(diceRoller: DiceRoller): MedicResult {
     }
     val successes = diceRoller.roll(medic.currentRating, tn).successes
     val repaired = successes.coerceAtMost(filled)
-    val newCm = persona!!.conditionMonitor.copy(damage = filled - repaired)
+    val newCm = p.conditionMonitor.copy(damage = filled - repaired)
     val newMedicRating = medic.currentRating - 1
 
     val newActive = if (newMedicRating <= 0) {
@@ -391,7 +396,7 @@ fun Decker.invokeMediac(diceRoller: DiceRoller): MedicResult {
         cyberdeck.storedUtilities.map { if (it.type == UtilityType.MEDIC) Utility(it.type, it.rating, currentRating = newMedicRating) else it }
     }
     val updatedDecker = copy(
-        persona = persona!!.copy(conditionMonitor = newCm),
+        persona = p.copy(conditionMonitor = newCm),
         cyberdeck = cyberdeck.copy(activeUtilities = newActive, storedUtilities = newStored)
     )
     logger.info { "[$name] invokeMediac: filled=$filled TN=$tn successes=$successes repaired=$repaired newMedicRating=$newMedicRating" }
@@ -405,7 +410,7 @@ fun Decker.resolvePointerChain(file: DataFile, diceRoller: DiceRoller): PointerC
     require(file.isPointer) { "resolvePointerChain called on a non-pointer DataFile" }
     val chainLength = diceRoller.roll(1, 6).dice.first() // 1D6
     val links = buildList {
-        var current = file.pointerToHost!!
+        var current = requireNotNull(file.pointerToHost) { "resolvePointerChain: DataFile has null pointerToHost" }
         repeat(chainLength - 1) {
             add(current)
             current = current.connectedHosts.firstOrNull() ?: current
@@ -435,7 +440,7 @@ fun Decker.locateDecker(
         return LocateDeckerResult(updated, outcome, located = false, targetNotified = false)
     }
     val sensorTn = maxOf(2, targetPersona.masking + targetSleazeRating)
-    val sensorResult = diceRoller.roll(persona!!.sensor, sensorTn)
+    val sensorResult = diceRoller.roll(requireNotNull(persona) { "locateDecker: decker has no persona" }.sensor, sensorTn)
     val located = sensorResult.successes >= 1
     logger.info { "[$name] locateDecker: sensor vs TN=$sensorTn (masking=${targetPersona.masking} sleaze=$targetSleazeRating) → ${sensorResult.successes} successes, located=$located" }
     return LocateDeckerResult(updated, outcome, located, targetNotified = located)
@@ -457,8 +462,8 @@ fun Decker.makeComcall(host: Host, diceRoller: DiceRoller, hasValidPasscode: Boo
     requireJackedIn()
     if (hasValidPasscode) {
         logger.info { "[$name] makeComcall: licensed decker with valid passcode — System Test skipped" }
-        val fakeOutcome = SystemTestOutcome(1, 0, true)
-        return Pair(OperationResult.Success(this, fakeOutcome), MonitoredOperationHandle(SystemOperation.MAKE_COMCALL, host))
+        val syntheticOutcome = SystemTestOutcome(1, 0, true)
+        return Pair(OperationResult.Success(this, syntheticOutcome), MonitoredOperationHandle(SystemOperation.MAKE_COMCALL, host))
     }
     val outcome = SystemTestResolver.resolve(this, SystemOperation.MAKE_COMCALL, host.subsystemRatings.files, host.securityRating.value, diceRoller)
     val updated = withUpdatedTally(outcome.hostSuccesses)
@@ -503,9 +508,9 @@ fun Decker.relocateIcon(opponentSensor: Int, trackerMcpRating: Int, diceRoller: 
     val trackerResult = diceRoller.roll(trackerMcpRating, trackerTn)
     logger.info { "[$name] relocateIcon: decker ${computerSkill}d vs TN=$deckerTn → ${deckerResult.successes}; tracker ${trackerMcpRating}d vs TN=$trackerTn → ${trackerResult.successes}" }
     val deckerWins = deckerResult.successes > trackerResult.successes
-    val fakeOutcome = SystemTestOutcome(deckerResult.successes, trackerResult.successes, deckerWins)
-    return if (deckerWins) OperationResult.Success(this, fakeOutcome)
-    else OperationResult.Failure(this, fakeOutcome)
+    val syntheticOutcome = SystemTestOutcome(deckerResult.successes, trackerResult.successes, deckerWins)
+    return if (deckerWins) OperationResult.Success(this, syntheticOutcome)
+    else OperationResult.Failure(this, syntheticOutcome)
 }
 
 // ── Scramble IC destruct ───────────────────────────────────────────────────────
@@ -522,7 +527,7 @@ fun Decker.resolveScrambleDestructTest(ic: Scramble, file: DataFile, diceRoller:
 
 fun Decker.bufferMessage(text: String, recipient: LinkedObserver): BufferedMessage {
     check(persona != null) { "bufferMessage requires a jacked-in persona" }
-    require(text.split("\\s+".toRegex()).size <= 100) { "Buffered message exceeds 100 words" }
+    require(text.split(WORD_SPLIT_REGEX).size <= 100) { "Buffered message exceeds 100 words" }
     logger.info { "[$name] bufferMessage → ${recipient.name}: \"${text.take(40)}${if (text.length > 40) "..." else ""}\"" }
     return BufferedMessage(text, recipient)
 }

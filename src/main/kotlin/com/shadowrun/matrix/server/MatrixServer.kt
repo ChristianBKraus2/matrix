@@ -36,6 +36,9 @@ fun Application.matrixModule(registry: SessionRegistry) {
         webSocket("/decker/ws") {
             if (!registry.register(this, maxConnections = MAX_CONNECTIONS)) {
                 logger.warn { "Connection refused: server at capacity ($MAX_CONNECTIONS)" }
+                this.send(Frame.Text(MatrixJson.encodeToString(
+                    ErrorMessage(message = ErrorCode.SERVER_FULL)
+                )))
                 return@webSocket
             }
             try {
@@ -48,7 +51,7 @@ fun Application.matrixModule(registry: SessionRegistry) {
                             "join"   -> registry.receiveJoin(this, Json.decodeFromString<JoinMessage>(json))
                             "action" -> registry.receiveAction(this, Json.decodeFromString<ActionCommand>(json))
                             else     -> this.send(Frame.Text(MatrixJson.encodeToString(
-                                ErrorMessage(message = ErrorCode.UNKNOWN_MESSAGE_TYPE, details = msgType)
+                                ErrorMessage(message = ErrorCode.UNKNOWN_MESSAGE_TYPE, details = msgType?.take(64))
                             )))
                         }
                     } catch (e: Exception) {

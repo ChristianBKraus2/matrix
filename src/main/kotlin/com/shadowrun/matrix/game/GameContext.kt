@@ -83,6 +83,7 @@ class GameContext(
     }
 
     fun addToSecurityTally(points: Int) {
+        require(points >= 0) { "Security tally points must be non-negative (got $points)" }
         val old = host.securityTally
         val new = old + points
         updateHost(host.copy(securityTally = new))

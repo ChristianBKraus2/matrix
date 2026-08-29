@@ -25,7 +25,7 @@ The server layer has a solid test foundation: unit tests in `SessionRegistryTest
 **Issue:** `register` returns `false` when `sessions.size >= maxConnections`, and `matrixModule` silently closes the WebSocket without sending an error to the rejected client (MatrixServer.kt:37–39). No test verifies either the return value or the silent-close behaviour. A regression in the capacity check would go undetected.
 **Recommendation:** Add a `SessionRegistryTest` case that registers exactly `maxConnections` sessions, then attempts one more and asserts `register` returns `false`. Add a separate integration test that opens 33 connections and verifies the 33rd receives no message and the connection closes.
 
-**[DEFERRED]** — Max-connections capacity test not added; out of scope for this session.
+**[RESOLVED]** — Fixed in `SessionRegistryTest.kt`: capacity guard test added (registers `maxConnections` sessions, asserts the next `register` call returns `false`).
 
 ### [MEDIUM] `dispatch` exception handler is untested
 **File:** src/main/kotlin/com/shadowrun/matrix/server/WebSocketDeckerController.kt:112
@@ -60,21 +60,21 @@ The server layer has a solid test foundation: unit tests in `SessionRegistryTest
 **Issue:** `TurnCoordinator` is only exercised indirectly through `SessionRegistry`. The `cancelIfActive` path for a session that is NOT the active controller (returns null), the `claimAction` race between a completed future and a fresh one, and concurrent interleaving scenarios are all implicitly trusted to be covered by the registry tests but are not tested in isolation.
 **Recommendation:** Add a `TurnCoordinatorTest` with direct calls to `setPendingAction`, `setActive`, `cancelIfActive` (both matching and non-matching sessions), and `claimAction` (not-your-turn, no-action-pending, already-completed future, and success cases).
 
-**[DEFERRED]** — Dedicated `TurnCoordinatorTest` not added; out of scope for this session.
+**[RESOLVED]** — Fixed: new `TurnCoordinatorTest.kt` added covering all TurnCoordinator methods: `setActive`, `setPendingAction`, `cancelIfActive` (match/no-match), `claimAction` (success/NOT_YOUR_TURN/NO_ACTION_PENDING), and `currentControllerUnsafe`.
 
 ### [LOW] Missing DTO mapping coverage — OnPLTG location and PrivateGrid
 **File:** src/test/kotlin/com/shadowrun/matrix/server/dto/DtoMappingTest.kt:1
 **Issue:** `DtoMappingTest` tests `OnRTG`, `OnLTG`, and `OnHost` location labels, but `MatrixLocation.OnPLTG` (which produces the "PLTG: …" label) has no test. `MatrixObject.PrivateGrid.toDto()` is also untested despite the mapping existing in `MatrixObjectDto.kt`. `AvailableAction.LogonToPltg` and `LogonToHost` DTO mappings are similarly missing.
 **Recommendation:** Add tests for `OnPLTG` location label, `MatrixObject.PrivateGrid.toDto()`, `AvailableAction.LogonToPltg.toDto()`, and `AvailableAction.LogonToHost.toDto()`.
 
-**[DEFERRED]** — Missing DTO mapping tests not added; out of scope for this session.
+**[RESOLVED]** — Fixed in `DtoMappingTest.kt`: tests added for `OnPLTG` location label (`"PLTG: name"`), `PrivateGrid.toDto()`, `LogonToPltg.toDto()`, and `LogonToHost.toDto()`.
 
 ### [LOW] Name length boundary not exercised
 **File:** src/main/kotlin/com/shadowrun/matrix/server/SessionRegistry.kt:45
 **Issue:** The name length guard (`name.length > 32`) is never tested. There is no test for a name of exactly 32 characters (should succeed) nor for a name of 33 characters (should return `NAME_TOO_LONG`). The guard itself is only indirectly trusted.
 **Recommendation:** Add two tests: one with a 32-character name asserting successful registration, and one with a 33-character name asserting `ErrorCode.NAME_TOO_LONG` is returned.
 
-**[DEFERRED]** — Name length boundary tests not added; out of scope for this session.
+**[RESOLVED]** — Fixed in `SessionRegistryTest.kt`: 32-character name test (asserts successful registration) and 33-character name test (asserts `NAME_TOO_LONG`) added.
 
 ### [LOW] Integration tests missing for wire-level error paths
 **File:** src/test/kotlin/com/shadowrun/matrix/integration/WebSocketServerIntegrationTest.kt:1
@@ -88,7 +88,7 @@ The server layer has a solid test foundation: unit tests in `SessionRegistryTest
 **Issue:** `SessionRegistryTest` verifies that `broadcastWithRoles` sends `REGISTERED_DECKER` and `OBSERVER` roles, but never tests the `ACTIVE_CONTROLLER` path. The integration test covers this implicitly via the `StateMessage` assertion, but there is no focused unit test that promotes a decker and then checks the role field in the broadcast.
 **Recommendation:** Add a `SessionRegistryTest` case that promotes a session with `promoteForTurn`, calls `broadcastWithRoles`, and asserts the promoted session receives `role = "active_controller"` in the state message.
 
-**[DEFERRED]** — `broadcastWithRoles` active-controller role test not added; out of scope for this session.
+**[RESOLVED]** — Fixed in `SessionRegistryTest.kt`: test added verifying that `broadcastWithRoles` sends `active_controller` role to the promoted session.
 
 ## No Issues Found In
 

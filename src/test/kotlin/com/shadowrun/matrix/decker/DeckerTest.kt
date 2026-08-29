@@ -6,9 +6,17 @@ import com.shadowrun.matrix.common.ConditionMonitor
 import com.shadowrun.matrix.common.JackpointType
 import com.shadowrun.matrix.common.PersonaAttributeType
 import com.shadowrun.matrix.common.PersonaStatus
+import com.shadowrun.matrix.common.SecurityCode
+import com.shadowrun.matrix.common.SecurityRating
+import com.shadowrun.matrix.common.SubsystemRatings
 import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.network.Jackpoint
+import com.shadowrun.matrix.network.LTG
+import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.network.Node
+import com.shadowrun.matrix.network.PLTG
+import com.shadowrun.matrix.network.RTG
+import com.shadowrun.matrix.combat.IcSuppressionState
 import com.shadowrun.matrix.programs.PersonaProgram
 import com.shadowrun.matrix.programs.Utility
 import com.shadowrun.matrix.programs.UtilityType
@@ -210,6 +218,81 @@ class DeckerTest {
             costNuyen = 400
         )
         assertEquals(true, terminal.immuneToDumpShock)
+    }
+
+    // ── detectionFactor ───────────────────────────────────────────────────────────
+
+    private fun secRating(v: Int = 4) = SecurityRating(SecurityCode.GREEN, v)
+    private fun subsystems(v: Int = 4) = SubsystemRatings(v, v, v, v, v)
+    private fun ltg() = LTG("Seattle", RTG("UCAS", "NA", secRating(), subsystems()), secRating(), subsystems())
+
+    private fun deckerWithMasking(masking: Int, sleaze: Utility? = null): Decker {
+        val programs = listOf(
+            PersonaProgram(PersonaAttributeType.BOD, 4),
+            PersonaProgram(PersonaAttributeType.EVASION, 4),
+            PersonaProgram(PersonaAttributeType.MASKING, masking),
+            PersonaProgram(PersonaAttributeType.SENSORS, 4)
+        )
+        val active = if (sleaze != null) listOf(sleaze) else emptyList()
+        return Decker(
+            name = "Ghost", intelligence = 6, body = 4, willpower = 5, reaction = 5, computerSkill = 6,
+            cyberdeck = deck(personaPrograms = programs, activeUtilities = active),
+            persona = Persona(bod = 4, evasion = 4, masking = masking, sensor = 4),
+            currentLocation = MatrixLocation.OnLTG(ltg())
+        )
+    }
+
+    @Test
+    fun `detectionFactor without Sleaze is ceil(masking div 2)`() {
+        assertEquals(3, deckerWithMasking(6).detectionFactor)
+        assertEquals(3, deckerWithMasking(5).detectionFactor)
+        assertEquals(2, deckerWithMasking(4).detectionFactor)
+    }
+
+    @Test
+    fun `detectionFactor with active Sleaze uses ceil((masking + sleaze) div 2)`() {
+        val sleaze = Utility(UtilityType.SLEAZE, rating = 4)
+        val d = deckerWithMasking(6, sleaze = sleaze)
+        // ceil((6 + 4) / 2) = 5
+        assertEquals(5, d.detectionFactor)
+    }
+
+    @Test
+    fun `effectiveDetectionFactor is reduced by suppressed IC count`() {
+        val sleaze = Utility(UtilityType.SLEAZE, rating = 4)
+        val ic = com.shadowrun.matrix.ic.Probe(rating = 3)
+        val d = deckerWithMasking(6, sleaze = sleaze).copy(suppressedIc = listOf(IcSuppressionState(ic, ic.rating)))
+        // base DF = 5, penalty = 1 → effective DF = 4
+        assertEquals(4, d.effectiveDetectionFactor)
+    }
+
+    // ── withUpdatedTally ──────────────────────────────────────────────────────────
+
+    @Test
+    fun `withUpdatedTally on OnLTG accumulates tally`() {
+        val l = ltg().copy(securityTally = 2)
+        val d = deckerWithMasking(6).copy(currentLocation = MatrixLocation.OnLTG(l))
+        val updated = d.withUpdatedTally(3)
+        val newLtg = (updated.currentLocation as MatrixLocation.OnLTG).ltg
+        assertEquals(5, newLtg.securityTally)
+    }
+
+    @Test
+    fun `withUpdatedTally on OnPLTG accumulates tally`() {
+        val l = ltg()
+        val p = PLTG("Corp-PLTG", "Renraku", l, secRating(), subsystems()).copy(securityTally = 1)
+        val d = deckerWithMasking(6).copy(currentLocation = MatrixLocation.OnPLTG(p))
+        val updated = d.withUpdatedTally(4)
+        val newPltg = (updated.currentLocation as MatrixLocation.OnPLTG).pltg
+        assertEquals(5, newPltg.securityTally)
+    }
+
+    @Test
+    fun `withUpdatedTally with 0 successes returns same instance`() {
+        val l = ltg().copy(securityTally = 2)
+        val d = deckerWithMasking(6).copy(currentLocation = MatrixLocation.OnLTG(l))
+        val updated = d.withUpdatedTally(0)
+        assertTrue(updated === d)
     }
 }
 

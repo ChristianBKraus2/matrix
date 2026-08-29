@@ -22,7 +22,7 @@ for (decker in context.deckers.toList()) { ... }
 for (ic    in context.activeIc.toList()) { ... }
 ```
 
-**[DEFERRED]** — Defensive copy not added to `buildInitiativeList()`; out of scope for this session.
+**[RESOLVED]** — Fixed in `Game.kt`: `buildInitiativeList` now uses `.toList()` defensive copies for both `context.deckers` and `context.activeIc`.
 
 ### [LOW] IC action() read-modify-write is non-atomic and fragile under any future parallelism
 **File:** src/main/kotlin/com/shadowrun/matrix/ic/IC.kt:55-210 (all IC subclass action() bodies)

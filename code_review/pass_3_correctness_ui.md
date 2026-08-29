@@ -27,7 +27,7 @@ The UI frontend is broadly correct: the WebSocket reducer is exhaustive, the joi
 **Issue:** The panel body uses `justify-content: flex-end` (App.css:431) to push events to the bottom when the list is short enough to fit. Once the list overflows the panel's height, `justify-content` no longer controls placement — the browser renders items from the top, and the scroll position stays wherever it was. New events appended at the end of the array are rendered below the visible viewport. The user must manually scroll down to read the latest result. With a cap of 20 events and a narrow panel, overflow occurs quickly during active play.
 **Recommendation:** Attach a `ref` to the scroll container and call `ref.current.scrollTop = ref.current.scrollHeight` inside a `useEffect` that fires whenever `events` changes.
 
-**[DEFERRED]** — Programmatic scroll-to-bottom not implemented; out of scope for this session.
+**[RESOLVED]** — Fixed in `NarrativePanel.tsx`: scroll-to-bottom behavior added via `useRef + useEffect` that fires whenever `events` changes.
 
 ---
 
@@ -93,7 +93,7 @@ useEffect(() => {
 **Issue:** `const hasDice = ev.msg.deckerSuccesses !== undefined || ev.msg.hostSuccesses !== undefined` guards the dice-score display. Both fields are required (non-optional) in the `ResultMessage` interface, so the check is always `true` and the guard is dead code. A future reader might assume the display is conditional on optional fields and replicate the pattern incorrectly.
 **Recommendation:** Remove `hasDice` and render the dice span unconditionally, or make the fields optional in `ResultMessage` if there is a genuine case where they are absent.
 
-**[DEFERRED]** — `hasDice` dead guard not removed; out of scope for this session.
+**[RESOLVED]** — Fixed in `NarrativePanel.tsx`: dead `hasDice` conditional guard removed; dice span now renders unconditionally.
 
 ## No Issues Found In
 

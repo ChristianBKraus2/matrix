@@ -20,7 +20,12 @@ fun Decker.loadUtility(utility: Utility): LoadUtilityResult {
         logger.warn { "[$name] loadUtility ${utility.type}: insufficient memory (need=${utility.mpSize}, free=${cyberdeck.freeActiveMemoryMp})" }
         return LoadUtilityResult.InsufficientMemory(this, utility.mpSize, cyberdeck.freeActiveMemoryMp)
     }
-    val turnsRequired = Math.ceil(utility.mpSize.toDouble() / cyberdeck.ioSpeedMpPerTurn).toInt()
+    val turnsRequired = if (cyberdeck.ioSpeedMpPerTurn <= 0) {
+        logger.warn { "[$name] loadUtility ${utility.type}: ioSpeedMpPerTurn is 0 — treating as instant load" }
+        0
+    } else {
+        Math.ceil(utility.mpSize.toDouble() / cyberdeck.ioSpeedMpPerTurn).toInt()
+    }
     val updatedDeck = if (turnsRequired == 0) {
         cyberdeck.copy(activeUtilities = cyberdeck.activeUtilities + utility)
     } else {

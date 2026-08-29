@@ -16,7 +16,6 @@ import com.shadowrun.matrix.combat.TrackState
 import com.shadowrun.matrix.game.ActionResult
 import com.shadowrun.matrix.game.ActiveIcon
 import com.shadowrun.matrix.game.GameContext
-import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.math.ceil
 
 data class Decker(
@@ -207,7 +206,4 @@ data class Decker(
         }
     }
 
-    companion object {
-        private val logger = KotlinLogging.logger {}
-    }
 }

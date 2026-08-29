@@ -39,8 +39,14 @@ class WebSocketDeckerController(
 
     private val logger = KotlinLogging.logger {}
 
+    @Volatile
     var decker: Decker = initialDecker
         private set
+
+    private suspend fun broadcastFail(details: String) =
+        registry.broadcast(MatrixJson.encodeToString(ResultMessage(
+            success = false, deckerSuccesses = 0, hostSuccesses = 0, details = details
+        )))
 
     suspend fun conductTurn(context: GameContext, diceRoller: DiceRoller): ActionResult {
         decker = context.deckers.firstOrNull { it.name == decker.name } ?: decker
@@ -54,10 +60,7 @@ class WebSocketDeckerController(
         val hasController = registry.promoteForTurn(decker.name)
         if (!hasController) {
             registry.setPendingAction(null)
-            registry.broadcast(MatrixJson.encodeToString(ResultMessage(
-                success = false, deckerSuccesses = 0, hostSuccesses = 0,
-                details = "No controller registered for decker ${decker.name} — turn skipped"
-            )))
+            broadcastFail("No controller registered for decker ${decker.name} — turn skipped")
             return ActionResult.DeckerAction
         }
 
@@ -72,13 +75,13 @@ class WebSocketDeckerController(
         val cmd = try {
             withTimeoutOrNull(actionTimeoutSeconds * 1000L) { deferred.await() }
         } catch (_: DeckerDisconnectedException) {
-            registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Decker disconnected — turn forfeit")))
+            broadcastFail("Decker disconnected — turn forfeit")
             registry.demoteAfterTurn(decker.name)
             return ActionResult.DeckerAction
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Unexpected error — turn aborted")))
+            broadcastFail("Unexpected error — turn aborted")
             registry.demoteAfterTurn(decker.name)
             return ActionResult.DeckerAction
         } finally {
@@ -86,14 +89,14 @@ class WebSocketDeckerController(
         }
 
         if (cmd == null) {
-            registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Action timed out")))
+            broadcastFail("Action timed out")
             registry.demoteAfterTurn(decker.name)
             return ActionResult.DeckerAction
         }
 
         val chosen = availableActions.getOrNull(cmd.actionIndex)
         if (chosen == null) {
-            registry.broadcast(MatrixJson.encodeToString(ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "Invalid action index ${cmd.actionIndex}")))
+            broadcastFail("Invalid action index ${cmd.actionIndex}")
             registry.demoteAfterTurn(decker.name)
             return ActionResult.DeckerAction
         }
@@ -125,10 +128,7 @@ class WebSocketDeckerController(
             throw e
         } catch (e: Exception) {
             logger.error(e) { "dispatch failed for decker ${decker.name}, action $chosen" }
-            registry.broadcast(MatrixJson.encodeToString(ResultMessage(
-                success = false, deckerSuccesses = 0, hostSuccesses = 0,
-                details = "Internal error — turn aborted"
-            )))
+            broadcastFail("Internal error — turn aborted")
             registry.demoteAfterTurn(decker.name)
         }
 

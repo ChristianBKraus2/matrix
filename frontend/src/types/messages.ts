@@ -121,6 +121,7 @@ export type ErrorCode =
   | 'name_too_long'
   | 'unknown_message_type'
   | 'bad_request'
+  | 'server_full'
 
 export type ServerMessage = ControlMessage | StateMessage | ResultMessage | ErrorMessage
 

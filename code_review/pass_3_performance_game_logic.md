@@ -69,7 +69,7 @@ private val WHITESPACE_REGEX = "\\s+".toRegex()
 ```
 and reference it in the word-count check.
 
-**[DEFERRED]** — `bufferMessage` regex not hoisted to file-level constant; out of scope for this session.
+**[RESOLVED]** — Fixed in `DeckerOperationsExtensions.kt`: `WORD_SPLIT_REGEX` hoisted to a file-level constant; `bufferMessage` now references it instead of calling `toRegex()` on every invocation.
 
 ---
 

@@ -8,6 +8,7 @@ import com.shadowrun.matrix.server.dto.JoinMessage
 import com.shadowrun.matrix.server.dto.MatrixJson
 import com.shadowrun.matrix.server.dto.SessionRole
 import com.shadowrun.matrix.server.dto.StateMessage
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.server.websocket.DefaultWebSocketServerSession
 import io.ktor.websocket.Frame
 import kotlinx.coroutines.CompletableDeferred
@@ -15,6 +16,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 import java.util.UUID
+
+private val logger = KotlinLogging.logger {}
+private data class JoinOutcome(val error: ErrorCode?, val isReconnect: Boolean, val token: String?)
 
 class SessionRegistry {
     private val mutex = Mutex()
@@ -54,19 +58,19 @@ class SessionRegistry {
         val (error, isReconnect, token) = mutex.withLock {
             when {
                 sessionDecker.containsKey(session) ->
-                    Triple(ErrorCode.ALREADY_REGISTERED, false, null)
+                    JoinOutcome(ErrorCode.ALREADY_REGISTERED, false, null)
                 deckerSessions.containsKey(name) ->
-                    Triple(ErrorCode.NAME_ALREADY_TAKEN, false, null)
+                    JoinOutcome(ErrorCode.NAME_ALREADY_TAKEN, false, null)
                 disconnectedDeckerNames.contains(name) -> {
                     val stored = reconnectTokens[name]
                     if (stored == null || msg.reconnectToken != stored) {
-                        Triple(ErrorCode.NAME_ALREADY_TAKEN, false, null)
+                        JoinOutcome(ErrorCode.NAME_ALREADY_TAKEN, false, null)
                     } else {
                         deckerSessions[name] = session
                         sessionDecker[session] = name
                         disconnectedDeckerNames.remove(name)
                         reconnectTokens.remove(name)
-                        Triple(null, true, null as String?)
+                        JoinOutcome(null, true, null)
                     }
                 }
                 else -> {
@@ -74,7 +78,7 @@ class SessionRegistry {
                     deckerSessions[name] = session
                     sessionDecker[session] = name
                     reconnectTokens[name] = newToken
-                    Triple(null, false, newToken)
+                    JoinOutcome(null, false, newToken)
                 }
             }
         }
@@ -127,6 +131,7 @@ class SessionRegistry {
         val snapshot = mutex.withLock { sessions.toList() }
         for (session in snapshot) {
             runCatching { session.send(Frame.Text(text)) }
+                .onFailure { logger.warn(it) { "broadcast send failed" } }
         }
     }
 
@@ -145,6 +150,7 @@ class SessionRegistry {
         for ((session, role) in snapshot) {
             val text = MatrixJson.encodeToString(base.copy(role = role))
             runCatching { session.send(Frame.Text(text)) }
+                .onFailure { logger.warn(it) { "broadcastWithRoles send failed" } }
         }
     }
 

@@ -88,7 +88,7 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 
 **Recommendation:** Remove the companion object (or just the logger declaration if the companion is kept for other reasons) to eliminate dead code.
 
-**[DEFERRED]** — Unused logger in `Decker` not removed; out of scope for this session.
+**[RESOLVED]** — Fixed in `Decker.kt`: unused `companion object` logger removed.
 
 ---
 
@@ -136,7 +136,7 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 
 **Recommendation:** Rename to `syntheticOutcome` (or `bypassOutcome` / `contestOutcome`) with a one-line comment explaining why a standard `SystemTestOutcome` is constructed manually.
 
-**[DEFERRED]** — `fakeOutcome` not renamed; out of scope for this session.
+**[RESOLVED]** — Fixed in `DeckerOperationsExtensions.kt`: `fakeOutcome` renamed to `syntheticOutcome` in both `makeComcall` and `relocateIcon`.
 
 ---
 
@@ -148,7 +148,7 @@ The game logic layer is generally well-structured: sealed class hierarchies are 
 
 **Recommendation:** Adopt the pattern already used in `invokeMediac` and `asDefenderParticipant`: capture `val p = requireNotNull(persona) { "…" }` once, then use `p` throughout.
 
-**[DEFERRED]** — `persona!!` not replaced with `requireNotNull` capture pattern; out of scope for this session.
+**[RESOLVED]** — Fixed in `DeckerOperationsExtensions.kt`: `persona!!` replaced with `requireNotNull(persona)` capture in `noticeIcon`, `noticeTriggeredIc`, `invokeMediac`, and `locateDecker`.
 
 ---
 

@@ -22,6 +22,7 @@ enum class ErrorCode {
     @SerialName("name_too_long")       NAME_TOO_LONG,
     @SerialName("unknown_message_type") UNKNOWN_MESSAGE_TYPE,
     @SerialName("bad_request")         BAD_REQUEST,
+    @SerialName("server_full")         SERVER_FULL,
 }
 
 @Serializable

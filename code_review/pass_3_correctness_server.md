@@ -50,7 +50,7 @@ The server layer is structurally sound and handles the most dangerous concurrenc
 
 **Recommendation:** Before returning, send an `ErrorMessage(message = ErrorCode.BAD_REQUEST, details = "server at capacity")` (or a dedicated error code) so the client can display a meaningful message.
 
-**[DEFERRED]** — Capacity-refusal error frame not added; out of scope for this session.
+**[RESOLVED]** — Fixed in `MatrixServer.kt`: error frame with `ErrorCode.SERVER_FULL` now sent before capacity-refusal `return@webSocket`; `SERVER_FULL` added to `ErrorCode` enum in `Messages.kt`.
 
 ## No Issues Found In
 

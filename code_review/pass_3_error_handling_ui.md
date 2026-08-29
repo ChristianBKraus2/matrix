@@ -30,7 +30,7 @@ try {
 // switch(msg.type) outside the try
 ```
 
-**[DEFERRED]** — Broad `catch` in `onmessage` not narrowed; out of scope for this session.
+**[RESOLVED]** — Fixed in `useWebSocket.ts`: `console.error` added in the `catch` block of `onmessage`.
 
 ---
 
@@ -48,7 +48,7 @@ try {
 **Issue:** `ws.onerror = () => ws.close()` ignores the `ErrorEvent` argument entirely. Browser WebSocket error events carry the event type, timestamps, and in some environments additional details. Discarding this makes it impossible to distinguish a network timeout from a TLS error or a refused connection during debugging.
 **Recommendation:** Add a console log: `ws.onerror = (ev) => { console.warn('[ws] error', ev); ws.close() }`. No user-visible change is needed since the `onclose` handler already triggers the reconnect cycle.
 
-**[DEFERRED]** — `ws.onerror` diagnostic logging not added; out of scope for this session.
+**[RESOLVED]** — Fixed in `useWebSocket.ts`: `console.error` added in `ws.onerror` handler, logging the error event before calling `ws.close()`.
 
 ---
 
@@ -61,7 +61,7 @@ default:
   console.warn('[ws] unknown message type', (msg as { type: string }).type)
 ```
 
-**[DEFERRED]** — No `default` case added to `switch (msg.type)`; out of scope for this session.
+**[RESOLVED]** — Fixed in `useWebSocket.ts`: `default` case added to `switch (msg.type)` logging unknown message types.
 
 ---
 

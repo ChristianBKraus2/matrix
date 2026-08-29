@@ -18,7 +18,7 @@ The server layer has solid structural discipline — `TurnCoordinator` uses atom
 **Issue:** When `registry.register()` returns `false` (server at `MAX_CONNECTIONS`), the handler returns immediately with `return@webSocket`. The WebSocket upgrade has already completed, so the client receives a raw WebSocket close frame with no payload and no explanation. From the client's perspective the connection drops for an unknown reason.
 **Recommendation:** Before `return@webSocket`, send a typed `ErrorMessage` (a new `ErrorCode.SERVER_FULL` or reuse `BAD_REQUEST`) so the client can display a meaningful message to the user.
 
-**[DEFERRED]** — No error frame sent on capacity refusal; out of scope for this session.
+**[RESOLVED]** — Fixed in `MatrixServer.kt`: error frame with `ErrorCode.SERVER_FULL` now sent before capacity-refusal `return@webSocket`; `SERVER_FULL` added to `ErrorCode` enum in `Messages.kt`.
 
 ### [HIGH] Dispatch exceptions in `action()` are caught but never logged
 **File:** src/main/kotlin/com/shadowrun/matrix/server/WebSocketDeckerController.kt:112-118
@@ -60,7 +60,7 @@ The server layer has solid structural discipline — `TurnCoordinator` uses atom
 **Issue:** Both `broadcast()` and `broadcastWithRoles()` use `runCatching { session.send(...) }` to tolerate individual send failures, which is correct for resilience. However, the failure is silently discarded — there is no `onFailure { logger.warn(...) }` call. A persistently failing session (e.g., a stuck or half-open connection) will never be surfaced in logs.
 **Recommendation:** Add `.onFailure { e -> logger.warn(e) { "Broadcast send failed for session" } }` to each `runCatching` call. Consider also proactively closing sessions whose sends fail repeatedly.
 
-**[DEFERRED]** — Silent broadcast failure logging not added; out of scope for this session.
+**[RESOLVED]** — Fixed in `SessionRegistry.kt`: `.onFailure { logger.warn(...) }` logging added to both `broadcast` and `broadcastWithRoles` `runCatching` blocks; `KotlinLogging` logger added.
 
 ### [LOW] Empty decker name passes validation
 **File:** src/main/kotlin/com/shadowrun/matrix/server/SessionRegistry.kt:45

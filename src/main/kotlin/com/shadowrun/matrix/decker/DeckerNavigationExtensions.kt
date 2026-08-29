@@ -145,7 +145,7 @@ fun Decker.logonToPltg(pltg: PLTG, diceRoller: DiceRoller): LogonResult {
     val inheritedTally: Int = when (val loc = currentLocation) {
         is MatrixLocation.OnLTG -> {
             require(loc.ltg.pltgs.contains(pltg)) { "Target PLTG is not attached to the current LTG" }
-            loc.ltg.parentRtg.securityTally
+            loc.ltg.securityTally
         }
         is MatrixLocation.OnPLTG -> 0
         else -> throw IllegalStateException("Cannot logon to PLTG from $currentLocation")

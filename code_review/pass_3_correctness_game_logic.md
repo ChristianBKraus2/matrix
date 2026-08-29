@@ -105,7 +105,7 @@ A decker who has been operating on an LTG (accruing tally there) and then steps 
 
 **Recommendation:** Change `loc.ltg.parentRtg.securityTally` to `loc.ltg.securityTally` to carry the LTG tally forward consistently with how other upward/downward navigation handles existing tally.
 
-**[DEFERRED]** — Not in scope for this session; `logonToPltg` LTG tally inheritance not addressed.
+**[RESOLVED]** — Fixed in `DeckerNavigationExtensions.kt`: `logonToPltg` now uses `loc.ltg.securityTally` (not `loc.ltg.parentRtg.securityTally`).
 
 ---
 

@@ -51,7 +51,7 @@ This reduces the window to near-zero. For a fully atomic solution, extract a com
 **Issue:** `decker` is declared `var decker: Decker = initialDecker` with a private setter. It is written at lines 100 and 104 after dispatch completes and read at the top of `action()` before the suspension point. While today only the single game-loop coroutine calls `action()`, the field has no visibility annotation. Any future code that reads `decker` from a different coroutine or thread (for logging, stats, or a second action path) would have no guaranteed-visible value.
 **Recommendation:** Annotate `@Volatile var decker`, or wrap in an `AtomicReference<Decker>` if compare-and-swap semantics are ever needed. This is a low-cost defensive measure that also documents the intent.
 
-**[DEFERRED]** — `decker` field not annotated `@Volatile`; out of scope for this session.
+**[RESOLVED]** — Fixed in `WebSocketDeckerController.kt`: `@Volatile` annotation added to the `decker` field.
 
 ---
 

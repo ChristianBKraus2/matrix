@@ -22,7 +22,7 @@ The UI frontend is compact and well-organised overall. The component split is se
 **Issue:** `const hasDice = ev.msg.deckerSuccesses !== undefined || ev.msg.hostSuccesses !== undefined`. Both `deckerSuccesses` and `hostSuccesses` are declared as `number` (not `number | undefined`) in `ResultMessage`, so this check is always `true`. The conditional renders as if it might hide the dice line, creating misleading noise and masking the actual intent.  
 **Recommendation:** Remove the `hasDice` guard and render the dice span unconditionally, or — if the intent was to suppress the line when both are zero — change the condition to `ev.msg.deckerSuccesses > 0 || ev.msg.hostSuccesses > 0`.
 
-**[DEFERRED]** — `hasDice` dead guard not removed; out of scope for this session.
+**[RESOLVED]** — Fixed in `NarrativePanel.tsx`: dead `hasDice` guard removed; dice span renders unconditionally.
 
 ---
 
@@ -92,7 +92,7 @@ The UI frontend is compact and well-organised overall. The component split is se
 **Issue:** The `reconnected` flag is set to `true` on the reconnect control message and is never reset to `false` except on a full disconnect. `App.tsx` renders the reconnect banner unconditionally while `reconnected` is true, meaning the banner persists for the entire session after a reconnect rather than briefly flashing. The name `reconnected` reads as a momentary event, not a lasting state.  
 **Recommendation:** Either rename to `wasReconnected` to signal it is a persistent flag, or add an auto-dismiss mechanism (a timeout or a user-dismissable close button) so the banner behaviour matches its implied semantics.
 
-**[DEFERRED]** — `reconnected` flag not renamed or given auto-dismiss; out of scope for this session.
+**[RESOLVED]** — Fixed in `App.tsx`: auto-dismiss for the `reconnected` banner added via `useEffect + setTimeout`.
 
 ---
 

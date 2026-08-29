@@ -22,6 +22,8 @@ import com.shadowrun.matrix.network.TriggerStep
 import com.shadowrun.matrix.programs.PersonaProgram
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -214,5 +216,60 @@ class GameContextTest {
         val ctx = context(h, listOf(decker))
         ctx.applyDeckerOperationResult(decker, updatedDecker)
         assertEquals(4, ctx.host.securityTally)
+    }
+
+    // ── resetDeckers ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `resetDeckers replaces all deckers with a single new decker`() {
+        val d1 = deckerOnHost(host())
+        val d2 = deckerOnHost(host()).copy(name = "Second")
+        val ctx = context(deckers = listOf(d1, d2))
+        val newDecker = deckerOnHost(host()).copy(name = "Rebuilt")
+        ctx.resetDeckers(newDecker)
+        assertEquals(1, ctx.deckers.size)
+        assertEquals("Rebuilt", ctx.deckers[0].name)
+    }
+
+    // ── deckerByName ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun `deckerByName returns decker with matching name`() {
+        val decker = deckerOnHost(host())
+        val ctx = context(deckers = listOf(decker))
+        assertEquals(decker, ctx.deckerByName("Hacker"))
+    }
+
+    @Test
+    fun `deckerByName returns null when no decker matches`() {
+        val decker = deckerOnHost(host())
+        val ctx = context(deckers = listOf(decker))
+        assertNull(ctx.deckerByName("Ghost"))
+    }
+
+    // ── addToSecurityTally ────────────────────────────────────────────────────────
+
+    @Test
+    fun `addToSecurityTally increases host tally and fires triggers`() {
+        val probe = Probe(rating = 3)
+        val sheaf = SecuritySheaf(listOf(TriggerStep(tallyThreshold = 5, description = "Probe", activatedIc = listOf(probe))))
+        val ctx = context(host(sheaf = sheaf))
+        ctx.addToSecurityTally(5)
+        assertEquals(5, ctx.host.securityTally)
+        assertTrue(ctx.activeIc.contains(probe))
+    }
+
+    @Test
+    fun `addToSecurityTally rejects negative points`() {
+        val ctx = context()
+        assertFailsWith<IllegalArgumentException> { ctx.addToSecurityTally(-1) }
+    }
+
+    @Test
+    fun `addToSecurityTally with 0 is a no-op`() {
+        val ctx = context(host(securityTally = 3))
+        ctx.addToSecurityTally(0)
+        assertEquals(3, ctx.host.securityTally)
+        assertTrue(ctx.activeIc.isEmpty())
     }
 }

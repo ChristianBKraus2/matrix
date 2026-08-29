@@ -31,7 +31,7 @@ The server layer is structurally sound: `TurnCoordinator` and `SessionRegistry` 
 **Issue:** Every early-exit path in the `action` method constructs a `ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = "...")` inline. The three zero-value fields are noise that obscures the intent and creates multiple mutation points if the message shape changes.
 **Recommendation:** Add a private helper such as `fun failMessage(details: String) = ResultMessage(success = false, deckerSuccesses = 0, hostSuccesses = 0, details = details)` and replace all six call sites.
 
-**[DEFERRED]** — `failMessage` helper not extracted; out of scope for this session.
+**[RESOLVED]** — Fixed in `WebSocketDeckerController.kt`: `broadcastFail` private helper extracted and used to replace all inline `ResultMessage(success=false,...)` broadcasts in `conductTurn`.
 
 ---
 
@@ -58,7 +58,7 @@ The server layer is structurally sound: `TurnCoordinator` and `SessionRegistry` 
 **Issue:** The mutex block returns `Triple(error, isReconnect, token)` where the three components have different types and meanings. Destructuring to `(error, isReconnect, token)` is workable but fragile — positional ordering is the only contract, and adding a fourth field requires touching every destructuring site.
 **Recommendation:** Replace with a private local data class (e.g. `data class JoinOutcome(val error: ErrorCode?, val isReconnect: Boolean, val token: String?)`) for self-documenting, order-independent access.
 
-**[DEFERRED]** — `Triple` not replaced with a named `JoinOutcome` type; out of scope for this session.
+**[RESOLVED]** — Fixed in `SessionRegistry.kt`: `Triple<ErrorCode?, Boolean, String?>` replaced with named `JoinOutcome` data class.
 
 ---
 

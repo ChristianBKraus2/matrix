@@ -2,6 +2,7 @@ package com.shadowrun.matrix.server
 
 import com.shadowrun.matrix.server.dto.ActionCommand
 import com.shadowrun.matrix.server.dto.AvailableActionDto
+import com.shadowrun.matrix.server.dto.ControlMessage
 import com.shadowrun.matrix.server.dto.DeckerStateDto
 import com.shadowrun.matrix.server.dto.ErrorCode
 import com.shadowrun.matrix.server.dto.ErrorMessage
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class SessionRegistryTest {
 
@@ -161,5 +163,51 @@ class SessionRegistryTest {
         registry.broadcast("""{"hello":"world"}""")
         assertEquals("""{"hello":"world"}""", s1.nextText())
         assertEquals("""{"hello":"world"}""", s2.nextText())
+    }
+
+    @Test
+    fun `register returns false when maxConnections reached`() = runBlocking {
+        val registry = SessionRegistry()
+        val s1 = FakeWebSocketSession()
+        val s2 = FakeWebSocketSession()
+        assertTrue(registry.register(s1, maxConnections = 1))
+        s1.nextText() // observer frame
+        assertFalse(registry.register(s2, maxConnections = 1))
+    }
+
+    @Test
+    fun `receiveJoin with 32-char name succeeds`() = runBlocking {
+        val registry = SessionRegistry()
+        val session = FakeWebSocketSession()
+        registry.register(session)
+        session.nextText() // observer
+        registry.receiveJoin(session, JoinMessage(deckerName = "A".repeat(32)))
+        val response = Json.decodeFromString<ControlMessage>(session.nextText())
+        assertEquals(SessionRole.REGISTERED_DECKER, response.role)
+    }
+
+    @Test
+    fun `receiveJoin with 33-char name sends name_too_long error`() = runBlocking {
+        val registry = SessionRegistry()
+        val session = FakeWebSocketSession()
+        registry.register(session)
+        session.nextText() // observer
+        registry.receiveJoin(session, JoinMessage(deckerName = "A".repeat(33)))
+        assertEquals(ErrorCode.NAME_TOO_LONG, Json.decodeFromString<ErrorMessage>(session.nextText()).message)
+    }
+
+    @Test
+    fun `broadcastWithRoles sends active_controller role to promoted session`() = runBlocking {
+        val registry = SessionRegistry()
+        val session = FakeWebSocketSession()
+        registry.register(session)
+        session.nextText() // observer
+        registry.receiveJoin(session, JoinMessage(deckerName = "Kylie"))
+        session.nextText() // registered_decker
+        registry.promoteForTurn("Kylie")
+        session.nextText() // active_controller control message
+        registry.broadcastWithRoles(makeStateBase())
+        val obj = Json.parseToJsonElement(session.nextText()).jsonObject
+        assertEquals("active_controller", obj["role"]?.jsonPrimitive?.content)
     }
 }

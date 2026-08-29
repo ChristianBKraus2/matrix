@@ -357,13 +357,11 @@ class MovementTest {
     // ── logonToPltg ──────────────────────────────────────────────────────────────
 
     @Test
-    fun `logonToPltg inherits RTG security tally`() {
+    fun `logonToPltg inherits LTG security tally`() {
         val p = pltg()
-        val l = ltg(pltgs = listOf(p))
-        val r = rtg(ltgs = listOf(l)).copy(securityTally = 3)
-        val lWithRtg = l.copy(parentRtg = r)
-        val pWithLtg = p.copy(parentLtg = lWithRtg)
-        val lFinal = lWithRtg.copy(pltgs = listOf(pWithLtg))
+        val l = ltg(pltgs = listOf(p)).copy(securityTally = 3)
+        val pWithLtg = p.copy(parentLtg = l)
+        val lFinal = l.copy(pltgs = listOf(pWithLtg))
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
         val d = decker(currentLocation = MatrixLocation.OnLTG(lFinal), persona = persona)
         val winZeroHostRoller = DiceRoller(object : Random() {
@@ -377,7 +375,7 @@ class MovementTest {
         val result = d.logonToPltg(pWithLtg, winZeroHostRoller)
         assertIs<LogonResult.Success>(result)
         val newPltg = (result.location as MatrixLocation.OnPLTG).pltg
-        // PLTG tally = inherited RTG tally (3) + host successes (0) = 3 (M-11)
+        // PLTG tally = inherited LTG tally (3) + host successes (0) = 3 (M-11)
         assertEquals(3, newPltg.securityTally)
     }
 

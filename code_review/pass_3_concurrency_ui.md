@@ -17,7 +17,7 @@ if (
 ) return
 ```
 
-**[DEFERRED]** — `CONNECTING` state not added to the reconnect guard; out of scope for this session.
+**[RESOLVED]** — Fixed in `useWebSocket.ts`: `WebSocket.CONNECTING` guard added to `connect()` preventing overlapping socket creation.
 
 ### [LOW] Post-unmount dispatch not fully guarded in onclose
 **File:** frontend/src/hooks/useWebSocket.ts:121
@@ -31,7 +31,7 @@ ws.onclose = () => {
 }
 ```
 
-**[DEFERRED]** — `isMountedRef` check not moved to first line of `onclose`; out of scope for this session.
+**[RESOLVED]** — Fixed in `useWebSocket.ts`: `isMountedRef.current` check moved to the first line of `ws.onclose`, before `dispatch(DISCONNECTED)`.
 
 ### [INFO] pendingNameRef auto-rejoin is invisible to React's state model
 **File:** frontend/src/hooks/useWebSocket.ts:96-103

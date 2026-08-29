@@ -15,13 +15,15 @@ function actionLabel(action: AvailableActionDto): string {
     case 'LogonToHost':   return `LOGON HOST: ${action.hostName}`
     case 'GracefulLogoff': return 'GRACEFUL LOGOFF'
     case 'JackOut':       return 'JACK OUT'
-    case 'Operation':     return action.operation.replace(/_/g, ' ')
+    case 'Operation':     return formatEnum(action.operation)
   }
 }
 
 function operationOf(action: AvailableActionDto): string | null {
   return action.kind === 'Operation' ? action.operation : null
 }
+
+function formatEnum(s: string) { return s.replace(/_/g, ' ') }
 
 function needsPrecision(op: string | null) {
   return op === 'LOCATE_FILE' || op === 'LOCATE_SLAVE' || op === 'LOCATE_ACCESS_NODE'
@@ -127,7 +129,7 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                         className={`toggle-btn ${cs.precision === v ? 'active' : ''}`}
                         onClick={() => patchState(action.index, { precision: v })}
                       >
-                        {v.replace(/_/g, ' ')}
+                        {formatEnum(v)}
                       </button>
                     ))}
                   </div>
@@ -159,6 +161,7 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                       value={cs.newContent}
                       onChange={e => patchState(action.index, { newContent: e.target.value })}
                       rows={3}
+                      maxLength={4096}
                     />
                     <div className="edit-hint">Leave empty to erase file</div>
                   </div>

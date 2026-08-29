@@ -54,7 +54,7 @@ The game logic layer is mostly disciplined: `require`/`check`/`requireNotNull` w
 **Issue:** `Math.ceil(utility.mpSize.toDouble() / cyberdeck.ioSpeedMpPerTurn).toInt()` — if `ioSpeedMpPerTurn` is 0, Kotlin `Double` division yields `Double.POSITIVE_INFINITY`; `ceil(INFINITY).toInt()` evaluates to `Int.MAX_VALUE` (2,147,483,647). The utility is enqueued in `pendingUploads` with `turnsRemaining = 2_147_483_647` and never completes. No exception is thrown, no warning is logged, and the caller receives a `LoadUtilityResult.Success` with a permanently-stalled upload. By contrast, `downloadData` in `DeckerOperationsExtensions.kt:248` explicitly checks `if (ioSpeed <= 0)` before dividing and returns `Failure`.
 **Recommendation:** Add the same guard: `if (cyberdeck.ioSpeedMpPerTurn <= 0) { logger.warn { ... }; return LoadUtilityResult.InsufficientMemory(...) }` before the `Math.ceil` call.
 
-**[DEFERRED]** — `ioSpeedMpPerTurn` zero guard not added; out of scope for this session.
+**[RESOLVED]** — Fixed in `DeckerMemoryExtensions.kt`: zero-guard for `ioSpeedMpPerTurn` added in `loadUtility`; returns failure instead of enqueuing an infinite upload.
 
 ---
 
@@ -64,7 +64,7 @@ The game logic layer is mostly disciplined: `require`/`check`/`requireNotNull` w
 **Issue:** `var current = file.pointerToHost!!` — the `require(file.isPointer)` on line 398 guards against calling this on a non-pointer file, but does not assert that `pointerToHost` is non-null. If a `DataFile` is constructed with `isPointer = true` and `pointerToHost = null` (the field is nullable and the data class allows it), the `!!` operator throws `NullPointerException` with no message, no field name, and no file name — harder to diagnose than the `requireNotNull` pattern used elsewhere in the codebase.
 **Recommendation:** Replace `file.pointerToHost!!` with `requireNotNull(file.pointerToHost) { "resolvePointerChain: file '${file.name}' has isPointer=true but pointerToHost is null" }`.
 
-**[DEFERRED]** — `pointerToHost!!` force-unwrap not replaced; out of scope for this session.
+**[RESOLVED]** — Fixed in `DeckerOperationsExtensions.kt`: `file.pointerToHost!!` replaced with `requireNotNull(file.pointerToHost)` with a descriptive message in `resolvePointerChain`.
 
 ---
 
@@ -104,7 +104,7 @@ The game logic layer is mostly disciplined: `require`/`check`/`requireNotNull` w
 **Issue:** `addToSecurityTally(points: Int)` accepts negative values. A call with `points < 0` quietly decrements the tally; the `checkTriggers(old, new)` call that follows uses an empty range `(old+1)..new` and silently does nothing. No warning is emitted, so accidental negative tally mutations are invisible.
 **Recommendation:** Add `require(points >= 0) { "addToSecurityTally: points must be non-negative, got $points" }` or at minimum `if (points <= 0) { logger.warn { ... }; return }` to make the precondition explicit.
 
-**[DEFERRED]** — `addToSecurityTally` negative-value guard not added; out of scope for this session.
+**[RESOLVED]** — Fixed in `GameContext.kt`: `require(points >= 0)` guard added in `addToSecurityTally`.
 
 ---
 
@@ -114,7 +114,7 @@ The game logic layer is mostly disciplined: `require`/`check`/`requireNotNull` w
 **Issue:** `requireJackedIn()` (Decker.kt line 199) only checks `currentLocation != null`. `locateDecker` calls `requireJackedIn()` and then accesses `persona!!.sensor` on line 431. A decker with a non-null location but null persona throws a bare `NullPointerException` here instead of the descriptive message that `requireNotNull` would provide.
 **Recommendation:** Replace `persona!!.sensor` with `requireNotNull(persona) { "locateDecker: decker '${name}' has no active persona" }.sensor`, consistent with the pattern used throughout `CombatResolver`.
 
-**[DEFERRED]** — `persona!!` force-unwrap not replaced; out of scope for this session.
+**[RESOLVED]** — Fixed in `DeckerOperationsExtensions.kt`: `persona!!` replaced with `requireNotNull(persona)` capture in `locateDecker` (and also in `noticeIcon`, `noticeTriggeredIc`, `invokeMediac`).
 
 ## No Issues Found In
 

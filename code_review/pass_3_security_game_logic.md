@@ -39,14 +39,14 @@ The game logic layer is a pure Kotlin library with no network surface of its own
 **Issue:** `controlSlave` accepts an optional `effectiveSkill: Int? = null` that replaces the decker's `computerSkill` with no range check. A caller could pass a negative value (producing a `roll(negativeInt, tn)` call that will throw due to the `require(numberOfDice > 0)` guard in `DiceRoller`) or an arbitrarily large value (massively inflating the dice pool). There is no documented upper-bound contract for this parameter.
 **Recommendation:** Add `require(effectiveSkill == null || effectiveSkill in 1..20) { "effectiveSkill out of range" }` or derive the skill adjustment through a validated modifier type rather than a raw int override.
 
-**[DEFERRED]** — `effectiveSkill` range validation not added; out of scope for this session.
+**[RESOLVED]** — Fixed in `DeckerOperationsExtensions.kt`: `require(effectiveSkill == null || effectiveSkill in 1..20)` guard added in `controlSlave`.
 
 ### [LOW] `editFile` accepts unbounded `newContent: ByteArray?` with no size check
 **File:** src/main/kotlin/com/shadowrun/matrix/decker/DeckerOperationsExtensions.kt:262
 **Issue:** The `newContent` parameter has no maximum-size validation. If the server layer forwards client-supplied file content directly, an attacker could cause excessive memory allocation. The game library stores this through the caller — if the resulting `DataFile` is kept in `Host.dataFiles`, repeated large writes accumulate in memory.
 **Recommendation:** Define and enforce a maximum file size constant (e.g. aligned with the `storageMemoryMp` limit on the cyberdeck) and add `require(newContent == null || newContent.size <= MAX_FILE_BYTES)` before proceeding.
 
-**[DEFERRED]** — `editFile` size cap not added to game-logic layer; out of scope for this session.
+**[RESOLVED]** — Fixed in `DeckerOperationsExtensions.kt`: `require(newContent == null || newContent.size <= 4096)` size cap added to `editFile`.
 
 ### [INFO] Message content written to INFO log in `bufferMessage`
 **File:** src/main/kotlin/com/shadowrun/matrix/decker/DeckerOperationsExtensions.kt:519

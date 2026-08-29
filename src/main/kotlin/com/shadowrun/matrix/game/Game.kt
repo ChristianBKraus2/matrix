@@ -38,11 +38,11 @@ class Game(
 
     private fun buildInitiativeList(): List<ActiveIconState> {
         val list = mutableListOf<ActiveIconState>()
-        for (decker in context.deckers) {
+        for (decker in context.deckers.toList()) {
             val init = CombatResolver.rollDeckerInitiative(decker, meatworldComm = false, diceRoller)
             list += ActiveIconState(decker, init.score)
         }
-        for (ic in context.activeIc) {
+        for (ic in context.activeIc.toList()) {
             val init = CombatResolver.rollIcInitiative(ic, context.securityCode, diceRoller)
             list += ActiveIconState(ic, init.score)
         }

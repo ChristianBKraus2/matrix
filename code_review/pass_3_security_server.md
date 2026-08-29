@@ -79,7 +79,7 @@ if (stored == null || msg.reconnectToken != stored) {
 **Issue:** `ErrorMessage(message = ErrorCode.UNKNOWN_MESSAGE_TYPE, details = msgType)` echoes the client-supplied type string back to that same sender. Because the frame size is capped at 64 KiB the blast radius is limited, but reflecting unsanitised client input is a pattern to avoid.
 **Recommendation:** Either omit `details` for unknown-type errors or truncate/sanitise the reflected value (e.g., `msgType?.take(32)`) before sending.
 
-**[DEFERRED]** — Raw `msgType` reflection not sanitised; out of scope for this session.
+**[RESOLVED]** — Fixed in `MatrixServer.kt`: `msgType` now sanitized with `.take(64)` before being sent to the client.
 
 ## No Issues Found In
 

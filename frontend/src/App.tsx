@@ -15,6 +15,7 @@ const ERROR_LABELS: Record<ErrorCode, string> = {
   name_too_long:         'Decker name too long (max 32 characters)',
   unknown_message_type:  'Unknown message type',
   bad_request:           'Bad request',
+  server_full:           'Server at capacity',
 }
 
 function JoinScreen({
@@ -79,6 +80,14 @@ function JoinScreen({
 export default function App() {
   const ws = useWebSocket()
   const isRegistered = ws.role === 'registered_decker' || ws.role === 'active_controller'
+  const [showReconnected, setShowReconnected] = useState(false)
+
+  useEffect(() => {
+    if (!ws.reconnected) return
+    setShowReconnected(true)
+    const t = setTimeout(() => setShowReconnected(false), 4000)
+    return () => clearTimeout(t)
+  }, [ws.reconnected])
 
   if (!isRegistered) {
     return (
@@ -96,11 +105,11 @@ export default function App() {
     )
   }
 
-  const { gameState, role, sendAction, events, reconnected } = ws
+  const { gameState, role, sendAction, events } = ws
 
   return (
     <div className="game-grid">
-      {reconnected && (
+      {showReconnected && (
         <div className="reconnect-banner">SESSION RESTORED — reconnected to active game</div>
       )}
       <LocationPanel gameState={gameState} />

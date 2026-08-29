@@ -6,6 +6,7 @@ import com.shadowrun.matrix.integration.utility.DeckerMock
 import com.shadowrun.matrix.integration.utility.GridMock
 import com.shadowrun.matrix.network.DataFile
 import com.shadowrun.matrix.network.MatrixLocation
+import com.shadowrun.matrix.network.PLTG
 import com.shadowrun.matrix.network.RemoteDevice
 import com.shadowrun.matrix.operations.AvailableAction
 import com.shadowrun.matrix.operations.MatrixObject
@@ -166,5 +167,45 @@ class DtoMappingTest {
     fun `AvailableAction GracefulLogoff toDto`() {
         val dto = AvailableAction.GracefulLogoff().toDto(4)
         assertIs<AvailableActionDto.GracefulLogoff>(dto)
+    }
+
+    @Test
+    fun `Decker toDto with OnPLTG location`() {
+        val ltg = GridMock.matrix.rtgs.first().ltgs.first()
+        val pltg = PLTG("Corp-PLTG", "Renraku", ltg,
+            ltg.securityRating, ltg.subsystemRatings)
+        val decker = DeckerMock.build(GridMock.getDefaultJackpoint())
+            .copy(currentLocation = MatrixLocation.OnPLTG(pltg))
+        assertEquals("PLTG: Corp-PLTG", decker.toDto().location)
+    }
+
+    @Test
+    fun `MatrixObject PrivateGrid toDto`() {
+        val ltg = GridMock.matrix.rtgs.first().ltgs.first()
+        val pltg = PLTG("Corp-PLTG", "Renraku", ltg,
+            ltg.securityRating, ltg.subsystemRatings)
+        val dto = MatrixObject.PrivateGrid(pltg).toDto(8)
+        assertIs<MatrixObjectDto.PrivateGrid>(dto)
+        assertEquals(8, dto.index)
+        assertEquals("Corp-PLTG", dto.name)
+        assertEquals("Renraku", dto.owner)
+    }
+
+    @Test
+    fun `AvailableAction LogonToPltg toDto`() {
+        val ltg = GridMock.matrix.rtgs.first().ltgs.first()
+        val pltg = PLTG("Corp-PLTG", "Renraku", ltg,
+            ltg.securityRating, ltg.subsystemRatings)
+        val dto = AvailableAction.LogonToPltg(pltg).toDto(9)
+        assertIs<AvailableActionDto.LogonToPltg>(dto)
+        assertEquals("Corp-PLTG", dto.pltgName)
+    }
+
+    @Test
+    fun `AvailableAction LogonToHost toDto`() {
+        val host = GridMock.getDefaultHost()
+        val dto = AvailableAction.LogonToHost(host).toDto(10)
+        assertIs<AvailableActionDto.LogonToHost>(dto)
+        assertEquals(host.name, dto.hostName)
     }
 }
