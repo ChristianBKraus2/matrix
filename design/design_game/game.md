@@ -22,13 +22,12 @@ This layer sits above `CombatResolver` (which remains a stateless resolver of in
 
 ```kotlin
 interface ActiveIcon {
-    fun action(context: GameContext, diceRoller: DiceRoller): ActionResult
+    fun initiative(context: GameContext, diceRoller: DiceRoller): CombatInitiative
+    suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult
 }
 ```
 
-`action()` applies its result directly to `GameContext` and returns an `ActionResult` describing what happened.
-
-Initiative rolls are **not** part of this interface because IC initiative requires `securityCode` (an IC-specific concern). The `Game` class calls `CombatResolver.rollDeckerInitiative()` and `CombatResolver.rollIcInitiative()` directly during the initiative phase, using `when (icon) { is Decker -> ...; is IC -> ... }`.
+Both methods are required by every icon. `initiative()` encapsulates the Security-Code dependency for IC: the concrete IC implementation reads `context.securityCode` and delegates to `CombatResolver.rollIcInitiative()`; the Decker implementation delegates to `CombatResolver.rollDeckerInitiative()`.
 
 ---
 
@@ -60,22 +59,40 @@ Mutable holder of all runtime game state for one host encounter. Passed into eve
 
 ```kotlin
 class GameContext(
-    val host: Host,
+    host: Host,
     val securityCode: SecurityCode,
-    val deckers: MutableList<Decker>,
-    val activeIc: MutableList<IC>
+    deckers: List<Decker>,
+    activeIc: List<IC> = emptyList()
 ) {
+    var host: Host = host
+        private set
+
+    val deckers: List<Decker>  // read-only view; mutate via updateDecker()
+    val activeIc: List<IC>     // read-only view; mutate via addIc()/removeIc()
+
     fun unauthorizedDeckerInNode(node: Node): Decker?
     fun unauthorizedDeckerInHost(): Decker?
     fun updateDecker(old: Decker, new: Decker)
     fun removeIc(ic: IC)
+    fun addIc(ic: IC)
+    fun resetToSingleDecker(decker: Decker)
+    fun deckerByName(name: String): Decker?
+    fun updateHost(new: Host)
+    fun checkTriggers(oldTally: Int, newTally: Int)
+    fun applyDeckerOperationResult(old: Decker, new: Decker)
+    fun addToSecurityTally(points: Int)
 }
 ```
 
 - `unauthorizedDeckerInNode(node)` — returns the first decker whose `persona.currentNode == node` and `persona.status == INTRUDING`, or `null`.
 - `unauthorizedDeckerInHost()` — returns the first intruding decker regardless of node, or `null`.
-- `updateDecker(old, new)` — replaces `old` with `new` in `deckers`. Used by IC `action()` to apply damage or other state changes to a decker after a `CombatResolver` call.
-- `removeIc(ic)` — removes a crashed IC from `activeIc`.
+- `addIc(ic)` — adds a newly spawned IC program to `activeIc`. Used by `checkTriggers` when a trigger step activates new IC.
+- `resetToSingleDecker(decker)` — replaces the entire deckers list with a single entry. Used by integration-test scaffolding to reset state.
+- `deckerByName(name)` — looks up a decker by name, or `null` if not found.
+- `updateHost(new)` — replaces the host reference and rewires any `OnHost` location references in the deckers list so they point to the new host instance.
+- `checkTriggers(oldTally, newTally)` — checks the host's security sheaf for any trigger steps whose threshold falls in `(oldTally, newTally]`. For each newly crossed step: spawns activated IC via `addIc` and applies any alert-status transition via `updateHost` (AL-01/AL-02).
+- `applyDeckerOperationResult(old, new)` — convenience wrapper: calls `updateDecker`, then detects any security-tally increase on the new decker's location and calls `updateHost` + `checkTriggers` accordingly.
+- `addToSecurityTally(points)` — directly increments the host's security tally and calls `checkTriggers`. Used by Probe IC (ICC-03: successes added to tally immediately).
 
 ---
 
@@ -101,26 +118,25 @@ Used by `Game` to track each icon's initiative score within a single combat turn
 ```kotlin
 class Game(
     val context: GameContext,
-    val diceRoller: DiceRoller,
-    val inCombat: Boolean
+    val diceRoller: DiceRoller
 )
 ```
 
-#### Out-of-combat mode (`inCombat = false`)
+#### Out-of-combat mode
 
 ```kotlin
-fun runOutOfCombatTurn()
+suspend fun runOutOfCombatTurn()
 ```
 
-Iterates `context.deckers` and calls `decker.action(context, diceRoller)` once per decker. No IC participation.
+Iterates `context.deckers` and calls `decker.action(context, diceRoller)` `decker.actionsPerTurn` times per decker (SO-01/SO-02: ⌈Persona Reaction ÷ 10⌉ + Response Increase). No IC participation.
 
-#### In-combat mode (`inCombat = true`)
+#### In-combat mode
 
 ```kotlin
-fun runCombatTurn()
+suspend fun runCombatTurn()
 ```
 
-1. **Roll initiative** for every active icon. For deckers call `CombatResolver.rollDeckerInitiative(decker, meatworldComm = false, diceRoller)`; for ICs call `CombatResolver.rollIcInitiative(ic, context.securityCode, diceRoller)`. Build a `MutableList<ActiveIconState>` sorted descending by `currentInitiative`.
+1. **Roll initiative** for every active icon by calling `icon.initiative(context, diceRoller)` on each entry. Build a `MutableList<ActiveIconState>` sorted descending by `currentInitiative`.
 
 2. **Action loop**: find the entry with the highest `currentInitiative > 0`. Call `icon.action(context, diceRoller)`. Decrement that entry's `currentInitiative` by 10.
 
@@ -141,7 +157,10 @@ fun runCombatTurn()
 ```kotlin
 data class Decker(...) : ActiveIcon {
 
-    override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult =
+    override fun initiative(context: GameContext, diceRoller: DiceRoller): CombatInitiative =
+        CombatResolver.rollDeckerInitiative(this, meatworldComm = false, diceRoller)
+
+    override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult =
         ActionResult.DeckerAction
 }
 ```
@@ -156,12 +175,15 @@ This separation means the `Game` class handles IC turns (called via `action()`) 
 
 **File:** `src/main/kotlin/com/shadowrun/matrix/ic/IC.kt`
 
-`IC` declares `action()` abstract. Each leaf subclass implements it. Two protected helpers on the base handle the shared target-finding and move logic so each subclass only writes its CombatResolver call.
+`IC` declares both methods abstract. Each leaf subclass implements `action()`; the base class provides a concrete `initiative()` that delegates to `CombatResolver`, so subclasses do not need to override it.
 
 ```kotlin
 sealed class IC(...) : ActiveIcon {
 
-    abstract override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult
+    override fun initiative(context: GameContext, diceRoller: DiceRoller): CombatInitiative =
+        CombatResolver.rollIcInitiative(this, context.securityCode, diceRoller)
+
+    abstract override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult
 
     // Returns the intruding decker this IC should act against, or null if none found.
     // If guardedNode is set, prefers a decker in that node; falls back to any intruding decker in the host.
@@ -190,7 +212,7 @@ Each subclass calls `findTarget()`, then `moveIfNeeded()`, then its specific `Co
 
 **`Killer`**
 ```kotlin
-override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
     val attacker = CombatResolver.icAttackParticipant(this, context.securityCode)
@@ -206,7 +228,7 @@ override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult 
 
 **`Crippler`**
 ```kotlin
-override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
     val result = CombatResolver.resolveCrippler(target, this, context.securityCode, diceRoller)
@@ -217,11 +239,11 @@ override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult 
 
 **`Probe`**
 ```kotlin
-override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
     val tallyPoints = CombatResolver.resolveProbe(this, target, diceRoller)
-    // tally increase applied by caller via context.host
+    context.addToSecurityTally(tallyPoints)
     return ActionResult.IcAttack("Probe added $tallyPoints tally against ${target.name}")
 }
 ```
@@ -230,12 +252,12 @@ override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult 
 
 Scramble triggers on logon (reactive gate), not as an active attack. Returns `NoTarget` — no combat action.
 ```kotlin
-override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = ActionResult.NoTarget
+override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = ActionResult.NoTarget
 ```
 
 **`TarBaby`**
 ```kotlin
-override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
     val utility = target.cyberdeck.activeUtilities.firstOrNull { it.type.category == targetCategory }
@@ -251,7 +273,7 @@ override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult 
 
 **`Blaster`**
 ```kotlin
-override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
     val attacker = CombatResolver.icAttackParticipant(this, context.securityCode)
@@ -270,7 +292,7 @@ override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult 
 
 **`Ripper`**
 ```kotlin
-override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
     val result = CombatResolver.resolveRipper(target, this, context.securityCode, diceRoller)
@@ -281,7 +303,7 @@ override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult 
 
 **`Sparky`**
 ```kotlin
-override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
     val attacker = CombatResolver.icAttackParticipant(this, context.securityCode)
@@ -301,7 +323,7 @@ override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult 
 
 **`TarPit`**
 ```kotlin
-override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
     val utility = target.cyberdeck.activeUtilities.firstOrNull { it.type.category == targetCategory }
@@ -322,7 +344,7 @@ override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult 
 
 **`LethalBlackIC`**
 ```kotlin
-override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
     val result = CombatResolver.resolveLethalBlackIc(target, this, context.securityCode, diceRoller)
@@ -333,7 +355,7 @@ override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult 
 
 **`NonLethalBlackIC`**
 ```kotlin
-override fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
+override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
     val result = CombatResolver.resolveNonLethalBlackIc(target, this, context.securityCode, diceRoller)
@@ -358,6 +380,19 @@ fun Decker.asDefenderParticipant(): DefenderParticipant = DefenderParticipant(
 ```
 
 This extension lives in `src/main/kotlin/com/shadowrun/matrix/game/DeckerExtensions.kt`.
+
+---
+
+## Available Actions — Location-Context Filtering
+
+`Decker.availableActions()` must filter the returned list by the decker's current location context. Two operation sets apply:
+
+- **Host context** (`currentLocation is MatrixLocation.OnHost`): full system operation table — `ANALYZE_HOST`, `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_IC`, `ANALYZE_IC`, `DOWNLOAD_DATA`, `EDIT_FILE`, `CONTROL_SLAVE`, `DECRYPT_*`, etc.
+- **Grid context** (`currentLocation is OnLTG / OnRTG / OnPLTG`): only the subset valid on a grid — `RELOCATE_ICON`, `NULL_OPERATION`, `LOCATE_ACCESS_NODE` (M-07: available from RTG), `ANALYZE_SECURITY`, `LOCATE_IC`, `ANALYZE_IC`.
+
+Operations requiring host context must not appear in `availableActions` when the decker is on a grid node. The filter is applied inside `Decker.availableActions()`, not at the server dispatch point — offering an action and returning a failure is confusing to the player.
+
+This rule is additive to the existing deferral rule in `prd_game.md`: SWAP_MEMORY and LOCATE_DECKER are excluded regardless of context.
 
 ---
 

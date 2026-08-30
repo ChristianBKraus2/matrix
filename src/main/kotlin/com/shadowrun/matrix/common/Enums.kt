@@ -29,8 +29,6 @@ enum class JackpointType {
     REMOTE_DEVICE, TELECOM, ILLEGAL_JUNCTION_BOX
 }
 
-enum class AccessoryType { OFFLINE_STORAGE, VID_SCREEN, HITCHER_JACK }
-
 enum class CombatManeuverType { EVADE_DETECTION, PARRY_ATTACK, POSITION_ATTACK }
 
 val DamageLevel.boxes: Int get() = when (this) {

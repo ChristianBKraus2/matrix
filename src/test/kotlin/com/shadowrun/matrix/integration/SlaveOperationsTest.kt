@@ -31,10 +31,12 @@ class SlaveOperationsTest : IntegrationTestBase() {
         assertTrue(host.remoteDevices.any { it.name.contains("Security Camera", ignoreCase = true) },
             "Mitsuhama Pagoda must have a Security Camera Network device for this test")
 
-        // BROWSE rating 4, VERY_SPECIFIC (-2): TN = max(2, index(8) - 2 - 4) = 2.
-        // hitRoller face=5 ≥ 2 → 8 successes → ≥ 3 threshold → Located.
+        // BROWSE-4 + SLEAZE-6: DF = ceil((masking=6 + sleaze=6) / 2) = 6.
+        // Host: 6 dice vs TN=6, hitRoller face=5 → 0 successes. Decker: 8 dice vs TN=2 → 8 net → ≥ 3 → Located.
         val browse = com.shadowrun.matrix.programs.Utility(com.shadowrun.matrix.programs.UtilityType.BROWSE, rating = 4)
+        val sleaze = com.shadowrun.matrix.programs.Utility(com.shadowrun.matrix.programs.UtilityType.SLEAZE, rating = 6)
         icon.equipUtility(browse)
+        icon.equipUtility(sleaze)
 
         val result = icon.currentDecker().locateSlave(host, "Security Camera", QueryPrecision.VERY_SPECIFIC, hitRoller())
         icon.context.updateDecker(icon.currentDecker(), result.first.decker)

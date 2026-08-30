@@ -1,6 +1,7 @@
 package com.shadowrun.matrix.ic
 
 import com.shadowrun.matrix.combat.AttackResult
+import com.shadowrun.matrix.combat.CombatInitiative
 import com.shadowrun.matrix.combat.CombatResolver
 import com.shadowrun.matrix.common.IcBehavior
 import com.shadowrun.matrix.common.PersonaAttributeType
@@ -22,6 +23,9 @@ sealed class IC(
 ) : ActiveIcon {
 
     abstract override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult
+
+    override fun initiative(context: GameContext, diceRoller: DiceRoller): CombatInitiative =
+        CombatResolver.rollIcInitiative(this, context.securityCode, diceRoller)
 
     fun initiativeDice(securityCode: SecurityCode): Int = when (securityCode) {
         SecurityCode.BLUE   -> 1
@@ -55,7 +59,7 @@ class Crippler(rating: Int, val targetAttribute: PersonaAttributeType, guardedNo
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
         moveIfNeeded(target, context)?.let { return it }
-        val result = CombatResolver.resolveCrippler(target, this, context.securityCode, diceRoller)
+        val result = CombatResolver.resolveCrippler(target, this, context.host.securityRating.value, diceRoller)
         context.updateDecker(target, result.updatedDecker)
         return ActionResult.IcAttack("Crippler reduced ${target.name} ${result.targetAttribute} by ${result.reduction}")
     }
@@ -67,7 +71,7 @@ class Killer(rating: Int, guardedNode: Node? = null) :
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
         moveIfNeeded(target, context)?.let { return it }
-        val attacker = CombatResolver.icAttackParticipant(this, context.securityCode)
+        val attacker = CombatResolver.icAttackParticipant(this, context.securityCode, context.host.securityRating.value)
         val result = CombatResolver.resolveKiller(attacker, target.asDefenderParticipant(), diceRoller)
         if (result is AttackResult.Hit) {
             val dmg = CombatResolver.applyIcDamage(target, result, this, diceRoller)
@@ -125,7 +129,7 @@ class Blaster(rating: Int, guardedNode: Node? = null) :
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
         moveIfNeeded(target, context)?.let { return it }
-        val attacker = CombatResolver.icAttackParticipant(this, context.securityCode)
+        val attacker = CombatResolver.icAttackParticipant(this, context.securityCode, context.host.securityRating.value)
         val result = CombatResolver.resolveBlaster(attacker, target.asDefenderParticipant(), diceRoller)
         if (result is AttackResult.Hit) {
             val dmg = CombatResolver.applyIcDamage(target, result, this, diceRoller)
@@ -145,7 +149,7 @@ class Ripper(rating: Int, val targetAttribute: PersonaAttributeType, guardedNode
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
         moveIfNeeded(target, context)?.let { return it }
-        val result = CombatResolver.resolveRipper(target, this, context.securityCode, diceRoller)
+        val result = CombatResolver.resolveRipper(target, this, context.host.securityRating.value, diceRoller)
         var finalDecker = result.updatedDecker
         if ((finalDecker.persona?.attribute(result.targetAttribute) ?: 0) == 0) {
             finalDecker = CombatResolver.resolveRipperMpcpTest(finalDecker, this, diceRoller)
@@ -161,7 +165,7 @@ class Sparky(rating: Int, guardedNode: Node? = null) :
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
         moveIfNeeded(target, context)?.let { return it }
-        val attacker = CombatResolver.icAttackParticipant(this, context.securityCode)
+        val attacker = CombatResolver.icAttackParticipant(this, context.securityCode, context.host.securityRating.value)
         val result = CombatResolver.resolveSparky(attacker, target.asDefenderParticipant(), diceRoller)
         if (result is AttackResult.Hit) {
             val dmg = CombatResolver.applyIcDamage(target, result, this, diceRoller)

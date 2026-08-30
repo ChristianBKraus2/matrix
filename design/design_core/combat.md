@@ -92,14 +92,15 @@ For IC, `evasion` and `sensor` are both the host's Security Value (CC-14). For d
 
 ```kotlin
 data class AttackParticipant(
-    val utilityRating: Int,
+    val attackDicePool: Int,
+    val weaponPower: Int = attackDicePool,
     val hackingPool: Int = 0,
     val rawDamageLevel: DamageLevel,
     val modifiers: CombatModifiers = CombatModifiers()
 )
 ```
 
-PRD: CC-20, CC-24. `utilityRating` is the offensive program's `currentRating`.
+PRD: CC-23, CC-27. For decker attacks, `attackDicePool` and `weaponPower` are both the offensive program's `currentRating` (they are the same value, so `weaponPower` defaults to `attackDicePool`). For IC attacks, these differ: `attackDicePool` = host Security Value (CC-23); `weaponPower` = IC Rating (CC-27). Use `CombatResolver.icAttackParticipant(ic, securityCode)` to construct the IC case correctly.
 
 ---
 
@@ -178,7 +179,8 @@ data class IcDamageResult(
     val updatedDecker: Decker,
     val iconDamage: AttackResult,
     val simsenseOverload: SimsenseOverloadResult?,
-    val dumpShockTriggered: Boolean
+    val dumpShockTriggered: Boolean,
+    val mpcpReductionOnKill: Int = 0
 )
 ```
 
@@ -465,7 +467,7 @@ PRD: CC-29.
 1. `shock = DumpShock(host.securityRating)` — `shock.power` = Security Value; `shock.level` = Damage Level by Security Code.
 2. Roll `decker.body` dice vs. `shock.power` → `successes`.
 3. `actualLevel = stage(shock.level, -successes)` — defender successes stage down.
-4. Apply `actualLevel` to `decker`'s Physical Condition Monitor.
+4. Apply `actualLevel` to `decker`'s Mental Condition Monitor (CC-32: dump shock is Stun damage).
 5. Return updated `Decker`.
 
 ---
@@ -520,7 +522,7 @@ The caller (game engine) handles the tally update; the method's callback keeps `
 PRD: ICC-01.
 
 1. `sv = securityValue(securityCode)` — from `SecurityRating.value`.
-2. Roll `sv` dice vs. `decker.detectionFactor` → `icSuccesses`.
+2. Roll `sv` dice vs. `decker.effectiveDetectionFactor` → `icSuccesses`. (`effectiveDetectionFactor = detectionFactor - suppressionDfPenalty`; each IC the decker is suppressing lowers the TN the host rolls against, compounding the benefit of suppression.)
 3. Roll `decker.persona!!.attribute(ic.targetAttribute)` dice vs. `ic.rating` → `deckerSuccesses`.
 4. `net = icSuccesses - deckerSuccesses`
 5. `reduction = max(0, net / 2)`
@@ -541,7 +543,7 @@ PRD: ICC-02. Delegates directly to `resolveAttack`. The caller constructs `Attac
 
 PRD: ICC-03. Returns the number of security tally points to add immediately.
 
-1. Roll `ic.rating` dice vs. `decker.detectionFactor` → `successes`.
+1. Roll `ic.rating` dice vs. `decker.effectiveDetectionFactor` → `successes`. (Suppressed IC reduces `effectiveDetectionFactor` via `suppressionDfPenalty`, lowering the TN Probe rolls against.)
 2. Return `successes`.
 
 Called by the game engine each time the decker performs a System Test while Probe is active.
@@ -569,20 +571,22 @@ PRD: ICC-05.
 
 PRD: ICC-06. Identical to `resolveKiller`. The caller checks whether the resulting crash triggers the MPCP degradation test.
 
-#### `resolveBlasterMpcpTest(decker: Decker, ic: Blaster, diceRoller: DiceRoller): Decker`
+#### `resolveBlasterMpcpTest(decker: Decker, ic: Blaster, diceRoller: DiceRoller, ratingOverride: Int? = null): Decker`
 
 PRD: ICC-06.
 
-1. `tn = decker.cyberdeck.hardening + decker.cyberdeck.mcpRating`
-2. Roll `ic.rating` dice vs. `tn` → `successes`.
+1. `tn = max(2, decker.cyberdeck.hardening + decker.cyberdeck.mcpRating)` — standard SR3 TN floor of 2 applies.
+2. `attackRating = ratingOverride ?: ic.rating`; roll `attackRating` dice vs. `tn` → `successes`.
 3. `reduction = successes / 2`
-4. Return updated `Decker` with `cyberdeck.mcpRating = max(0, mcpRating - reduction)`.
+4. `newMcpRating = max(0, mcpRating - reduction)`. Re-clamp `responseIncrease` to `min(responseIncrease, floor(newMcpRating / 4))` per CD-02 (RI ≤ floor(MPCP ÷ 4)). Return updated `Decker` with both fields updated. This cascading RI clamp applies equally to `resolveRipperMpcpTest`, `resolveSparkyMpcpTest`, and `resolveTarPitMpcpTest`.
+
+`ratingOverride` is used when calling at double rating (e.g. the final MPCP attack from lethal Black IC death — PRD ICC-11 requires `ic.rating * 2` dice).
 
 ---
 
 #### `resolveRipper(decker: Decker, ic: Ripper, securityCode: SecurityCode, diceRoller: DiceRoller): CripplerResult`
 
-PRD: ICC-07. Identical algorithm to `resolveCrippler`. The caller checks whether the resulting attribute value is 0 and, if so, calls `resolveRipperMpcpTest`.
+PRD: ICC-07. Same algorithm as `resolveCrippler` with one critical difference: the attribute floor is **0**, not 1. (`resolveCrippler` floors at `max(1, ...)` per ICC-01; `resolveRipper` must use `max(0, ...)` because ICC-07 explicitly requires the attribute to be reducible to 0 in order to trigger `resolveRipperMpcpTest`.) The caller checks whether the resulting attribute value is 0 and, if so, calls `resolveRipperMpcpTest`.
 
 #### `resolveRipperMpcpTest(decker: Decker, ic: Ripper, diceRoller: DiceRoller): Decker`
 
@@ -598,7 +602,7 @@ PRD: ICC-08. Identical to `resolveKiller`. On crash, the caller calls both `reso
 
 PRD: ICC-08.
 
-1. `tn = decker.cyberdeck.hardening + decker.cyberdeck.mcpRating + 2`
+1. `tn = max(2, decker.cyberdeck.hardening + decker.cyberdeck.mcpRating + 2)` — standard SR3 TN floor of 2 applies (the +2 makes sub-floor values rare in practice).
 2. Roll `ic.rating` dice vs. `tn` → `successes`.
 3. Return updated decker (MPCP reduced by `successes / 2`) and `successes` (needed by body damage step).
 
@@ -622,7 +626,7 @@ PRD: ICC-09. Same resolution as `resolveTarBaby`. On `bothCrashed = true`, the c
 
 PRD: ICC-09.
 
-1. `tn = decker.cyberdeck.hardening + decker.cyberdeck.mcpRating`
+1. `tn = max(2, decker.cyberdeck.hardening + decker.cyberdeck.mcpRating)` — standard SR3 TN floor of 2 applies.
 2. Roll `ic.rating` dice vs. `tn` → `successes`.
 3. If `successes == 0` → same effect as Tar Baby: decker may reload from storage (no further action).
 4. Else → corrupt all copies of `utility` in both `activeUtilities` and `storedUtilities` (remove by type match); decker cannot reload until a clean copy is obtained outside the run.
@@ -643,7 +647,7 @@ PRD: ICC-11.
 5. Stage both results independently with `stage()`.
 6. Apply icon damage to Condition Monitor; apply physical damage to Physical Condition Monitor.
 7. If icon crashes before decker dies: set IC effective rating to `ic.rating + 2` for all subsequent tests (caller holds this state).
-8. If decker dies (Physical CM full): set `dumpShockTriggered = true`; caller resolves final MPCP attack at `ic.rating * 2` via `resolveBlasterMpcpTest`. **If this MPCP attack reduces `cyberdeck.mcpRating` to 0**, the caller must additionally delete all data files downloaded by the decker during the run from both `cyberdeck.storedUtilities`/download handles and any connected offline storage. The MPCP rating is explicitly set to 0 (not clamped to a floor above 0).
+8. If decker dies (Physical CM full): set `dumpShockTriggered = true`. `resolveLethalBlackIc` inlines the final MPCP attack via `resolveBlasterMpcpTest(decker, ic, diceRoller, ratingOverride = ic.rating * 2)`; the MPCP reduction is reported in `IcDamageResult.mpcpReductionOnKill`. **If `mpcpReductionOnKill > 0` and the resulting `cyberdeck.mcpRating == 0`**, the caller must additionally delete all data files downloaded by the decker during the run from both `cyberdeck.storedUtilities`/download handles and any connected offline storage. The MPCP rating is explicitly set to 0 (not clamped to a floor above 0).
 9. Apply Black IC pin if first hit (ICC-10).
 10. Return `IcDamageResult`. `simsenseOverload = null` (Black IC, CC-28).
 
@@ -651,7 +655,7 @@ PRD: ICC-11.
 
 PRD: ICC-12. Identical to `resolveLethalBlackIc` except physical body damage is replaced with Mental damage (Willpower resistance tests); unconsciousness triggers auto-disconnect. Mental damage overflow into Physical CM follows standard SR3 rules (handled by `ConditionMonitor`).
 
-**Final MPCP attack on unconsciousness (rules p. 230):** When the decker is rendered unconscious (Mental CM full), the non-lethal Black IC still makes one final MPCP attack before the auto-disconnect completes. The caller must invoke `resolveBlasterMpcpTest(decker, ic, diceRoller)` at `ic.rating` (standard rating, not doubled) immediately before clearing the connection. If this attack reduces `cyberdeck.mcpRating` to 0, all data downloaded during the run is deleted, identical to the lethal Black IC rule (ICC-11).
+**Final MPCP attack on unconsciousness (rules p. 230):** When the decker is rendered unconscious (Mental CM full), `resolveNonLethalBlackIc` inlines the final MPCP attack via `resolveBlasterMpcpTest(decker, ic, diceRoller, ratingOverride = ic.rating * 2)` before returning; the reduction is reported in `IcDamageResult.mpcpReductionOnKill` (ICC-11/ICC-12: double rating, same as lethal Black IC). If the resulting `cyberdeck.mcpRating == 0`, all data downloaded during the run is deleted, identical to the lethal Black IC rule (ICC-11).
 
 ---
 
@@ -659,13 +663,13 @@ PRD: ICC-12. Identical to `resolveLethalBlackIc` except physical body damage is 
 
 #### `resolveBlackHammer(targetDecker: Decker, attack: AttackResult.Hit, diceRoller: DiceRoller): IcDamageResult`
 
-PRD: ICC-13. Identical to `resolveLethalBlackIc` **except** no final MPCP attack on decker death.
+PRD: ICC-13. Identical to `resolveLethalBlackIc` **except** no final MPCP attack on decker death and no `blackIcPin` set.
 
 **Precondition:** Caller must verify `!targetDecker.cyberdeck.immuneToDumpShock` before calling; cyberterminal users and hitchers are immune (CT-04, ACC-03).
 
 #### `resolveKilljoy(targetDecker: Decker, attack: AttackResult.Hit, diceRoller: DiceRoller): IcDamageResult`
 
-PRD: ICC-14. Identical to `resolveNonLethalBlackIc` with the same no-MPCP-attack exception as Black Hammer.
+PRD: ICC-14. Identical to `resolveNonLethalBlackIc` with the same no-MPCP-attack and no-`blackIcPin` exceptions as Black Hammer.
 
 ---
 

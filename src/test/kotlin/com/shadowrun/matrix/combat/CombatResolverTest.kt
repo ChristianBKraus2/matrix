@@ -23,6 +23,7 @@ import com.shadowrun.matrix.ic.Sparky
 import com.shadowrun.matrix.ic.TarBaby
 import com.shadowrun.matrix.ic.TarPit
 import com.shadowrun.matrix.network.Host
+import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.common.IntrusionDifficulty
 import com.shadowrun.matrix.common.TopologyType
 import com.shadowrun.matrix.programs.PersonaProgram
@@ -317,7 +318,7 @@ class CombatResolverTest {
     fun `resolveAttack returns Miss when no attacker successes`() {
         // TN for INTRUDING in BLUE = 6; all attacker dice show 1 → 0 successes
         val roller = allFaces(1)
-        val attacker = AttackParticipant(utilityRating = 4, rawDamageLevel = DamageLevel.MODERATE)
+        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.MODERATE)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.BLUE)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Miss>(result)
@@ -329,7 +330,7 @@ class CombatResolverTest {
         val attackDice = intArrayOf(6, 1, 6, 1, 6, 1, 6, 1)   // 4 dice each rolling (6,1) = 7
         val defendDice = IntArray(4) { 1 }
         val roller = DiceRoller(stubRandom(*attackDice, *defendDice))
-        val attacker = AttackParticipant(utilityRating = 4, rawDamageLevel = DamageLevel.MODERATE)
+        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.MODERATE)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.BLUE)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -339,7 +340,7 @@ class CombatResolverTest {
     @Test
     fun `resolveAttack Hit uses CC-21 table for Legitimate in Red TN=6`() {
         val roller = DiceRoller(stubRandom(*intArrayOf(6, 1, 6, 1, 6, 1, 6, 1), *IntArray(4) { 1 }))
-        val attacker = AttackParticipant(utilityRating = 4, rawDamageLevel = DamageLevel.MODERATE)
+        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.MODERATE)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.LEGITIMATE, securityCode = SecurityCode.RED)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -349,7 +350,7 @@ class CombatResolverTest {
     fun `resolveAttack Armor reduces effectivePower`() {
         // utilityRating=7, armor=4 → effectivePower=3; all attacker dice succeed at TN 5 (INTRUDING/GREEN)
         val roller = DiceRoller(stubRandom(*IntArray(7) { 5 }, *IntArray(4) { 1 }))
-        val attacker = AttackParticipant(utilityRating = 7, rawDamageLevel = DamageLevel.MODERATE)
+        val attacker = AttackParticipant(attackDicePool = 7, rawDamageLevel = DamageLevel.MODERATE)
         val defender = DefenderParticipant(bod = 4, armorCurrentRating = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -361,7 +362,7 @@ class CombatResolverTest {
         // attacker: 4 dice, all succeed (TN 5 for intruding/GREEN)
         // defender: 0 successes → net=4 → shift +2 from LIGHT → SERIOUS
         val roller = DiceRoller(stubRandom(*IntArray(4) { 5 }, *IntArray(4) { 1 }))
-        val attacker = AttackParticipant(utilityRating = 4, rawDamageLevel = DamageLevel.LIGHT)
+        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.LIGHT)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -375,7 +376,7 @@ class CombatResolverTest {
             5, 1, 1, 1,           // attacker 4 dice: 1 success at TN 5
             5, 5, 5, 5, 5         // defender 5 dice: all succeed
         ))
-        val attacker = AttackParticipant(utilityRating = 4, rawDamageLevel = DamageLevel.SERIOUS)
+        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.SERIOUS)
         val defender = DefenderParticipant(bod = 5, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -387,7 +388,7 @@ class CombatResolverTest {
         // TN for INTRUDING/GREEN = 5; parryBonus = 3 → effective TN = 8; all dice = 5 → 0 successes → Miss
         val roller = allFaces(5)
         val mods = CombatModifiers(parryAttackBonus = 3)
-        val attacker = AttackParticipant(utilityRating = 4, rawDamageLevel = DamageLevel.MODERATE, modifiers = mods)
+        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.MODERATE, modifiers = mods)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Miss>(result)
@@ -398,7 +399,7 @@ class CombatResolverTest {
         // TN for INTRUDING/BLUE = 6; positionTnBonus=4 → effective TN = max(2,2) = 2; all dice=3 → hit
         val roller = DiceRoller(stubRandom(*IntArray(4) { 3 }, *IntArray(4) { 1 }))
         val mods = CombatModifiers(positionAttackTnBonus = 4)
-        val attacker = AttackParticipant(utilityRating = 4, rawDamageLevel = DamageLevel.MODERATE, modifiers = mods)
+        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.MODERATE, modifiers = mods)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.BLUE)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -409,7 +410,7 @@ class CombatResolverTest {
         // utilityRating=4, powerBonus=2 → power=6; armor=0; effectivePower=6
         val roller = DiceRoller(stubRandom(*IntArray(4) { 5 }, *IntArray(4) { 1 }))
         val mods = CombatModifiers(positionAttackPowerBonus = 2)
-        val attacker = AttackParticipant(utilityRating = 4, rawDamageLevel = DamageLevel.MODERATE, modifiers = mods)
+        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.MODERATE, modifiers = mods)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -506,6 +507,19 @@ class CombatResolverTest {
         assertNull(result.updatedDecker.blackIcPin)
     }
 
+    @Test
+    fun `applyIcDamage Black IC does not overwrite existing pin on second hit`() {
+        val roller = allFaces(5)
+        val existingIc = LethalBlackIC(rating = 6)
+        val newIc = LethalBlackIC(rating = 8)
+        val existingPin = BlackIcPinState(existingIc)
+        val d = decker().copy(blackIcPin = existingPin)
+        val attack = AttackResult.Hit(2, DamageLevel.MODERATE, DamageLevel.MODERATE, 8)
+        val result = CombatResolver.applyIcDamage(d, attack, newIc, roller)
+        // Pin should still reference the FIRST Black IC that hit, not the new one
+        assertEquals(existingIc, result.updatedDecker.blackIcPin!!.pinningIc)
+    }
+
     // ── resolveDumpShock ──────────────────────────────────────────────────────────
 
     @Test
@@ -514,7 +528,7 @@ class CombatResolverTest {
         val roller = allFaces(1)
         val d = decker(body = 4)
         val result = CombatResolver.resolveDumpShock(d, host(SecurityCode.ORANGE, 5), roller)
-        assertEquals(6, result.physicalConditionMonitor.damage)
+        assertEquals(6, result.mentalConditionMonitor.damage)
     }
 
     @Test
@@ -523,7 +537,7 @@ class CombatResolverTest {
         val roller = allFaces(5)
         val d = decker(body = 4)
         val result = CombatResolver.resolveDumpShock(d, host(SecurityCode.ORANGE, 5), roller)
-        assertEquals(1, result.physicalConditionMonitor.damage)
+        assertEquals(1, result.mentalConditionMonitor.damage)
     }
 
     @Test
@@ -531,7 +545,15 @@ class CombatResolverTest {
         val roller = allFaces(1)  // no body successes
         val d = decker(body = 4)
         val result = CombatResolver.resolveDumpShock(d, host(SecurityCode.BLUE, 3), roller)
-        assertEquals(1, result.physicalConditionMonitor.damage)  // LIGHT = 1 box
+        assertEquals(1, result.mentalConditionMonitor.damage)  // LIGHT = 1 box
+    }
+
+    @Test
+    fun `resolveDumpShock does not affect physicalConditionMonitor`() {
+        val roller = allFaces(1)  // no body successes — maximum mental damage
+        val d = decker(body = 4)
+        val result = CombatResolver.resolveDumpShock(d, host(SecurityCode.RED, 5), roller)
+        assertEquals(0, result.physicalConditionMonitor.damage)
     }
 
     // ── resolveJackOutWithPin ─────────────────────────────────────────────────────
@@ -575,7 +597,7 @@ class CombatResolverTest {
             *IntArray(6) { 1 }   // decker rolls vs ic.rating
         ))
         val ic = Crippler(rating = 5, targetAttribute = PersonaAttributeType.BOD)
-        val result = CombatResolver.resolveCrippler(decker(), ic, SecurityCode.GREEN, roller)
+        val result = CombatResolver.resolveCrippler(decker(), ic, 4, roller)
         assertEquals(2, result.reduction)
         assertEquals(4, result.updatedDecker.persona!!.bod)
     }
@@ -589,7 +611,7 @@ class CombatResolverTest {
             *IntArray(1) { 1 }   // decker 1 die fails
         ))
         val ic = Crippler(rating = 5, targetAttribute = PersonaAttributeType.BOD)
-        val result = CombatResolver.resolveCrippler(decker(persona = personaLowBod), ic, SecurityCode.GREEN, roller)
+        val result = CombatResolver.resolveCrippler(decker(persona = personaLowBod), ic, 4, roller)
         assertEquals(1, result.updatedDecker.persona!!.bod)
     }
 
@@ -601,7 +623,7 @@ class CombatResolverTest {
             *IntArray(6) { 5 }   // decker dice all succeed
         ))
         val ic = Crippler(rating = 5, targetAttribute = PersonaAttributeType.BOD)
-        val result = CombatResolver.resolveCrippler(decker(), ic, SecurityCode.GREEN, roller)
+        val result = CombatResolver.resolveCrippler(decker(), ic, 4, roller)
         assertEquals(0, result.reduction)
         assertEquals(6, result.updatedDecker.persona!!.bod)
     }
@@ -719,7 +741,7 @@ class CombatResolverTest {
             *IntArray(6) { 1 }   // decker evasion dice
         ))
         val ic = Ripper(rating = 5, targetAttribute = PersonaAttributeType.EVASION)
-        val result = CombatResolver.resolveRipper(decker(), ic, SecurityCode.RED, roller)
+        val result = CombatResolver.resolveRipper(decker(), ic, 6, roller)
         assertEquals(3, result.reduction) // 6 successes/2 = 3 reduction
         assertEquals(3, result.updatedDecker.persona!!.evasion) // 6-3=3
     }
@@ -752,7 +774,7 @@ class CombatResolverTest {
 
     @Test
     fun `resolveSparkyBodyDamage hardening reduces effectivePower`() {
-        // hardening=10 → effectivePower = max(0, 6-10) = 0 → no body roll → staged damage applied raw
+        // hardening=10 → effectivePower = max(0, 6-10) = 0 → body rolls at TN=2 but all dice show 1 → 0 successes → staged damage applied raw
         val roller = allFaces(1)
         val d = decker(body = 4, cyberdeck = deck(mcpRating = 8, hardening = 10))
         val ic = Sparky(rating = 6)
@@ -904,6 +926,16 @@ class CombatResolverTest {
         assertEquals(0, result.updatedDecker.cyberdeck.mcpRating)
     }
 
+    @Test
+    fun `resolveLethalBlackIc does not overwrite pin when decker already pinned`() {
+        val roller = allFaces(1, 30)
+        val existingIc = LethalBlackIC(rating = 4)
+        val newIc = LethalBlackIC(rating = 6)
+        val d = decker(cyberdeck = deck(hardening = 8)).copy(blackIcPin = BlackIcPinState(existingIc))
+        val result = CombatResolver.resolveLethalBlackIc(d, newIc, SecurityCode.BLUE, roller)
+        assertEquals(existingIc, result.updatedDecker.blackIcPin!!.pinningIc)
+    }
+
     // ── resolveNonLethalBlackIc ───────────────────────────────────────────────────
 
     @Test
@@ -965,10 +997,10 @@ class CombatResolverTest {
 
     @Test
     fun `resolveNonLethalBlackIc MPCP death blow fires on icon CM crash`() {
-        // Icon CM = 8 → MODERATE icon hit crashes it → kill fires; MPCP shot all fails → reduction=0
+        // Icon CM = 8 → MODERATE icon hit crashes it → kill fires; MPCP shot (ic.rating*2=12 dice) all fail → reduction=0
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6,
             conditionMonitor = ConditionMonitor(damage = 8))
-        val roller = allFaces(1, 30)  // all fail, including MPCP shot
+        val roller = allFaces(1, 30)  // all fail, including MPCP shot (ic.rating*2=12 dice)
         val d = decker(willpower = 5, cyberdeck = deck(mcpRating = 8, hardening = 0), persona = persona)
         val ic = NonLethalBlackIC(rating = 6)
         val result = CombatResolver.resolveNonLethalBlackIc(d, ic, SecurityCode.BLUE, roller)
@@ -1000,6 +1032,24 @@ class CombatResolverTest {
         val result = CombatResolver.resolveKilljoy(d, attack, roller)
         assertTrue(result.updatedDecker.mentalConditionMonitor.damage > 0)
         assertNull(result.simsenseOverload)
+    }
+
+    @Test
+    fun `resolveBlackHammer throws for immune decker`() {
+        val immuneDeck = deck().copy(immuneToDumpShock = true)
+        val d = decker(cyberdeck = immuneDeck)
+        val attack = AttackResult.Hit(3, DamageLevel.SERIOUS, DamageLevel.SERIOUS, 6)
+        val result = runCatching { CombatResolver.resolveBlackHammer(d, attack, allFaces(1)) }
+        assertTrue(result.isFailure)
+    }
+
+    @Test
+    fun `resolveKilljoy throws for immune decker`() {
+        val immuneDeck = deck().copy(immuneToDumpShock = true)
+        val d = decker(cyberdeck = immuneDeck)
+        val attack = AttackResult.Hit(3, DamageLevel.MODERATE, DamageLevel.MODERATE, 6)
+        val result = runCatching { CombatResolver.resolveKilljoy(d, attack, allFaces(1)) }
+        assertTrue(result.isFailure)
     }
 
     // ── resolveTrackLock ──────────────────────────────────────────────────────────
@@ -1040,7 +1090,7 @@ class CombatResolverTest {
     fun `resolveSlow on Reactive IC returns SlowResult(0, false) immediately`() {
         val ic = Scramble(rating = 4)  // REACTIVE
         val initiative = CombatInitiative(10, 2)
-        val result = CombatResolver.resolveSlow(ic, slowRating = 6, SecurityCode.ORANGE, initiative, allFaces(5))
+        val result = CombatResolver.resolveSlow(ic, slowRating = 6, securityValue = 5, initiative, allFaces(5))
         assertEquals(0, result.actionsLost)
         assertFalse(result.icInert)
     }
@@ -1054,7 +1104,7 @@ class CombatResolverTest {
         ))
         val ic = Killer(rating = 4)  // PROACTIVE
         val initiative = CombatInitiative(10, 3)
-        val result = CombatResolver.resolveSlow(ic, slowRating = 6, SecurityCode.ORANGE, initiative, roller)
+        val result = CombatResolver.resolveSlow(ic, slowRating = 6, securityValue = 5, initiative, roller)
         assertEquals(3, result.actionsLost)
         assertTrue(result.icInert)   // 3 passes - 3 lost = 0 ≤ 0
     }
@@ -1068,7 +1118,7 @@ class CombatResolverTest {
         ))
         val ic = Killer(rating = 4)
         val initiative = CombatInitiative(10, 3)
-        val result = CombatResolver.resolveSlow(ic, slowRating = 6, SecurityCode.ORANGE, initiative, roller)
+        val result = CombatResolver.resolveSlow(ic, slowRating = 6, securityValue = 5, initiative, roller)
         assertEquals(0, result.actionsLost)
         assertFalse(result.icInert)
     }
@@ -1096,7 +1146,7 @@ class CombatResolverTest {
     @Test
     fun `suppressIc adds IC to suppressedIc list`() {
         val ic = Probe(rating = 4)
-        val d = decker()
+        val d = decker().copy(currentLocation = MatrixLocation.OnHost(host()))
         val updated = CombatResolver.suppressIc(d, ic)
         assertEquals(1, updated.suppressedIc.size)
         assertEquals(ic, updated.suppressedIc.first().ic)
@@ -1106,7 +1156,7 @@ class CombatResolverTest {
     @Test
     fun `suppressIc records rating at crash time`() {
         val ic = Probe(rating = 6)
-        val updated = CombatResolver.suppressIc(decker(), ic)
+        val updated = CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(host())), ic)
         assertEquals(6, updated.suppressedIc.first().icRating)
     }
 
@@ -1114,7 +1164,7 @@ class CombatResolverTest {
     fun `suppressIc multiple times accumulates entries`() {
         val ic1 = Probe(rating = 3)
         val ic2 = Killer(rating = 5)
-        val d = CombatResolver.suppressIc(decker(), ic1)
+        val d = CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(host())), ic1)
         val d2 = CombatResolver.suppressIc(d, ic2)
         assertEquals(2, d2.suppressedIc.size)
     }
@@ -1128,9 +1178,19 @@ class CombatResolverTest {
     }
 
     @Test
+    fun `suppressIc throws when decker is on LTG not a host`() {
+        // D-6: decker has persona but is not on a host — cannot suppress IC
+        val ic = Probe(rating = 4)
+        // decker() fixture has currentLocation=null; we need to check the persona+location combo
+        val d = decker() // currentLocation is null → not OnHost → should throw
+        val result = runCatching { CombatResolver.suppressIc(d, ic) }
+        assertTrue(result.isFailure)
+    }
+
+    @Test
     fun `unsuppressIc removes IC from suppressedIc list`() {
         val ic = Probe(rating = 4)
-        val withSuppressed = CombatResolver.suppressIc(decker(), ic)
+        val withSuppressed = CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(host())), ic)
         var callbackRating = -1
         val released = CombatResolver.unsuppressIc(withSuppressed, ic) { callbackRating = it }
         assertEquals(0, released.suppressedIc.size)
@@ -1139,7 +1199,7 @@ class CombatResolverTest {
     @Test
     fun `unsuppressIc calls onTallyIncrease with stored IC rating`() {
         val ic = Probe(rating = 7)
-        val withSuppressed = CombatResolver.suppressIc(decker(), ic)
+        val withSuppressed = CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(host())), ic)
         var callbackRating = -1
         CombatResolver.unsuppressIc(withSuppressed, ic) { callbackRating = it }
         assertEquals(7, callbackRating)
@@ -1159,7 +1219,8 @@ class CombatResolverTest {
     fun `unsuppressIc only removes the matching IC when multiple are suppressed`() {
         val ic1 = Probe(rating = 3)
         val ic2 = Killer(rating = 5)
-        val d = CombatResolver.suppressIc(CombatResolver.suppressIc(decker(), ic1), ic2)
+        val base = decker().copy(currentLocation = MatrixLocation.OnHost(host()))
+        val d = CombatResolver.suppressIc(CombatResolver.suppressIc(base, ic1), ic2)
         val released = CombatResolver.unsuppressIc(d, ic1) {}
         assertEquals(1, released.suppressedIc.size)
         assertEquals(ic2, released.suppressedIc.first().ic)
@@ -1169,39 +1230,45 @@ class CombatResolverTest {
 
     @Test
     fun `icAttackParticipant Blue host gives MODERATE damage and SV=3`() {
-        // CC-27: Blue/Green = Moderate damage level
+        // CC-23: pool = Security Value only; CC-27: Blue/Green = Moderate damage level
         val ic = Killer(rating = 5)
-        val p = CombatResolver.icAttackParticipant(ic, SecurityCode.BLUE)
+        val p = CombatResolver.icAttackParticipant(ic, SecurityCode.BLUE, 3)
         assertEquals(DamageLevel.MODERATE, p.rawDamageLevel)
-        assertEquals(3, p.hackingPool)
-        assertEquals(5, p.utilityRating)
+        assertEquals(3, p.attackDicePool)
+        assertEquals(5, p.weaponPower)
+        assertEquals(0, p.hackingPool)
     }
 
     @Test
     fun `icAttackParticipant Green host gives MODERATE damage and SV=4`() {
-        // CC-27: Blue/Green = Moderate damage level
+        // CC-23: pool = Security Value only; CC-27: Blue/Green = Moderate damage level
         val ic = Killer(rating = 4)
-        val p = CombatResolver.icAttackParticipant(ic, SecurityCode.GREEN)
+        val p = CombatResolver.icAttackParticipant(ic, SecurityCode.GREEN, 4)
         assertEquals(DamageLevel.MODERATE, p.rawDamageLevel)
-        assertEquals(4, p.hackingPool)
+        assertEquals(4, p.attackDicePool)
+        assertEquals(4, p.weaponPower)
+        assertEquals(0, p.hackingPool)
     }
 
     @Test
     fun `icAttackParticipant Orange host gives SERIOUS damage and SV=5`() {
-        // CC-27: Orange/Red = Serious damage level
+        // CC-23: pool = Security Value only; CC-27: Orange/Red = Serious damage level
         val ic = Killer(rating = 6)
-        val p = CombatResolver.icAttackParticipant(ic, SecurityCode.ORANGE)
+        val p = CombatResolver.icAttackParticipant(ic, SecurityCode.ORANGE, 5)
         assertEquals(DamageLevel.SERIOUS, p.rawDamageLevel)
-        assertEquals(5, p.hackingPool)
+        assertEquals(5, p.attackDicePool)
+        assertEquals(6, p.weaponPower)
+        assertEquals(0, p.hackingPool)
     }
 
     @Test
     fun `icAttackParticipant Red host gives SERIOUS damage and SV=6`() {
         val ic = Killer(rating = 8)
-        val p = CombatResolver.icAttackParticipant(ic, SecurityCode.RED)
+        val p = CombatResolver.icAttackParticipant(ic, SecurityCode.RED, 6)
         assertEquals(DamageLevel.SERIOUS, p.rawDamageLevel)
-        assertEquals(6, p.hackingPool)
-        assertEquals(8, p.utilityRating)
+        assertEquals(6, p.attackDicePool)
+        assertEquals(8, p.weaponPower)
+        assertEquals(0, p.hackingPool)
     }
 
     // ── effectiveDetectionFactor under suppression ────────────────────────────────
@@ -1221,9 +1288,9 @@ class CombatResolverTest {
             *IntArray(4) { 5 }, *IntArray(6) { 1 }   // scenario B
         ))
 
-        val baseline = CombatResolver.resolveCrippler(decker(), ic, SecurityCode.GREEN, roller)
+        val baseline = CombatResolver.resolveCrippler(decker(), ic, 4, roller)
         val withSuppression = CombatResolver.resolveCrippler(
-            CombatResolver.suppressIc(decker(), suppressedIc), ic, SecurityCode.GREEN, roller
+            CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(host())), suppressedIc), ic, 4, roller
         )
         // Both should produce the same structural result (roller is deterministic).
         assertEquals(baseline.reduction, withSuppression.reduction)

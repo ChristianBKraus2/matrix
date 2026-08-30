@@ -145,10 +145,12 @@ class CombatTest : IntegrationTestBase() {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
         }
-        // Replace cyberdeck: no persona programs, mcpRating=5 (constraint: 0 ≤ 5×3=15 ✓)
+        // Strip persona programs; set bod=1 so defense=1 success (TN 2). Attack: 6 dice (TN 4) → 6 successes.
+        // Net=5 → 2 stages above SERIOUS = DEADLY (10 boxes) → mental CM crash → dumpShock.
+        // MPCP test: ic.rating=2 dice vs TN = hardening(0)+mcpRating(5)=5 → 2 successes → reduction=1 → mcp=4.
         val d = icon.currentDecker()
         val strippedDeck = d.cyberdeck.copy(mcpRating = 5, personaPrograms = emptyList())
-        icon.context.updateDecker(d, d.copy(cyberdeck = strippedDeck))
+        icon.context.updateDecker(d, d.copy(cyberdeck = strippedDeck, persona = d.persona!!.copy(bod = 1)))
         val mcpBefore = icon.currentDecker().cyberdeck.mcpRating
         assertEquals(5, mcpBefore)
 

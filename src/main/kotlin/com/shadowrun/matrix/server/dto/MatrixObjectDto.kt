@@ -24,6 +24,7 @@ sealed class MatrixObjectDto {
         val name: String,
         val region: String,
         val alertStatus: String,
+        val securityCode: String,
         val securityTally: Int,
         val ltgCount: Int,
         val connectedRtgCount: Int
@@ -49,6 +50,7 @@ sealed class MatrixObjectDto {
         val owner: String,
         val parentLtgName: String,
         val alertStatus: String,
+        val securityCode: String,
         val hostCount: Int
     ) : MatrixObjectDto()
 
@@ -77,8 +79,9 @@ sealed class MatrixObjectDto {
     data class IcProgram(
         override val index: Int,
         val name: String,
-        val rating: Int,
-        val behavior: String,
+        val analyzed: Boolean,
+        val rating: Int?,
+        val behavior: String?,
         val guardedNodeType: String?
     ) : MatrixObjectDto()
 
@@ -107,7 +110,8 @@ fun List<MatrixObject>.toDto(): List<MatrixObjectDto> =
 fun MatrixObject.toDto(index: Int): MatrixObjectDto = when (this) {
     is MatrixObject.GridNode ->
         MatrixObjectDto.GridNode(index, name = rtg.name, region = rtg.region,
-            alertStatus = rtg.alertStatus.name, securityTally = rtg.securityTally,
+            alertStatus = rtg.alertStatus.name, securityCode = rtg.securityRating.code.name,
+            securityTally = rtg.securityTally,
             ltgCount = rtg.ltgs.size, connectedRtgCount = rtg.connectedRtgs.size)
     is MatrixObject.LocalGrid ->
         MatrixObjectDto.LocalGrid(index, name = ltg.name, parentRtgName = ltg.parentRtg.name,
@@ -116,7 +120,7 @@ fun MatrixObject.toDto(index: Int): MatrixObjectDto = when (this) {
     is MatrixObject.PrivateGrid ->
         MatrixObjectDto.PrivateGrid(index, name = pltg.name, owner = pltg.owner,
             parentLtgName = pltg.parentLtg.name, alertStatus = pltg.alertStatus.name,
-            hostCount = pltg.hosts.size)
+            securityCode = pltg.securityRating.code.name, hostCount = pltg.hosts.size)
     is MatrixObject.HostNode ->
         MatrixObjectDto.HostNode(index, name = host.name, topologyType = host.topologyType.name,
             offline = host.offline, alertStatus = host.alertStatus.name,
@@ -124,8 +128,10 @@ fun MatrixObject.toDto(index: Int): MatrixObjectDto = when (this) {
     is MatrixObject.HostSubsystem ->
         MatrixObjectDto.HostSubsystem(index, subsystemType = node.subsystemType.name, description = node.description)
     is MatrixObject.IcProgram ->
-        MatrixObjectDto.IcProgram(index, name = ic.name, rating = ic.rating, behavior = ic.behavior.name,
-            guardedNodeType = ic.guardedNode?.subsystemType?.name)
+        MatrixObjectDto.IcProgram(index, name = ic.name, analyzed = analyzed,
+            rating = if (analyzed) ic.rating else null,
+            behavior = if (analyzed) ic.behavior.name else null,
+            guardedNodeType = if (analyzed) ic.guardedNode?.subsystemType?.name else null)
     is MatrixObject.File ->
         MatrixObjectDto.File(index, name = file.name, isScrambleProtected = file.isScrambleProtected,
             isPointer = file.isPointer, sizeMp = file.sizeMp)

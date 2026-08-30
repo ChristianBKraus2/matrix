@@ -1,5 +1,6 @@
 package com.shadowrun.matrix.integration.utility
 
+import com.shadowrun.matrix.combat.CombatInitiative
 import com.shadowrun.matrix.common.AlertStatus
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.decker.Decker
@@ -224,5 +225,8 @@ open class IntegrationTestBase {
             step++
             return ActionResult.DeckerAction.also { stepResults += it }
         }
+
+        override fun initiative(context: GameContext, diceRoller: DiceRoller): CombatInitiative =
+            currentDecker().initiative(context, diceRoller)
     }
 }

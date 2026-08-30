@@ -25,6 +25,7 @@ data class UtilityDto(val type: String, val rating: Int)
 fun Decker.toDto() = DeckerStateDto(
     name = name,
     location = currentLocation?.label() ?: "not jacked in",
+    locationIndex = if (currentLocation != null) 0 else null,
     isPinnedByBlackIc = isPinnedByBlackIc,
     physicalDamage = physicalConditionMonitor.damage,
     physicalMaxBoxes = physicalConditionMonitor.maxBoxes,

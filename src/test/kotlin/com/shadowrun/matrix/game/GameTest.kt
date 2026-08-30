@@ -1,5 +1,6 @@
 package com.shadowrun.matrix.game
 
+import com.shadowrun.matrix.combat.CombatInitiative
 import com.shadowrun.matrix.common.IcBehavior
 import com.shadowrun.matrix.common.IntrusionDifficulty
 import com.shadowrun.matrix.common.PersonaAttributeType
@@ -533,12 +534,14 @@ class GameTest {
                 actionOrder += "A"
                 return ActionResult.DeckerAction
             }
+            override fun initiative(context: GameContext, diceRoller: DiceRoller) = CombatInitiative(0, 1)
         }
         val iconB = object : ActiveIcon {
             override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
                 actionOrder += "B"
                 return ActionResult.DeckerAction
             }
+            override fun initiative(context: GameContext, diceRoller: DiceRoller) = CombatInitiative(0, 1)
         }
 
         // Build initial states directly: A=15, B=8

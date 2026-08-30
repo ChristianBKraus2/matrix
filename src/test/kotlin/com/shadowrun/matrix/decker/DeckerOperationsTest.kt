@@ -251,7 +251,7 @@ class DeckerOperationsTest {
     fun `uploadData returns Success when decker wins Files test`() {
         val h = host(secValue = 2, files = 2)
         val d = decker(host = h)
-        val result = d.uploadData(h, winRoller)
+        val (result, _) = d.uploadData(h, dataSizeMp = 100, winRoller)
         assertIs<OperationResult.Success>(result)
     }
 
@@ -259,7 +259,7 @@ class DeckerOperationsTest {
     fun `uploadData returns Failure when host wins`() {
         val h = host(secValue = 8, files = 12)
         val d = decker(host = h)
-        val result = d.uploadData(h, loseRoller)
+        val (result, _) = d.uploadData(h, dataSizeMp = 100, loseRoller)
         assertIs<OperationResult.Failure>(result)
     }
 
@@ -267,7 +267,7 @@ class DeckerOperationsTest {
     fun `uploadData increments security tally by host successes`() {
         val h = host(secValue = 6, files = 2)
         val d = decker(host = h)
-        val result = d.uploadData(h, winRoller)
+        val (result, _) = d.uploadData(h, dataSizeMp = 100, winRoller)
         val tally = (result.decker.currentLocation as? MatrixLocation.OnHost)?.host?.securityTally ?: 0
         assertTrue(tally >= 0)
     }
@@ -391,6 +391,16 @@ class DeckerOperationsTest {
         ))
         val (_, locate) = d.locateAccessNode(h, "", QueryPrecision.NORMAL, winRoller)
         assertIs<LocateResult.Located>(locate)
+    }
+
+    @Test
+    fun `locateAccessNode returns NotFound when query does not match any node`() {
+        val h = host(secValue = 2, index = 2)
+        val d = decker(host = h).copy(interrogationStates = mapOf(
+            SystemOperation.LOCATE_ACCESS_NODE to InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, "XYZNOTANODE", 4)
+        ))
+        val (_, locate) = d.locateAccessNode(h, "XYZNOTANODE", QueryPrecision.NORMAL, winRoller)
+        assertIs<LocateResult.NotFound>(locate)
     }
 
     // ── makeComcall ───────────────────────────────────────────────────────────────
@@ -620,5 +630,25 @@ class DeckerOperationsTest {
         })
         val result = d.gracefulLogoff(roller)
         assertIs<LogoffResult.GracefulSuccess>(result)
+    }
+
+    // ── withUpdatedTally alert transitions (D-15) ─────────────────────────────────
+
+    @Test
+    fun `withUpdatedTally triggers Passive Alert when tally crosses sheaf threshold`() {
+        val step = com.shadowrun.matrix.network.TriggerStep(
+            tallyThreshold = 3,
+            description = "Passive Alert",
+            alertTransition = com.shadowrun.matrix.common.AlertStatus.PASSIVE_ALERT
+        )
+        val sheaf = com.shadowrun.matrix.network.SecuritySheaf(listOf(step))
+        val testHost = host().copy(securitySheaf = sheaf, securityTally = 0)
+        val d = decker(host = testHost)
+        // Increment tally by 3, crossing the threshold at 3
+        val updated = d.withUpdatedTally(3)
+        val updatedHost = (updated.currentLocation as com.shadowrun.matrix.network.MatrixLocation.OnHost).host
+        assertEquals(3, updatedHost.securityTally)
+        // withUpdatedTally only increments tally; alert transitions are driven by GameContext.checkTriggers
+        assertEquals(testHost.alertStatus, updatedHost.alertStatus)
     }
 }

@@ -94,21 +94,40 @@ data class InterrogationState(
 
 ---
 
+### `MonitoredTarget` (sealed class)
+
+**File:** `src/main/kotlin/com/shadowrun/matrix/operations/MonitoredOperationHandle.kt`
+
+Typed discriminated union for the resource a monitored operation is acting on.
+
+```kotlin
+sealed class MonitoredTarget {
+    data class SlaveDevice(val device: RemoteDevice) : MonitoredTarget()
+    data class ComcallHost(val host: Host) : MonitoredTarget()
+}
+```
+
+---
+
 ### `MonitoredOperationHandle` (data class)
 
 **File:** `src/main/kotlin/com/shadowrun/matrix/operations/MonitoredOperationHandle.kt`
 
-Tracks an active monitored operation. The caller holds this and must call `maintain()` every Initiative Pass.
+Tracks an active monitored operation. The caller holds this and must call `Decker.maintainMonitoredOperation()` every Initiative Pass.
 
 ```kotlin
 data class MonitoredOperationHandle(
     val operation: SystemOperation,
-    val target: Any,              // RemoteDevice, Commcode, etc.
-    val active: Boolean = true
+    val target: MonitoredTarget,
+    val active: Boolean = true,
+    val needsMaintenance: Boolean = false
 )
 ```
 
-If `active` is `false`, the operation has been aborted and cannot be maintained further.
+- `active = false` — the operation has been aborted and cannot be maintained further.
+- `needsMaintenance = true` — set at the start of each Initiative Pass; `maintainMonitoredOperation` must be called before the pass ends or the operation aborts (SO-13).
+
+Maintenance is handled via `Decker.beginInitiativePass()` (arms the flag) and `Decker.maintainMonitoredOperation()` (clears it). Missing a maintenance call causes the operation to abort (SO-14).
 
 ---
 
@@ -242,7 +261,7 @@ enum class QueryPrecision(val modifier: Int) {
 Algorithm:
 1. Apply `queryPrecision.modifier` to the base target number (subsystem rating − utility rating, clamped ≥ 2).
 2. Resolve System Test normally → `outcome`.
-3. New accumulated successes = `state.accumulatedSuccesses + outcome.deckerSuccesses`.
+3. `netSuccesses = outcome.deckerSuccesses - outcome.hostSuccesses`. New accumulated successes = `state.accumulatedSuccesses + max(0, netSuccesses)` — a negative net contributes nothing but does not reduce the running total (SO-06).
 4. Return the outcome and an updated `InterrogationState` with the new total.
 
 The caller checks whether the accumulated total ≥ 5 (or host-assigned threshold) to determine if the target is located.
@@ -297,6 +316,28 @@ sealed class SensorTestResult {
 The caller interprets `successes` against the thresholds in MP-03 to decide what information to reveal.
 
 **Friendly decker auto-reveal (MP-09):** If the incoming icon is a friendly decker who chooses to make their presence known, skip the Sensor Test entirely and return `Detected(icon, 1)` directly. The game engine passes a `friendlyReveal: Boolean` flag to `noticeIcon`; when true the test is bypassed.
+
+---
+
+### Persistent Icon Visibility
+
+**PRD:** MP-04
+
+`noticeIcon` is a one-shot test. Once it returns `Detected`, the game engine adds that icon to the decker's **visible-icons set** — a persistent collection on `Decker` (or `Persona`) that survives across turns without requiring a new Sensor Test.
+
+```kotlin
+// Addition to Decker or Persona:
+val detectedIcons: Set<Icon> = emptySet()
+```
+
+The game engine checks this set before calling `noticeIcon`: if the icon is already in the set, skip the test and treat the icon as detected at the previously-established success level.
+
+Icons are removed from the visible-icons set when:
+- The icon successfully executes **Evade Detection** against this decker (the engine removes the icon from the set at the moment the countdown starts; the decker must re-run `LOCATE_IC` / `LOCATE_DECKER` to re-detect after the countdown expires).
+- The icon leaves the current area or host.
+- The decker logs off, jacks out, or is involuntarily disconnected.
+
+The engine calls `decker.copy(detectedIcons = detectedIcons + icon)` on `Detected` and `decker.copy(detectedIcons = detectedIcons - icon)` on the removal conditions above.
 
 ---
 
@@ -413,21 +454,21 @@ fun locateFile(
     query: String,
     precision: QueryPrecision,
     diceRoller: DiceRoller
-): Pair<OperationResult, InterrogationState>
+): Pair<OperationResult, LocateResult>
 
 fun locateSlave(
     host: Host,
     query: String,
     precision: QueryPrecision,
     diceRoller: DiceRoller
-): Pair<OperationResult, InterrogationState>
+): Pair<OperationResult, LocateResult>
 
 fun locateAccessNode(
     host: Host,
     query: String,
     precision: QueryPrecision,
     diceRoller: DiceRoller
-): Pair<OperationResult, InterrogationState>
+): Pair<OperationResult, LocateResult>
 ```
 
 **Algorithm:**
@@ -482,7 +523,7 @@ fun downloadData(
     file: DataFile,
     host: Host,
     diceRoller: DiceRoller
-): DownloadHandle
+): Pair<OperationResult, DownloadHandle?>
 ```
 
 ```kotlin
@@ -643,8 +684,7 @@ fun bufferMessage(text: String, recipient: LinkedObserver): BufferedMessage
 ```kotlin
 data class BufferedMessage(
     val text: String,
-    val recipient: LinkedObserver,
-    val deliverAtEndOfTurn: Boolean = true
+    val recipient: LinkedObserver
 )
 ```
 

@@ -1,7 +1,7 @@
 package com.shadowrun.matrix.game
 
-import com.shadowrun.matrix.combat.CombatResolver
 import com.shadowrun.matrix.decker.Decker
+import com.shadowrun.matrix.decker.advanceCombatTurn
 import com.shadowrun.matrix.ic.IC
 import com.shadowrun.matrix.utility.DiceRoller
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -15,10 +15,13 @@ class Game(
 
     suspend fun runOutOfCombatTurn() {
         for (decker in context.deckers.toList()) {
-            try { decker.action(context, diceRoller) }
-            catch (e: Exception) {
-                if (e is CancellationException) throw e
-                logger.error(e) { "Out-of-combat action error for ${decker.name}" }
+            val count = decker.persona?.let { decker.actionsPerTurn } ?: 1
+            repeat(count) {
+                try { decker.action(context, diceRoller) }
+                catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    logger.error(e) { "Out-of-combat action error for ${decker.name}" }
+                }
             }
         }
     }
@@ -31,7 +34,7 @@ class Game(
             return
         }
         while (states.any { it.currentInitiative > 0 }) {
-            val state = states.filter { it.currentInitiative > 0 }.maxByOrNull { it.currentInitiative }!!
+            val state = states.filter { it.currentInitiative > 0 }.maxBy { it.currentInitiative }
             val idx = states.indexOf(state)
             try { state.icon.action(context, diceRoller) }
             catch (e: Exception) {
@@ -40,18 +43,16 @@ class Game(
             }
             states[idx] = state.copy(currentInitiative = state.currentInitiative - 10)
         }
+        // Advance utility upload timers and track state for each decker (CD-11, CC-33)
+        for (decker in context.deckers.toList()) {
+            context.updateDecker(decker, decker.advanceCombatTurn())
+        }
     }
 
     private fun buildInitiativeList(): List<ActiveIconState> {
-        val list = mutableListOf<ActiveIconState>()
-        for (decker in context.deckers.toList()) {
-            val init = CombatResolver.rollDeckerInitiative(decker, meatworldComm = false, diceRoller)
-            list += ActiveIconState(decker, init.score)
-        }
-        for (ic in context.activeIc.toList()) {
-            val init = CombatResolver.rollIcInitiative(ic, context.securityCode, diceRoller)
-            list += ActiveIconState(ic, init.score)
-        }
-        return list.sortedByDescending { it.currentInitiative }
+        val icons: List<ActiveIcon> = context.deckers.toList() + context.activeIc.toList()
+        return icons.map { icon ->
+            ActiveIconState(icon, icon.initiative(context, diceRoller).score)
+        }.sortedByDescending { it.currentInitiative }
     }
 }

@@ -22,6 +22,7 @@ import com.shadowrun.matrix.ic.TarBaby
 import com.shadowrun.matrix.ic.TarPit
 import com.shadowrun.matrix.ic.WhiteIC
 import com.shadowrun.matrix.network.Host
+import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.programs.Utility
 import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.utility.DiceRoller
@@ -74,11 +75,11 @@ object CombatResolver {
         var tn = attackTn(defender.personaStatus, defender.securityCode)
         tn += attacker.modifiers.parryAttackBonus
         tn -= attacker.modifiers.positionAttackTnBonus
-        val power = attacker.utilityRating + attacker.modifiers.positionAttackPowerBonus
+        val power = attacker.weaponPower + attacker.modifiers.positionAttackPowerBonus
         val effectivePower = max(0, power - defender.armorCurrentRating)
-        val attackerSuccesses = diceRoller.roll(attacker.utilityRating + attacker.hackingPool, max(2, tn)).successes
+        val attackerSuccesses = diceRoller.roll(attacker.attackDicePool + attacker.hackingPool, max(2, tn)).successes
         if (attackerSuccesses == 0) return AttackResult.Miss
-        val defenderSuccesses = if (effectivePower >= 2) diceRoller.roll(defender.bod, effectivePower).successes else 0
+        val defenderSuccesses = diceRoller.roll(defender.bod, max(2, effectivePower)).successes
         val net = attackerSuccesses - defenderSuccesses
         val staged = stage(attacker.rawDamageLevel, net)
         return AttackResult.Hit(attackerSuccesses, attacker.rawDamageLevel, staged, effectivePower)
@@ -90,6 +91,7 @@ object CombatResolver {
         val persona = requireNotNull(decker.persona) { "applyIcDamage: decker has no active persona" }
         val newCm = persona.conditionMonitor.applyDamage(attack.stagedDamageLevel)
         var updatedDecker = decker.copy(persona = persona.copy(conditionMonitor = newCm))
+        updatedDecker = degradeArmor(updatedDecker) // CD-19
 
         var dumpShockTriggered = false
         var simsense: SimsenseOverloadResult? = null
@@ -97,7 +99,7 @@ object CombatResolver {
         when {
             ic is BlackIC -> {
                 // No simsense overload for Black IC (CC-28)
-                if (attack.attackerSuccesses > 0) {
+                if (attack.attackerSuccesses > 0 && updatedDecker.blackIcPin == null) {
                     updatedDecker = updatedDecker.copy(blackIcPin = BlackIcPinState(ic))
                 }
             }
@@ -134,7 +136,7 @@ object CombatResolver {
         val successes = diceRoller.roll(decker.body, max(2, shock.power)).successes
         val actualLevel = stage(shock.level, -successes)
         return decker.copy(
-            physicalConditionMonitor = decker.physicalConditionMonitor.applyDamage(actualLevel)
+            mentalConditionMonitor = decker.mentalConditionMonitor.applyDamage(actualLevel)
         )
     }
 
@@ -153,9 +155,8 @@ object CombatResolver {
 
     // ── White IC ──────────────────────────────────────────────────────────────────
 
-    fun resolveCrippler(decker: Decker, ic: Crippler, securityCode: SecurityCode, diceRoller: DiceRoller): CripplerResult {
-        val sv = securityCode.securityValue
-        val icSuccesses = diceRoller.roll(sv, decker.effectiveDetectionFactor).successes
+    fun resolveCrippler(decker: Decker, ic: Crippler, securityValue: Int, diceRoller: DiceRoller): CripplerResult {
+        val icSuccesses = diceRoller.roll(securityValue, max(2, decker.effectiveDetectionFactor)).successes
         val persona = requireNotNull(decker.persona) { "resolveCrippler: decker has no active persona" }
         val currentAttr = persona.attribute(ic.targetAttribute)
         val deckerSuccesses = diceRoller.roll(currentAttr, ic.rating).successes
@@ -172,7 +173,7 @@ object CombatResolver {
         resolveAttack(attacker, defender, diceRoller)
 
     fun resolveProbe(ic: Probe, decker: Decker, diceRoller: DiceRoller): Int {
-        return diceRoller.roll(ic.rating, decker.effectiveDetectionFactor).successes
+        return diceRoller.roll(ic.rating, max(2, decker.effectiveDetectionFactor)).successes
     }
 
     fun resolveTarBaby(decker: Decker, ic: TarBaby, utility: Utility, diceRoller: DiceRoller): TarBabyResult =
@@ -183,12 +184,11 @@ object CombatResolver {
     fun resolveBlaster(attacker: AttackParticipant, defender: DefenderParticipant, diceRoller: DiceRoller): AttackResult =
         resolveAttack(attacker, defender, diceRoller)
 
-    fun resolveBlasterMpcpTest(decker: Decker, ic: Blaster, diceRoller: DiceRoller): Decker =
-        reduceMcpRating(decker, ic.rating, diceRoller)
+    fun resolveBlasterMpcpTest(decker: Decker, ic: Blaster, diceRoller: DiceRoller, ratingOverride: Int? = null): Decker =
+        reduceMcpRating(decker, ratingOverride ?: ic.rating, diceRoller)
 
-    fun resolveRipper(decker: Decker, ic: Ripper, securityCode: SecurityCode, diceRoller: DiceRoller): CripplerResult {
-        val sv = securityCode.securityValue
-        val icSuccesses = diceRoller.roll(sv, decker.effectiveDetectionFactor).successes
+    fun resolveRipper(decker: Decker, ic: Ripper, securityValue: Int, diceRoller: DiceRoller): CripplerResult {
+        val icSuccesses = diceRoller.roll(securityValue, max(2, decker.effectiveDetectionFactor)).successes
         val persona = requireNotNull(decker.persona) { "resolveRipper: decker has no active persona" }
         val currentAttr = persona.attribute(ic.targetAttribute)
         val deckerSuccesses = if (currentAttr > 0) diceRoller.roll(currentAttr, ic.rating).successes else 0
@@ -222,7 +222,7 @@ object CombatResolver {
     fun resolveSparkyBodyDamage(decker: Decker, ic: Sparky, sparkySuccesses: Int, diceRoller: DiceRoller): Decker {
         val staged = stage(DamageLevel.MODERATE, sparkySuccesses)
         val effectivePower = max(0, ic.rating - decker.cyberdeck.hardening)
-        val bodySuccesses = if (effectivePower >= 2) diceRoller.roll(decker.body, effectivePower).successes else 0
+        val bodySuccesses = diceRoller.roll(decker.body, max(2, effectivePower)).successes
         val actual = stage(staged, -bodySuccesses)
         return decker.copy(
             physicalConditionMonitor = decker.physicalConditionMonitor.applyDamage(actual)
@@ -264,20 +264,22 @@ object CombatResolver {
         val power = ic.rating
         val effectivePower = max(0, power - decker.cyberdeck.hardening)
 
+        val armorRating = decker.cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.ARMOR }?.currentRating ?: 0
         val persona = requireNotNull(decker.persona) { "resolveLethalBlackIc: decker has no active persona" }
-        val iconDefSuccesses = if (power >= 2) diceRoller.roll(persona.bod, power).successes else 0
+        val iconDefSuccesses = diceRoller.roll(persona.bod, max(2, power - armorRating)).successes
         val iconStaged = stage(rawLevel, -iconDefSuccesses)
         val newCm = persona.conditionMonitor.applyDamage(iconStaged)
 
-        val bodySuccesses = if (effectivePower >= 2) diceRoller.roll(decker.body, effectivePower).successes else 0
+        val bodySuccesses = diceRoller.roll(decker.body, max(2, effectivePower)).successes
         val bodyStaged = stage(rawLevel, -bodySuccesses)
         val newPhysicalCm = decker.physicalConditionMonitor.applyDamage(bodyStaged)
 
         var updatedDecker = decker.copy(
             persona = persona.copy(conditionMonitor = newCm),
             physicalConditionMonitor = newPhysicalCm,
-            blackIcPin = BlackIcPinState(ic)
+            blackIcPin = decker.blackIcPin ?: BlackIcPinState(ic)
         )
+        updatedDecker = degradeArmor(updatedDecker) // CD-19
 
         val dumpShockTriggered = newCm.isCrashed || newPhysicalCm.isCrashed
 
@@ -293,6 +295,7 @@ object CombatResolver {
                 updatedDecker = updatedDecker.copy(
                     cyberdeck = updatedDecker.cyberdeck.copy(mcpRating = newMcp, responseIncrease = newRi)
                 )
+                if (newMcp == 0) updatedDecker = updatedDecker.copy(runDownloadedFiles = emptyList())
             }
         }
 
@@ -318,21 +321,23 @@ object CombatResolver {
         val power = ic.rating
         val effectivePower = max(0, power - decker.cyberdeck.hardening)
 
+        val armorRating = decker.cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.ARMOR }?.currentRating ?: 0
         val persona = requireNotNull(decker.persona) { "resolveNonLethalBlackIc: decker has no active persona" }
-        val iconDefSuccesses = if (power >= 2) diceRoller.roll(persona.bod, power).successes else 0
+        val iconDefSuccesses = diceRoller.roll(persona.bod, max(2, power - armorRating)).successes
         val iconStaged = stage(rawLevel, -iconDefSuccesses)
         val newCm = persona.conditionMonitor.applyDamage(iconStaged)
 
         // Mental damage via Willpower resistance
-        val mentalSuccesses = if (effectivePower >= 2) diceRoller.roll(decker.willpower, effectivePower).successes else 0
+        val mentalSuccesses = diceRoller.roll(decker.willpower, max(2, effectivePower)).successes
         val mentalStaged = stage(rawLevel, -mentalSuccesses)
         val newMentalCm = decker.mentalConditionMonitor.applyDamage(mentalStaged)
 
         var updatedDecker = decker.copy(
             persona = persona.copy(conditionMonitor = newCm),
             mentalConditionMonitor = newMentalCm,
-            blackIcPin = BlackIcPinState(ic)
+            blackIcPin = decker.blackIcPin ?: BlackIcPinState(ic)
         )
+        updatedDecker = degradeArmor(updatedDecker) // CD-19
 
         val dumpShockTriggered = newCm.isCrashed || newMentalCm.isCrashed
 
@@ -348,6 +353,7 @@ object CombatResolver {
                 updatedDecker = updatedDecker.copy(
                     cyberdeck = updatedDecker.cyberdeck.copy(mcpRating = newMcp, responseIncrease = newRi)
                 )
+                if (newMcp == 0) updatedDecker = updatedDecker.copy(runDownloadedFiles = emptyList())
             }
         }
 
@@ -358,33 +364,41 @@ object CombatResolver {
     // ── Black Hammer and Killjoy ──────────────────────────────────────────────────
 
     fun resolveBlackHammer(targetDecker: Decker, attack: AttackResult.Hit, diceRoller: DiceRoller): IcDamageResult {
+        require(!targetDecker.cyberdeck.immuneToDumpShock) {
+            "resolveBlackHammer: cyberterminal users and hitchers are immune to Black Hammer (ICC-13, CT-04)"
+        }
         val power = attack.power
         val effectivePower = max(0, power - targetDecker.cyberdeck.hardening)
         val persona = requireNotNull(targetDecker.persona) { "resolveBlackHammer: decker has no active persona" }
         val newCm = persona.conditionMonitor.applyDamage(attack.stagedDamageLevel)
-        val bodySuccesses = if (effectivePower >= 2) diceRoller.roll(targetDecker.body, effectivePower).successes else 0
-        val bodyStaged = stage(attack.stagedDamageLevel, -bodySuccesses)
+        val bodySuccesses = diceRoller.roll(targetDecker.body, max(2, effectivePower)).successes
+        val bodyStaged = stage(attack.rawDamageLevel, -bodySuccesses)
         val newPhysicalCm = targetDecker.physicalConditionMonitor.applyDamage(bodyStaged)
-        val updatedDecker = targetDecker.copy(
+        var updatedDecker = targetDecker.copy(
             persona = persona.copy(conditionMonitor = newCm),
             physicalConditionMonitor = newPhysicalCm
         )
+        updatedDecker = degradeArmor(updatedDecker) // CD-19
         val dumpShockTriggered = newCm.isCrashed || newPhysicalCm.isCrashed
         return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered)
     }
 
     fun resolveKilljoy(targetDecker: Decker, attack: AttackResult.Hit, diceRoller: DiceRoller): IcDamageResult {
+        require(!targetDecker.cyberdeck.immuneToDumpShock) {
+            "resolveKilljoy: cyberterminal users and hitchers are immune to Killjoy (ICC-14, CT-04)"
+        }
         val power = attack.power
         val effectivePower = max(0, power - targetDecker.cyberdeck.hardening)
         val persona = requireNotNull(targetDecker.persona) { "resolveKilljoy: decker has no active persona" }
         val newCm = persona.conditionMonitor.applyDamage(attack.stagedDamageLevel)
-        val mentalSuccesses = if (effectivePower >= 2) diceRoller.roll(targetDecker.willpower, effectivePower).successes else 0
-        val mentalStaged = stage(attack.stagedDamageLevel, -mentalSuccesses)
+        val mentalSuccesses = diceRoller.roll(targetDecker.willpower, max(2, effectivePower)).successes
+        val mentalStaged = stage(attack.rawDamageLevel, -mentalSuccesses)
         val newMentalCm = targetDecker.mentalConditionMonitor.applyDamage(mentalStaged)
-        val updatedDecker = targetDecker.copy(
+        var updatedDecker = targetDecker.copy(
             persona = persona.copy(conditionMonitor = newCm),
             mentalConditionMonitor = newMentalCm
         )
+        updatedDecker = degradeArmor(updatedDecker) // CD-19
         val dumpShockTriggered = newCm.isCrashed || newMentalCm.isCrashed
         return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered)
     }
@@ -397,7 +411,8 @@ object CombatResolver {
         if (evadeSuccesses >= attack.attackerSuccesses) return null
         val net = attack.attackerSuccesses - evadeSuccesses
         val cycleTurns = ceil(10.0 / net).toInt()
-        return TrackState(trackRating, cycleTurns)
+        return TrackState(trackingIcRating = trackRating, locationCycleTurnsRemaining = cycleTurns,
+            opponentSensorRating = trackRating, trackerMcpRating = trackRating)
     }
 
     // ── IC Suppression ────────────────────────────────────────────────────────────
@@ -410,7 +425,9 @@ object CombatResolver {
      * Requires the decker to be jacked in — a decker who has left the system cannot suppress IC.
      */
     fun suppressIc(decker: Decker, ic: IC): Decker {
-        require(decker.persona != null) { "Cannot suppress IC after leaving the system" }
+        require(decker.persona != null && decker.currentLocation is MatrixLocation.OnHost) {
+            "Cannot suppress IC after leaving the system"
+        }
         val state = IcSuppressionState(ic, ic.rating)
         return decker.copy(suppressedIc = decker.suppressedIc + state)
     }
@@ -434,15 +451,16 @@ object CombatResolver {
      * Build an [AttackParticipant] for an IC program using its host's Security Value as the dice pool (CC-23).
      * The IC's rating is the weapon (determines Power and base DamageLevel).
      */
-    fun icAttackParticipant(ic: IC, securityCode: SecurityCode): AttackParticipant {
+    fun icAttackParticipant(ic: IC, securityCode: SecurityCode, securityValue: Int): AttackParticipant {
         // CC-27: Blue/Green = Moderate; Orange/Red = Serious
         val rawLevel = when (securityCode) {
             SecurityCode.BLUE, SecurityCode.GREEN -> DamageLevel.MODERATE
             SecurityCode.ORANGE, SecurityCode.RED -> DamageLevel.SERIOUS
         }
         return AttackParticipant(
-            utilityRating = ic.rating,
-            hackingPool = securityCode.securityValue,
+            attackDicePool = securityValue,
+            weaponPower = ic.rating,
+            hackingPool = 0,
             rawDamageLevel = rawLevel
         )
     }
@@ -452,14 +470,13 @@ object CombatResolver {
     fun resolveSlow(
         ic: IC,
         slowRating: Int,
-        securityCode: SecurityCode,
+        securityValue: Int,
         icInitiative: CombatInitiative,
         diceRoller: DiceRoller
     ): SlowResult {
         if (ic.behavior != IcBehavior.PROACTIVE) return SlowResult(0, false)
-        val sv = securityCode.securityValue
-        val icSuccesses = diceRoller.roll(sv, max(2, slowRating)).successes
-        val slowSuccesses = diceRoller.roll(slowRating, max(2, sv)).successes
+        val icSuccesses = diceRoller.roll(securityValue, max(2, slowRating)).successes
+        val slowSuccesses = diceRoller.roll(slowRating, max(2, securityValue)).successes
         val net = slowSuccesses - icSuccesses
         if (net <= 0) return SlowResult(0, false)
         val actionsLost = net / 2
@@ -497,7 +514,8 @@ object CombatResolver {
         if (reduction == 0) return decker
         val newMcp = max(0, decker.cyberdeck.mcpRating - reduction)
         val newRi = min(decker.cyberdeck.responseIncrease, newMcp / 4)
-        return decker.copy(cyberdeck = decker.cyberdeck.copy(mcpRating = newMcp, responseIncrease = newRi))
+        val updatedDecker = decker.copy(cyberdeck = decker.cyberdeck.copy(mcpRating = newMcp, responseIncrease = newRi))
+        return if (newMcp == 0) updatedDecker.copy(runDownloadedFiles = emptyList()) else updatedDecker
     }
 
     private fun resolveTarContest(decker: Decker, icRating: Int, utility: Utility, context: String, diceRoller: DiceRoller): TarBabyResult {
@@ -513,11 +531,14 @@ object CombatResolver {
             TarBabyResult(decker, bothCrashed = false, deckerNoticed = noticed)
         }
     }
-}
 
-private val SecurityCode.securityValue: Int get() = when (this) {
-    SecurityCode.BLUE   -> 3
-    SecurityCode.GREEN  -> 4
-    SecurityCode.ORANGE -> 5
-    SecurityCode.RED    -> 6
+    private fun degradeArmor(decker: Decker): Decker {
+        val armorIdx = decker.cyberdeck.activeUtilities.indexOfFirst { it.type == UtilityType.ARMOR }
+        if (armorIdx == -1) return decker
+        val armorUtil = decker.cyberdeck.activeUtilities[armorIdx]
+        if (armorUtil.currentRating <= 0) return decker
+        val updatedUtilities = decker.cyberdeck.activeUtilities.toMutableList()
+        updatedUtilities[armorIdx] = Utility(armorUtil.type, armorUtil.rating, armorUtil.attackDamageLevel, armorUtil.currentRating - 1, armorUtil.sourceCode)
+        return decker.copy(cyberdeck = decker.cyberdeck.copy(activeUtilities = updatedUtilities))
+    }
 }

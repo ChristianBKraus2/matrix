@@ -76,7 +76,7 @@ The `visibleObjects` array contains polymorphic objects. The one whose `name` ma
 | `"Host: <name>"` | `HostNode` with matching `name` |
 | `"not jacked in"` | no match — show default state |
 
-All properties of the matched object (alertStatus, securityCode, securityTally, etc.) are displayed in the Top area.
+All fields exposed by the matched object's DTO are displayed in the Top area. Available fields vary by kind — not every kind exposes securityCode or securityTally (e.g. `PrivateGrid` exposes `owner` and `hostCount` but not `securityTally`).
 
 ### Right — Entities panel
 
@@ -101,9 +101,16 @@ All entries from `availableActions` are rendered as cards. Each card shows the a
 |---|---|
 | `ResultMessage` | `details` string; `deckerSuccesses` and `hostSuccesses` are always present non-optional integers |
 | `ErrorMessage` | `message` error code (displayed as human-readable text) |
-| `ControlMessage.role` | When `active_controller`: Middle area shows a **blinking border** to signal it is this client's turn. No border for `registered_decker` or `observer`. |
+| `ControlMessage.role` | When `active_controller`: Middle area shows a **pulsing green glow border** (`pulse-border` animation) to signal it is this client's turn. No border for `registered_decker` or `observer`. |
 
-On WebSocket disconnect, all game state is cleared immediately (location, decker, entities, actions panels are hidden). The UI shows the reconnecting / synchronising banner instead of stale data. Once the connection is re-established and a `StateMessage` arrives, the panels are restored.
+On WebSocket disconnect, `gameState` is set to `null` immediately — all panels (location, decker, entities, actions) go empty. The hook schedules a reconnect with exponential backoff (3 s initial, capped at 30 s). If `deckerName` is already known, a `JoinMessage` is re-sent automatically after the connection is re-established. Once a `StateMessage` arrives the panels are restored.
+
+#### Session Reconnection Token
+
+- UI-01: When the server accepts a new decker registration it must issue a `reconnectToken` (opaque string) in the `ControlMessage(role="registered_decker")` response.
+- UI-02: The client stores the token and includes it as `reconnectToken` in any subsequent `JoinMessage` for the same decker name. This allows the server to re-associate the returning session with the prior one (hacking pool, turn state, suppressed IC, etc.).
+- UI-03: On reconnect the server validates the token. If it matches the stored token for the given `deckerName`, the session is re-associated and a new token is issued. If the token does not match, a `BAD_REQUEST` error is returned.
+- UI-04: The token is cleared client-side when the user deliberately logs out.
 
 # Actions - Details
 

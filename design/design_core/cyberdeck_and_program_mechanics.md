@@ -292,7 +292,7 @@ Not a player action (no action economy cost); called by the game clock at the st
 ```kotlin
 detectionFactor =
     if sleaze in activeUtilities:  ceil((masking + sleaze.currentRating) / 2)
-    else:                          ceil(masking / 2)
+    else:                          ceil(masking / 2)   // PRD: CD-18 specifies ceil; ⌈Masking ÷ 2⌉
 ```
 
 `Decker.detectionFactor` should be implemented as a computed property (or computed at test time) that reads from `cyberdeck.activeUtilities` each time it is called. Loading or unloading Sleaze mid-run automatically changes the Detection Factor for all subsequent tests.
@@ -465,14 +465,15 @@ Replaces the 7-step sequence in `creation.md`:
 
 **PRD:** CT-01 through CT-05
 
-### `Cyberterminal` (subclass of `Cyberdeck`)
+### `Cyberterminal`
 
-**File:** `src/main/kotlin/com/shadowrun/matrix/decker/Cyberdeck.kt`
+**File:** `src/main/kotlin/com/shadowrun/matrix/decker/Cyberterminal.kt`
 
-`Cyberterminal` extends `Cyberdeck` and enforces its own constraints in `init`:
+`Cyberterminal` is a **standalone file** — not a subclass of `Cyberdeck`. Because `Cyberdeck` is a `data class` (final in Kotlin), subclassing is not possible. Instead, `Cyberterminal.kt` exposes a factory function that constructs a `Cyberdeck` with Cyberterminal-appropriate defaults and constraints:
 
 ```kotlin
-class Cyberterminal(
+fun Cyberterminal(
+    name: String,
     mcpRating: Int,
     hardening: Int,
     activeMemoryMp: Int,
@@ -480,54 +481,42 @@ class Cyberterminal(
     ioSpeedMpPerTurn: Int,
     activeUtilities: List<Utility> = emptyList(),
     storedUtilities: List<Utility> = emptyList(),
-    pendingUploads: List<PendingUpload> = emptyList(),
     costNuyen: Int = 0
-) : Cyberdeck(
-    mcpRating = mcpRating,
-    hardening = hardening,
-    activeMemoryMp = activeMemoryMp,
-    storageMemoryMp = storageMemoryMp,
-    ioSpeedMpPerTurn = ioSpeedMpPerTurn,
-    responseIncrease = 0,       // CT-02: no Response Increase
-    activeUtilities = activeUtilities,
-    storedUtilities = storedUtilities,
-    pendingUploads = pendingUploads,
-    costNuyen = costNuyen
-) {
-    init {
-        require(mcpRating <= 4) { "Cyberterminal MPCP may not exceed 4 (CT-01); got $mcpRating" }
-    }
+): Cyberdeck {
+    require(mcpRating <= 4) { "Cyberterminal MPCP may not exceed 4 (CT-01); got $mcpRating" }
+    return Cyberdeck(
+        name = name,
+        mcpRating = mcpRating,
+        hardening = hardening,
+        activeMemoryMp = activeMemoryMp,
+        storageMemoryMp = storageMemoryMp,
+        ioSpeedMpPerTurn = ioSpeedMpPerTurn,
+        responseIncrease = 0,       // CT-02: no Response Increase
+        activeUtilities = activeUtilities,
+        storedUtilities = storedUtilities,
+        immuneToDumpShock = true,   // CT-04
+        costNuyen = costNuyen
+    )
 }
 ```
 
 Constraints enforced at construction time (CT-01, CT-02):
 
 - MPCP ≤ 4 (hard requirement).
-- `responseIncrease` is always fixed at 0; the constructor accepts no `responseIncrease` argument.
+- `responseIncrease` is always fixed at 0; the factory accepts no `responseIncrease` argument.
+- `immuneToDumpShock = true` is set unconditionally (CT-04).
 
-**CT-03 — Program rating reduction:** Applied transparently inside `SystemTestResolver`. When the active decker is using a `Cyberterminal`, each utility's `currentRating` used in TN reduction is treated as `max(0, currentRating - 1)`. No change to the stored `Utility` objects; the adjustment is applied at test resolution time.
+**CT-03 — Program rating reduction:** Applied transparently inside `SystemTestResolver`. When the active decker is using a Cyberterminal (`cyberdeck.immuneToDumpShock == true` is the distinguishing flag), each utility's `currentRating` used in TN reduction is treated as `max(0, currentRating - 1)`. No change to the stored `Utility` objects; the adjustment is applied at test resolution time.
 
 Add a helper to `SystemTestResolver`:
 
 ```kotlin
 private fun effectiveRating(utility: Utility, deck: Cyberdeck): Int =
-    if (deck is Cyberterminal) max(0, utility.currentRating - 1)
+    if (deck.immuneToDumpShock) max(0, utility.currentRating - 1)
     else utility.currentRating
 ```
 
-**CT-04 — Immunity to Black IC and Dump Shock:** The `jackOut()` and `gracefulLogoff()` methods (in `movement.md`) already check the decker's deck type to decide whether dump shock applies. Add a computed property to `Cyberdeck`:
-
-```kotlin
-open val immuneToDumpShock: Boolean get() = false
-```
-
-Override in `Cyberterminal`:
-
-```kotlin
-override val immuneToDumpShock: Boolean get() = true
-```
-
-The `LogoffResult.JackOut` constructor should pass `dumpShock = !decker.cyberdeck.immuneToDumpShock`.
+**CT-04 — Immunity to Black IC and Dump Shock:** `Cyberdeck` carries a constructor parameter `immuneToDumpShock: Boolean = false`. The factory function sets it to `true`. The `jackOut()` and `gracefulLogoff()` methods (in `movement.md`) pass `dumpShock = !decker.cyberdeck.immuneToDumpShock` — standard decks receive dump shock; cyberterminal decks do not.
 
 **CT-05 — Cost:** No code change required; the cost is a data value seeded in YAML. Cyberterminal models are seeded at approximately 10% of the equivalent cyberdeck's `costNuyen`.
 
@@ -610,7 +599,7 @@ When `destination` is `OfflineStorage`, the download does not consume `storedUti
 | Logon TN = 10 with Deception-4 fully active | Effective TN = max(2, 10−4) = 6 (CD-14, CD-15) |
 | Logon with no Deception in active memory | TN unchanged at base value |
 | Sleaze-5 fully active, Masking 6 | Detection Factor = ceil((6+5)÷2) = 6 (CD-17, CD-18) |
-| Sleaze unloaded mid-run; test resolved | Detection Factor = ceil(6÷2) = 3 (CD-18) |
+| Sleaze unloaded mid-run; test resolved | Detection Factor = ⌈6÷2⌉ = 3 (CD-18) |
 | Sleaze in pending-upload state during test | Detection Factor uses Masking only (CD-12) |
 | Armor-5 takes bleed-through damage | `armor.currentRating` decrements to 4 (CD-19) |
 | Armor `currentRating` reaches 0 | Auto-unloaded, marked depleted, event logged (CD-22) |

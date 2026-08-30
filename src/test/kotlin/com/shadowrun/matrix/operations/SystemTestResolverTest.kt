@@ -130,8 +130,17 @@ class SystemTestResolverTest {
         val d = decker(deck(activeUtilities = listOf(browse), storedUtilities = listOf(browse)))
         val h = host()
         val state = InterrogationState(SystemOperation.LOCATE_FILE, "paydata", accumulatedSuccesses = 2)
-        // roller: decker rolls 6 dice face=8 → max successes; host rolls face=2 → 0
-        val (outcome, newState) = SystemTestResolver.resolveInterrogation(d, SystemOperation.LOCATE_FILE, h, state, QueryPrecision.NORMAL, fixedRoller(5))
+        // decker rolls face=5 → successes at TN=4; host rolls face=1 → 0 successes at DF=3 → net > 0
+        var callCount = 0
+        val splitRoller = DiceRoller(object : kotlin.random.Random() {
+            override fun nextBits(bitCount: Int) = 0
+            override fun nextInt(from: Int, until: Int): Int {
+                val face = if (callCount < d.computerSkill) 5 else 1
+                callCount++
+                return face.coerceIn(from, until - 1)
+            }
+        })
+        val (outcome, newState) = SystemTestResolver.resolveInterrogation(d, SystemOperation.LOCATE_FILE, h, state, QueryPrecision.NORMAL, splitRoller)
         assertTrue(newState.accumulatedSuccesses > 2)
         assertTrue(outcome.deckerSuccesses > 0)
     }

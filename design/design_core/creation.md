@@ -32,6 +32,8 @@ Security codes: `Blue` (minimal), `Green` (average), `Orange` (significant), `Re
 
 ## YAML Structure
 
+`grid.yaml` defines the grid hierarchy only — RTGs, LTGs, and PLTGs with their ratings. Each LTG entry lists the **filenames** of its host configuration files; the full host data lives in those separate files (see Host YAML Structure below).
+
 ```yaml
 rtgs:
   - id: UCAS                        # RTG identifier used in LTG addresses
@@ -42,69 +44,22 @@ rtgs:
       - id: UCAS-SEA
         region: Seattle
         # ratings omitted → inherited from parent RTG
-        hosts:
-          - name: Mitsuhama Pagoda
-            security: Orange-6
-            ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
-            sculpt: medieval_japanese
-            topology: open-access
-            security_sheaf:
-              - tally: 3
-                ic: [Probe-5]
-              - tally: 7
-                ic: [Probe-7]
-              - tally: 10
-                ic: [Killer-8]
-                alert: passive
-              - tally: 13
-                ic: [Killer-10]
-                alert: active
-                security_deckers: 1
-          - name: Lone Star GridSec Seattle
-            security: Orange-7
-            ratings: { access: 9, control: 9, index: 8, files: 8, slave: 8 }
-            topology: open-access
-            security_sheaf:
-              - tally: 3
-                ic: [Probe-6]
-              - tally: 6
-                ic: [Killer-7]
-              - tally: 10
-                ic: [Killer-9]
-                alert: passive
-              - tally: 13
-                ic: [Killer-10]
-                alert: active
-                security_deckers: 2
-          - name: Renraku Public Relations
-            security: Green-5
-            ratings: { access: 7, control: 8, index: 7, files: 7, slave: 7 }
-            topology: open-access
-            security_sheaf:
-              - tally: 4
-                ic: [Probe-4]
-              - tally: 8
-                ic: [Probe-6]
-              - tally: 12
-                alert: passive
+        host_files:
+          - mitsuhama_pagoda.yaml
+          - lone_star_gridsec_seattle.yaml
+          - renraku_public_relations.yaml
       - id: UCAS-CHI
         region: Chicago
-        hosts:
-          - name: Ares Macrotechnology Chicago Branch
-            security: Orange-5
-            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 7 }
+        host_files:
+          - ares_macrotechnology_chicago.yaml
       - id: UCAS-NYC
         region: New York City
-        hosts:
-          - name: Fuchi Industrial Electronics East Coast Hub
-            security: Orange-6
-            ratings: { access: 8, control: 9, index: 8, files: 8, slave: 7 }
+        host_files:
+          - fuchi_industrial_electronics_east_coast.yaml
       - id: UCAS-BOS
         region: Boston
-        hosts:
-          - name: MIT&T Academic Network
-            security: Green-4
-            ratings: { access: 6, control: 7, index: 8, files: 8, slave: 5 }
+        host_files:
+          - mitt_academic_network.yaml
     pltgs:
       - id: UCAS-PLTG-ARES
         owner: Ares Macrotechnology
@@ -118,22 +73,13 @@ rtgs:
     ltgs:
       - id: CAS-ATL
         region: Atlanta
-        hosts:
-          - name: CAS Government Archives
-            security: Green-4
-            ratings: { access: 7, control: 8, index: 8, files: 8, slave: 7 }
+        host_files: [cas_government_archives.yaml]
       - id: CAS-DAL
         region: Dallas
-        hosts:
-          - name: Lone Star Corporate HQ
-            security: Orange-5
-            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 8 }
+        host_files: [lone_star_corporate_hq.yaml]
       - id: CAS-MIA
         region: Miami
-        hosts:
-          - name: Caribbean Trade Exchange
-            security: Green-3
-            ratings: { access: 6, control: 7, index: 7, files: 8, slave: 7 }
+        host_files: [caribbean_trade_exchange.yaml]
 
   - id: CFS
     name: California Free State Grid
@@ -142,16 +88,10 @@ rtgs:
     ltgs:
       - id: CFS-LAX
         region: Los Angeles
-        hosts:
-          - name: Horizon Group Entertainment Archive
-            security: Green-5
-            ratings: { access: 7, control: 8, index: 7, files: 8, slave: 6 }
+        host_files: [horizon_entertainment_archive.yaml]
       - id: CFS-SFO
         region: San Francisco
-        hosts:
-          - name: Shiawase Envirotech West Coast
-            security: Orange-5
-            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 7 }
+        host_files: [shiawase_envirotech_west_coast.yaml]
 
   - id: AZT
     name: Aztlan Grid
@@ -160,19 +100,12 @@ rtgs:
     ltgs:
       - id: AZT-MEX
         region: Mexico City
-        hosts:
-          - name: Aztechnology Archive
-            security: Red-6
-            ratings: { access: 10, control: 10, index: 9, files: 9, slave: 8 }
-          - name: Aztlan Government Ministry of Information
-            security: Orange-5
-            ratings: { access: 8, control: 9, index: 8, files: 8, slave: 7 }
+        host_files:
+          - aztechnology_archive.yaml
+          - aztlan_ministry_of_information.yaml
       - id: AZT-GDL
         region: Guadalajara
-        hosts:
-          - name: Aztechnology Regional Office
-            security: Orange-4
-            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 7 }
+        host_files: [aztechnology_regional_office.yaml]
     pltgs:
       - id: AZT-PLTG-AZTECHNOLOGY
         owner: Aztechnology
@@ -187,16 +120,10 @@ rtgs:
     ltgs:
       - id: SS-PDX
         region: Portland
-        hosts:
-          - name: Salish-Shidhe Council Datastore
-            security: Green-4
-            ratings: { access: 7, control: 8, index: 7, files: 7, slave: 6 }
+        host_files: [salish_shidhe_council_datastore.yaml]
       - id: SS-VAN
         region: Vancouver
-        hosts:
-          - name: Wuxing Pacific Rim Office
-            security: Orange-4
-            ratings: { access: 8, control: 8, index: 7, files: 7, slave: 7 }
+        host_files: [wuxing_pacific_rim_office.yaml]
 
   - id: SIO
     name: Sioux Nation Grid
@@ -205,10 +132,7 @@ rtgs:
     ltgs:
       - id: SIO-RAP
         region: Rapid City
-        hosts:
-          - name: Sioux Military Intelligence Network
-            security: Red-5
-            ratings: { access: 10, control: 10, index: 9, files: 8, slave: 9 }
+        host_files: [sioux_military_intelligence.yaml]
 
   - id: PUE
     name: Pueblo Corporate Council Grid
@@ -217,10 +141,7 @@ rtgs:
     ltgs:
       - id: PUE-DEN
         region: Denver
-        hosts:
-          - name: Pueblo Corporate Council Data Exchange
-            security: Orange-4
-            ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
+        host_files: [pueblo_corporate_data_exchange.yaml]
 
   - id: QUE
     name: Québec Grid
@@ -229,16 +150,10 @@ rtgs:
     ltgs:
       - id: QUE-MTL
         region: Montreal
-        hosts:
-          - name: Québec Provincial Archives
-            security: Green-3
-            ratings: { access: 6, control: 7, index: 8, files: 8, slave: 6 }
+        host_files: [quebec_provincial_archives.yaml]
       - id: QUE-QBC
         region: Quebec City
-        hosts:
-          - name: Université Laval Research Network
-            security: Green-3
-            ratings: { access: 6, control: 7, index: 8, files: 7, slave: 5 }
+        host_files: [universite_laval_research.yaml]
 
   - id: TT
     name: Tir Tairngire Grid
@@ -247,10 +162,7 @@ rtgs:
     ltgs:
       - id: TT-PDX
         region: Portland Border Zone
-        hosts:
-          - name: Tir Tairngire Embassy Data Node
-            security: Orange-6
-            ratings: { access: 9, control: 9, index: 8, files: 8, slave: 8 }
+        host_files: [tir_tairngire_embassy.yaml]
 
   - id: TSI
     name: Tsimshian Grid
@@ -259,14 +171,85 @@ rtgs:
     ltgs:
       - id: TSI-PRI
         region: Prince Rupert
-        hosts:
-          - name: Tsimshian Council Secure Datastore
-            security: Red-5
-            ratings: { access: 9, control: 10, index: 9, files: 9, slave: 8 }
+        host_files: [tsimshian_council_datastore.yaml]
 
   # Remaining RTGs (Caribbean League sub-nations, NAN nations) follow the same pattern.
   # Ratings taken verbatim from the North American RTG System Ratings table (rules p. 203).
 ```
+
+---
+
+## Host YAML Structure
+
+Each host lives in its own file `<host_name>.yaml` under `src/main/resources/hosts/`. The file must declare which LTG it belongs to so the loader can register it in the grid hierarchy.
+
+```yaml
+# src/main/resources/hosts/mitsuhama_pagoda.yaml
+name: Mitsuhama Pagoda
+ltg: UCAS-SEA                        # must reference a valid LTG id in grid.yaml
+security: Orange-6
+ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
+sculpt: medieval_japanese
+topology: open-access
+security_sheaf:
+  - tally: 3
+    ic: [Probe-5]
+  - tally: 7
+    ic: [Probe-7]
+  - tally: 10
+    ic: [Killer-8]
+    alert: passive
+  - tally: 13
+    ic: [Killer-10]
+    alert: active
+    security_deckers: 1
+```
+
+```yaml
+# src/main/resources/hosts/lone_star_gridsec_seattle.yaml
+name: Lone Star GridSec Seattle
+ltg: UCAS-SEA
+security: Orange-7
+ratings: { access: 9, control: 9, index: 8, files: 8, slave: 8 }
+topology: open-access
+security_sheaf:
+  - tally: 3
+    ic: [Probe-6]
+  - tally: 6
+    ic: [Killer-7]
+  - tally: 10
+    ic: [Killer-9]
+    alert: passive
+  - tally: 13
+    ic: [Killer-10]
+    alert: active
+    security_deckers: 2
+```
+
+```yaml
+# src/main/resources/hosts/renraku_public_relations.yaml
+name: Renraku Public Relations
+ltg: UCAS-SEA
+security: Green-5
+ratings: { access: 7, control: 8, index: 7, files: 7, slave: 7 }
+topology: open-access
+security_sheaf:
+  - tally: 4
+    ic: [Probe-4]
+  - tally: 8
+    ic: [Probe-6]
+  - tally: 12
+    alert: passive
+```
+
+Offline hosts carry an additional `offline: true` flag (see Offline Hosts section below). The `ltg` field is still required so the loader can resolve the host's address space, but the host cannot be reached remotely.
+
+### Initialization Sequence (updated)
+
+1. Parse `grid.yaml`; instantiate all RTG, LTG, and PLTG objects.
+2. For each LTG entry, load each filename listed under `host_files` from `src/main/resources/hosts/`.
+3. Validate the `ltg:` field in each host file references an existing LTG id. Emit a load error if not found.
+4. Register the host under its LTG.
 
 ---
 
@@ -340,7 +323,7 @@ These values are derived by the application; they must **not** appear in the YAM
 | Field | Formula |
 | --- | --- |
 | Hacking Pool | floor((Intelligence + MPCP) ÷ 3) |
-| Detection Factor | ceil((Masking + Sleaze rating) ÷ 2); or Masking ÷ 2 if no Sleaze loaded |
+| Detection Factor | ceil((Masking + Sleaze rating) ÷ 2); or ⌈Masking ÷ 2⌉ if no Sleaze loaded |
 | Persona Reaction | base Reaction + (Response Increase × 2) |
 | Persona Bod/Evasion/Masking/Sensor | read directly from the four persona program ratings |
 | Program Mp size | Rating² × Multiplier |
@@ -357,7 +340,7 @@ willpower: 5
 reaction: 5
 computer_skill: 6
 cyberdeck:
-  model: Renraku Kraftwerk-8    # flavor only; no mechanical effect
+  model: Renraku Kraftwerk-8    # resolved against decks.yaml catalog; fields below override catalog defaults
   mpcp: 8
   hardening: 4
   active_memory: 1000           # Mp

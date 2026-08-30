@@ -53,7 +53,7 @@ class GrayCombatTest : IntegrationTestBase() {
         val ic = Ripper(rating = 8, targetAttribute = PersonaAttributeType.BOD)
         // hitRoller: IC rolls face=5 vs DF (TN varies), decker rolls face=5 vs ic.rating=8 → 0 successes.
         // IC net successes > 0 → reduction = net/2. Result BOD = max(0, 1 - reduction).
-        val result = CombatResolver.resolveRipper(icon.currentDecker(), ic, SecurityCode.ORANGE, hitRoller())
+        val result = CombatResolver.resolveRipper(icon.currentDecker(), ic, 5, hitRoller())
 
         assertTrue(result.updatedDecker.persona!!.bod >= 0, "Ripper floor is 0")
         assertTrue(result.reduction >= 0, "Reduction should be non-negative")

@@ -16,7 +16,7 @@ Legend: ✅ ok · ⚠️ deviation · ❌ missing from code · ➕ extra in code
 | resolveTarBaby/TarPit contest | ✅ | Opposed test, bothCrashed, noticed, TarPit MPCP test on bothCrashed | CombatResolver.kt:503 |
 | resolveNonLethalBlackIc — final MPCP dice | ⚠️ | Design: final MPCP attack at ic.rating (standard); impl uses ic.rating × 2, same as lethal variant | CombatResolver.kt:343 |
 | icAttackParticipant — IC attack pool (CC-23) | ⚠️ | Design: IC rolls Security Value dice only; impl sets pool = ic.rating + securityValue | CombatResolver.kt:443 |
-| resolveLethalBlackIc — MPCP trigger condition | ⚠️ | Design: final MPCP attack fires only when decker dies (Physical CM full); impl triggers on either icon OR physical CM crash | CombatResolver.kt:282 |
+| resolveLethalBlackIc — MPCP trigger condition | 🔴 | **PRD cross-check (ICC-11):** PRD confirms the design is correct — the final double-rating MPCP attack fires only when the decker dies (Physical CM fills). When the icon crashes first, ICC-11 says only the IC effective rating increases by 2; no MPCP attack occurs. The code triggering on either icon OR physical CM crash is a **bug**, not an acceptable extension. Reclassified ⚠️→🔴. | CombatResolver.kt:282 |
 | resolveLethalBlackIc — IC rating +2 after icon crash (step 7) | ❌ | Design: if icon crashes first, IC effective rating +2 for subsequent tests; no such signal in IcDamageResult and no impl logic | CombatResolver.kt:282 |
 | IcDamageResult — extra mpcpReductionOnKill | ➕ | Fifth field not in design spec; added for lethal/non-lethal Black IC paths | CombatResolver.kt |
 | resolveBlackHammer — secondary damage staging | ⚠️ | Design: identical to resolveLethalBlackIc (body damage staged from rawLevel); impl stages from attack.stagedDamageLevel → double-staged | CombatResolver.kt:366 |
@@ -68,8 +68,8 @@ Legend: ✅ ok · ⚠️ deviation · ❌ missing from code · ➕ extra in code
 | logonToLtg — returns OnPLTG for PLTG targets | ⚠️ | Design: buildLocation returns OnPLTG when target is PLTG; impl always returns OnLTG | DeckerNavigationExtensions.kt:130 |
 | logonToPltg — extra method | ➕ | Design specifies exactly 7 public movement methods; impl has 8th method logonToPltg; causes M-11 tally-inheritance gap for OnRTG source | DeckerNavigationExtensions.kt |
 | logonToHost — topology guard (M-13) | ⚠️ | Design: sibling-second-tier violation returns LogonResult.Failure; impl throws IllegalStateException | DeckerNavigationExtensions.kt:180 |
-| gracefulLogoff — dump shock | ⚠️ | Design: dumpShock = true unconditionally on test failure; impl: `!cyberdeck.immuneToDumpShock` | DeckerNavigationExtensions.kt:216 |
-| jackOut — dump shock | ⚠️ | Design: return dumpShock = true unconditionally; impl: `!cyberdeck.immuneToDumpShock` | DeckerNavigationExtensions.kt:229 |
+| gracefulLogoff — dump shock | ✅ | **PRD cross-check (CT-04):** The code checking `!cyberdeck.immuneToDumpShock` is correct. CT-04 explicitly grants cyberterminal users immunity to dump shock; the `Cyberterminal` subclass overrides `immuneToDumpShock = true` to implement this. The design doc saying "unconditionally" is the gap — it omits the CT-04 exception. Reclassified ⚠️→✅ (code is correct; design doc needs the CT-04 caveat added). | DeckerNavigationExtensions.kt:216 |
+| jackOut — dump shock | ✅ | **PRD cross-check (CT-04):** Same as gracefulLogoff above. `immuneToDumpShock` is the implementation mechanism for CT-04, not an undocumented extension. Reclassified ⚠️→✅. | DeckerNavigationExtensions.kt:229 |
 
 **Summary:** 3 ✅ · 6 ⚠️ · 2 ❌ · 1 ➕
 

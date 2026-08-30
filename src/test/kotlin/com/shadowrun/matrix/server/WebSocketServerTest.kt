@@ -177,15 +177,52 @@ class WebSocketServerTest {
     // ── Reconnect and name validation ────────────────────────────────────────────
 
     @Test
-    fun `JoinMessage with valid reconnect token succeeds after disconnect`() = runBlocking {
+    fun `JoinMessage reconnect by name succeeds after disconnect`() = runBlocking {
         val registry = SessionRegistry()
         val session1 = FakeWebSocketSession()
         registry.register(session1)
         session1.nextText() // observer
         registry.receiveJoin(session1, JoinMessage(deckerName = "Kylie"))
-        val registered = Json.parseToJsonElement(session1.nextText()).jsonObject
-        val token = registered["reconnectToken"]?.jsonPrimitive?.content
-        assertNotNull(token)
+        session1.nextText() // registered_decker
+        registry.deregister(session1)
+
+        val session2 = FakeWebSocketSession()
+        registry.register(session2)
+        session2.nextText() // observer
+        registry.receiveJoin(session2, JoinMessage(deckerName = "Kylie"))
+        val obj = Json.parseToJsonElement(session2.nextText()).jsonObject
+        assertEquals("registered_decker", obj["role"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `JoinMessage reconnect with wrong token is rejected`() = runBlocking {
+        val registry = SessionRegistry()
+        val session1 = FakeWebSocketSession()
+        registry.register(session1)
+        session1.nextText() // observer
+        registry.receiveJoin(session1, JoinMessage(deckerName = "Kylie"))
+        session1.nextText() // registered_decker (contains real token)
+        registry.deregister(session1)
+
+        val session2 = FakeWebSocketSession()
+        registry.register(session2)
+        session2.nextText() // observer
+        registry.receiveJoin(session2, JoinMessage(deckerName = "Kylie", reconnectToken = "wrong-token"))
+        val obj = Json.parseToJsonElement(session2.nextText()).jsonObject
+        assertEquals("error", obj["type"]?.jsonPrimitive?.content)
+        assertEquals("bad_request", obj["message"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `JoinMessage reconnect with correct token succeeds`() = runBlocking {
+        val registry = SessionRegistry()
+        val session1 = FakeWebSocketSession()
+        registry.register(session1)
+        session1.nextText() // observer
+        registry.receiveJoin(session1, JoinMessage(deckerName = "Kylie"))
+        val regMsg = Json.parseToJsonElement(session1.nextText()).jsonObject
+        val token = regMsg["reconnectToken"]?.jsonPrimitive?.content
+        requireNotNull(token) { "server must issue a reconnectToken on registration" }
         registry.deregister(session1)
 
         val session2 = FakeWebSocketSession()
@@ -194,41 +231,22 @@ class WebSocketServerTest {
         registry.receiveJoin(session2, JoinMessage(deckerName = "Kylie", reconnectToken = token))
         val obj = Json.parseToJsonElement(session2.nextText()).jsonObject
         assertEquals("registered_decker", obj["role"]?.jsonPrimitive?.content)
-        assertTrue(obj["reconnect"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() == true)
     }
 
     @Test
-    fun `JoinMessage with wrong reconnect token returns name_already_taken`() = runBlocking {
+    fun `JoinMessage reconnect while name still active returns name_already_taken`() = runBlocking {
         val registry = SessionRegistry()
         val session1 = FakeWebSocketSession()
         registry.register(session1)
         session1.nextText() // observer
         registry.receiveJoin(session1, JoinMessage(deckerName = "Kylie"))
         session1.nextText() // registered_decker
-        registry.deregister(session1)
+        // do NOT deregister — session1 is still active
 
         val session2 = FakeWebSocketSession()
         registry.register(session2)
         session2.nextText() // observer
-        registry.receiveJoin(session2, JoinMessage(deckerName = "Kylie", reconnectToken = "wrong-token"))
-        val error = Json.decodeFromString<ErrorMessage>(session2.nextText())
-        assertEquals(ErrorCode.NAME_ALREADY_TAKEN, error.message)
-    }
-
-    @Test
-    fun `JoinMessage with no token for a disconnected name returns name_already_taken`() = runBlocking {
-        val registry = SessionRegistry()
-        val session1 = FakeWebSocketSession()
-        registry.register(session1)
-        session1.nextText() // observer
-        registry.receiveJoin(session1, JoinMessage(deckerName = "Kylie"))
-        session1.nextText() // registered_decker
-        registry.deregister(session1)
-
-        val session2 = FakeWebSocketSession()
-        registry.register(session2)
-        session2.nextText() // observer
-        registry.receiveJoin(session2, JoinMessage(deckerName = "Kylie")) // no token
+        registry.receiveJoin(session2, JoinMessage(deckerName = "Kylie"))
         val error = Json.decodeFromString<ErrorMessage>(session2.nextText())
         assertEquals(ErrorCode.NAME_ALREADY_TAKEN, error.message)
     }

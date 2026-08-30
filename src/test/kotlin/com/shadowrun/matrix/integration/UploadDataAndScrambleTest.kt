@@ -26,7 +26,7 @@ class UploadDataAndScrambleTest : IntegrationTestBase() {
         }
         val host = host(icon)
 
-        val result = icon.currentDecker().uploadData(host, winRoller())
+        val (result, _) = icon.currentDecker().uploadData(host, dataSizeMp = 100, winRoller())
 
         assertIs<OperationResult.Success>(result, "uploadData should succeed with winRoller")
     }
@@ -39,7 +39,7 @@ class UploadDataAndScrambleTest : IntegrationTestBase() {
         }
         val host = host(icon)
 
-        val result = icon.currentDecker().uploadData(host, failRoller())
+        val (result, _) = icon.currentDecker().uploadData(host, dataSizeMp = 100, failRoller())
 
         assertIs<OperationResult.Failure>(result, "uploadData should fail with failRoller")
     }
@@ -54,7 +54,7 @@ class UploadDataAndScrambleTest : IntegrationTestBase() {
         val tallyBefore = host.securityTally
 
         // failRoller: host wins → host successes > 0 → tally increases
-        val result = icon.currentDecker().uploadData(host, failRoller())
+        val (result, _) = icon.currentDecker().uploadData(host, dataSizeMp = 100, failRoller())
 
         val tallyAfter = (result.decker.currentLocation as MatrixLocation.OnHost).host.securityTally
         assertTrue(tallyAfter > tallyBefore, "Failed uploadData should increment the security tally")

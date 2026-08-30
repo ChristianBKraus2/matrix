@@ -194,6 +194,27 @@ class MovementTest {
     }
 
     @Test
+    fun `jackInToLtg failure result location carries incremented security tally`() {
+        val targetLtg = ltg().copy(securityTally = 0)
+        val jp = Jackpoint(JackpointType.ILLEGAL_ACCESS, connectsToLtg = targetLtg)
+        val hostWinsRoller = DiceRoller(object : Random() {
+            private var call = 0
+            override fun nextBits(bitCount: Int) = 0
+            override fun nextInt(from: Int, until: Int): Int {
+                call++
+                return if (call <= 6) 0 else 5  // decker: face=1, host: face=6
+            }
+        })
+        val d = decker(jackpoint = jp)
+        val result = d.jackInToLtg(targetLtg, hostWinsRoller)
+        assertIs<LogonResult.Failure>(result)
+        val failedLocation = result.location
+        assertNotNull(failedLocation)
+        val tally = (failedLocation as MatrixLocation.OnLTG).ltg.securityTally
+        assertTrue(tally > 0, "Failure.location must carry the tally-incremented LTG (M-05)")
+    }
+
+    @Test
     fun `jackInToLtg with workstation jackpoint throws`() {
         val jp = Jackpoint(JackpointType.WORKSTATION, connectsToHost = host())
         val d = decker(jackpoint = jp)
@@ -226,6 +247,15 @@ class MovementTest {
             assertNotNull(result.decker.persona)
             assertIs<MatrixLocation.OnHost>(result.location)
         }
+    }
+
+    @Test
+    fun `jackInToHost with ILLEGAL_JUNCTION_BOX jackpoint does not throw`() {
+        val h = host()
+        val jp = Jackpoint(JackpointType.ILLEGAL_JUNCTION_BOX, connectsToHost = h)
+        val d = decker(jackpoint = jp)
+        val result = d.jackInToHost(h, DiceRoller(Random(42)))
+        assertIs<LogonResult>(result)
     }
 
     @Test
@@ -346,7 +376,7 @@ class MovementTest {
     }
 
     @Test
-    fun `logonToLtg from non-RTG non-PLTG throws`() {
+    fun `logonToLtg from LTG to non-sibling LTG throws`() {
         val l = ltg()
         val otherLtg = ltg("Portland")
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
@@ -354,12 +384,25 @@ class MovementTest {
         assertFailsWith<IllegalStateException> { d.logonToLtg(otherLtg, DiceRoller()) }
     }
 
+    @Test
+    fun `logonToLtg from LTG throws - sibling hops are not allowed`() {
+        val r = rtg()
+        val targetLtg = ltg("Portland", parentRtg = r)
+        val sourceLtg = ltg("Seattle", parentRtg = r)
+        val rFinal = r.copy(ltgs = listOf(sourceLtg, targetLtg))
+        val sourceLtgFinal = sourceLtg.copy(parentRtg = rFinal)
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
+        val d = decker(currentLocation = MatrixLocation.OnLTG(sourceLtgFinal), persona = persona)
+        assertFailsWith<IllegalStateException> { d.logonToLtg(targetLtg, DiceRoller()) }
+    }
+
     // ── logonToPltg ──────────────────────────────────────────────────────────────
 
     @Test
     fun `logonToPltg inherits LTG security tally`() {
+        val r = rtg().copy(securityTally = 3)  // RTG tally = 3 (inherited by PLTG, not the LTG tally)
         val p = pltg()
-        val l = ltg(pltgs = listOf(p)).copy(securityTally = 3)
+        val l = ltg(parentRtg = r, pltgs = listOf(p))  // LTG tally stays 0
         val pWithLtg = p.copy(parentLtg = l)
         val lFinal = l.copy(pltgs = listOf(pWithLtg))
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
@@ -375,7 +418,7 @@ class MovementTest {
         val result = d.logonToPltg(pWithLtg, winZeroHostRoller)
         assertIs<LogonResult.Success>(result)
         val newPltg = (result.location as MatrixLocation.OnPLTG).pltg
-        // PLTG tally = inherited LTG tally (3) + host successes (0) = 3 (M-11)
+        // PLTG tally = inherited RTG tally (3) + host successes (0) = 3 (M-11)
         assertEquals(3, newPltg.securityTally)
     }
 

@@ -1,5 +1,7 @@
 package com.shadowrun.matrix.server
 
+import com.shadowrun.matrix.operations.InterrogationState
+import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.server.dto.ActionCommand
 import io.ktor.server.websocket.DefaultWebSocketServerSession
 import kotlinx.coroutines.CompletableDeferred
@@ -9,7 +11,22 @@ import kotlinx.coroutines.sync.withLock
 class TurnCoordinator {
     private val mutex = Mutex()
     @Volatile private var activeController: DefaultWebSocketServerSession? = null
-    private var pendingAction: CompletableDeferred<ActionCommand>? = null
+    @Volatile private var pendingAction: CompletableDeferred<ActionCommand>? = null
+
+    // D-11: Per-decker interrogation state owned by the game engine (PRD: prd_game.md)
+    private val interrogationStatesByDecker: MutableMap<String, Map<SystemOperation, InterrogationState>> = mutableMapOf()
+
+    fun getInterrogationStates(deckerName: String): Map<SystemOperation, InterrogationState> =
+        interrogationStatesByDecker[deckerName] ?: emptyMap()
+
+    fun setInterrogationStates(deckerName: String, states: Map<SystemOperation, InterrogationState>) {
+        if (states.isEmpty()) interrogationStatesByDecker.remove(deckerName)
+        else interrogationStatesByDecker[deckerName] = states
+    }
+
+    fun clearInterrogationStates(deckerName: String) {
+        interrogationStatesByDecker.remove(deckerName)
+    }
 
     suspend fun setPendingAction(deferred: CompletableDeferred<ActionCommand>?) = mutex.withLock {
         pendingAction = deferred
@@ -21,6 +38,9 @@ class TurnCoordinator {
 
     suspend fun currentController(): DefaultWebSocketServerSession? = mutex.withLock { activeController }
 
+    /** Returns the active controller without acquiring the mutex.
+     *  Safe only for quick read-only checks where a stale value is acceptable (e.g. logging).
+     *  Do NOT use for any decision that must be consistent with [pendingAction]. */
     fun currentControllerUnsafe(): DefaultWebSocketServerSession? = activeController
 
     /**

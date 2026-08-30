@@ -234,7 +234,7 @@ The review covers 8 categories (correctness, security, concurrency, error handli
 **Source review:** code_review/architecture_complete.md  
 **File:** src/main/kotlin/com/shadowrun/matrix/server/WebSocketDeckerController.kt:47  
 **Impact:** `interrogationStates` is game state (accumulated successes across turns for locate operations) stored in the WebSocket controller. If a decker disconnects mid-interrogation, state is lost silently. `GameContext` has no way to cancel interrogation on dump-out. Any save/restore of game state would miss this map.  
-**Fix:** Move `InterrogationState` into `Decker` (or `Persona`) as domain state. The domain `locateFile/locateSlave/locateAccessNode` methods read and update it. The server calls the method and converts the result.
+**Fix:** Move `InterrogationState` into the game engine layer (e.g. `TurnCoordinator`), not into `Decker`/`Persona`. **PRD cross-check:** prd_game.md explicitly states "The game engine (e.g. TurnCoordinator) holds `interrogationStates: Map<SystemOperation, InterrogationState>` per active decker" — moving it to `Decker` would contradict the PRD. The correct fix is to ensure the game engine (not the server WebSocket layer) owns this map and clears it on logoff/jackout/dump.
 
 ---
 

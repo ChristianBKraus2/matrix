@@ -211,7 +211,7 @@ class DeckerCombatTest : IntegrationTestBase() {
         val icInitiative = CombatInitiative(score = 14, initiativePasses = 1)
 
         // winRoller: decker wins → IC loses actions
-        val result = CombatResolver.resolveSlow(killer, slowRating = 4, securityCode = SecurityCode.ORANGE, icInitiative = icInitiative, diceRoller = winRoller())
+        val result = CombatResolver.resolveSlow(killer, slowRating = 4, securityValue = 5, icInitiative = icInitiative, diceRoller = winRoller())
 
         assertTrue(result.actionsLost >= 0, "actionsLost should be non-negative")
     }
@@ -221,7 +221,7 @@ class DeckerCombatTest : IntegrationTestBase() {
         val probe = Probe(rating = 4) // IcBehavior.REACTIVE
         val icInitiative = CombatInitiative(score = 10, initiativePasses = 1)
 
-        val result = CombatResolver.resolveSlow(probe, slowRating = 4, securityCode = SecurityCode.GREEN, icInitiative = icInitiative, diceRoller = winRoller())
+        val result = CombatResolver.resolveSlow(probe, slowRating = 4, securityValue = 4, icInitiative = icInitiative, diceRoller = winRoller())
 
         assertEquals(0, result.actionsLost, "Slow has no effect on reactive IC")
         assertEquals(false, result.icInert, "Reactive IC is never made inert by Slow")

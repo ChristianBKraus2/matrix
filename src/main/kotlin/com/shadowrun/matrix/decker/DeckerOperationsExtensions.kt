@@ -30,6 +30,7 @@ import com.shadowrun.matrix.operations.SensorTestResult
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.operations.SystemTestOutcome
 import com.shadowrun.matrix.operations.SystemTestResolver
+import com.shadowrun.matrix.operations.UploadHandle
 import com.shadowrun.matrix.programs.Utility
 import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.utility.DiceRoller
@@ -54,7 +55,7 @@ fun Decker.noticeIcon(icon: MatrixIcon, diceRoller: DiceRoller, friendlyReveal: 
         is MatrixIcon.IcIcon     -> icon.ic.rating
     }
     val p = persona
-    val result = diceRoller.roll(p.sensor, maxOf(2, tn))
+    val result = diceRoller.roll(p.sensor, tn)
     logger.info { "[$name] noticeIcon: sensor=${p.sensor} dice vs TN=$tn → ${result.successes} successes" }
     return if (result.successes == 0) SensorTestResult.Undetected
     else SensorTestResult.Detected(icon, result.successes)
@@ -65,7 +66,7 @@ fun Decker.noticeTriggeredIc(ic: IC, diceRoller: DiceRoller): IcDetectionResult 
     logger.info { "[$name] noticeTriggeredIc: IC=${ic.name} rating=${ic.rating}" }
     check(persona != null) { "noticeTriggeredIc requires a jacked-in persona" }
     val p = persona
-    val result = diceRoller.roll(p.sensor, maxOf(2, ic.rating))
+    val result = diceRoller.roll(p.sensor, ic.rating)
     logger.info { "[$name] noticeTriggeredIc: sensor=${p.sensor} dice vs TN=${ic.rating} → ${result.successes} successes" }
     return when {
         result.successes == 0 -> IcDetectionResult.Undetected
@@ -119,7 +120,7 @@ fun Decker.analyzeIc(ic: IC, host: Host, diceRoller: DiceRoller): OperationResul
 fun Decker.analyzeIcon(icon: MatrixIcon, host: Host, diceRoller: DiceRoller): OperationResult {
     logger.info { "[$name] analyzeIcon" }
     requireJackedIn()
-    val tn = maxOf(2, host.subsystemRatings.control - (persona?.sensor ?: 0))
+    val tn = host.subsystemRatings.control - (persona?.sensor ?: 0)
     // Note: SystemTestResolver.resolve() applies the Analyze utility modifier via operation.utility.
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_ICON, tn, host.securityRating.value, diceRoller)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
@@ -235,8 +236,18 @@ fun Decker.locateAccessNode(host: Host, query: String = "", precision: QueryPrec
     logger.info { "[$name] locateAccessNode on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
     requireJackedIn()
     val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_ACCESS_NODE, host, state, precision, diceRoller)
-    val locateResult = if (newState.accumulatedSuccesses >= 5) LocateResult.Located(LocatedTarget.AccessNodeTarget(state.query), newState.accumulatedSuccesses)
-    else LocateResult.Ongoing(newState.accumulatedSuccesses)
+    val nodeExists = host.nodes.any {
+        it.subsystemType.name.contains(state.query, ignoreCase = true) ||
+        it.description.contains(state.query, ignoreCase = true)
+    }
+    val locateResult = when {
+        newState.accumulatedSuccesses >= 5 -> {
+            if (nodeExists) LocateResult.Located(LocatedTarget.AccessNodeTarget(state.query), newState.accumulatedSuccesses)
+            else LocateResult.NotFound
+        }
+        newState.accumulatedSuccesses >= 3 && !nodeExists -> LocateResult.NotFound
+        else -> LocateResult.Ongoing(newState.accumulatedSuccesses)
+    }
     val newStates = when (locateResult) {
         is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_ACCESS_NODE to newState)
         else -> interrogationStates - SystemOperation.LOCATE_ACCESS_NODE
@@ -270,6 +281,11 @@ fun Decker.downloadData(file: DataFile, host: Host, diceRoller: DiceRoller): Pai
     }
 }
 
+fun Decker.recordCompletedDownload(file: DataFile): Decker {
+    logger.info { "[$name] recordCompletedDownload: ${file.name}" }
+    return copy(runDownloadedFiles = runDownloadedFiles + file)
+}
+
 fun Decker.editFile(
     file: DataFile,
     host: Host,
@@ -292,12 +308,26 @@ fun Decker.editFile(
     return EditFileResult(updated, outcome, authSuccesses)
 }
 
-fun Decker.uploadData(host: Host, diceRoller: DiceRoller): OperationResult {
-    logger.info { "[$name] uploadData → ${host.name}" }
+/** PRD: SO-10 through SO-12 */
+fun Decker.uploadData(host: Host, dataSizeMp: Int, diceRoller: DiceRoller): Pair<OperationResult, UploadHandle?> {
+    logger.info { "[$name] uploadData → ${host.name} (${dataSizeMp} Mp)" }
     requireJackedIn()
     val outcome = SystemTestResolver.resolve(this, SystemOperation.UPLOAD_DATA, host.subsystemRatings.files, host.securityRating.value, diceRoller)
     val updated = withUpdatedTally(outcome.hostSuccesses)
-    return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
+    return if (outcome.deckerWins) {
+        val ioSpeed = cyberdeck.ioSpeedMpPerTurn
+        if (ioSpeed <= 0) {
+            logger.warn { "[$name] uploadData: ioSpeedMpPerTurn is 0 — cyberdeck cannot transfer data" }
+            return Pair(OperationResult.Failure(updated, outcome), null)
+        }
+        val turns = ceil(dataSizeMp.toDouble() / ioSpeed).toInt().coerceAtLeast(1)
+        val handle = UploadHandle(description = "upload to ${host.name}", totalMp = dataSizeMp, ioSpeedMpPerTurn = ioSpeed, turnsRemaining = turns)
+        logger.info { "[$name] uploadData started: ${handle.turnsRemaining} turns at $ioSpeed Mp/turn" }
+        Pair(OperationResult.Success(updated, outcome), handle)
+    } else {
+        logger.warn { "[$name] uploadData failed" }
+        Pair(OperationResult.Failure(updated, outcome), null)
+    }
 }
 
 // ── Slave operations ───────────────────────────────────────────────────────────
@@ -312,12 +342,9 @@ fun Decker.controlSlave(
     requireJackedIn()
     val skill = effectiveSkill ?: computerSkill
     require(skill in 1..20) { "effectiveSkill must be between 1 and 20 (got $skill)" }
-    val spoof = cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.SPOOF }
-    val tn = maxOf(2, host.subsystemRatings.slave - (spoof?.let { SystemTestResolver.effectiveRating(it, cyberdeck) } ?: 0))
-    val deckerResult = diceRoller.roll(skill, tn)
-    val hostResult = diceRoller.roll(host.securityRating.value, effectiveDetectionFactor)
-    val outcome = SystemTestOutcome(deckerResult.successes, hostResult.successes, deckerResult.successes >= hostResult.successes)
-    logger.info { "[$name] controlSlave: decker=$skill dice TN=$tn → ${deckerResult.successes}; host=${hostResult.successes}" }
+    val deckerForTest = if (effectiveSkill != null) copy(computerSkill = skill) else this
+    val outcome = SystemTestResolver.resolve(deckerForTest, SystemOperation.CONTROL_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller)
+    logger.info { "[$name] controlSlave: skill=$skill → ${outcome.deckerSuccesses}; host=${outcome.hostSuccesses}" }
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins)
         Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.CONTROL_SLAVE, MonitoredTarget.SlaveDevice(device)))
@@ -345,9 +372,23 @@ fun Decker.monitorSlave(device: RemoteDevice, host: Host, diceRoller: DiceRoller
 
 /** PRD: SO-13, SO-14 */
 fun Decker.maintainMonitoredOperation(handle: MonitoredOperationHandle): MonitoredOperationHandle {
-    return if (handle.active) handle else handle.also {
-        logger.warn { "[$name] maintainMonitoredOperation: handle already inactive" }
+    if (!handle.active) {
+        logger.warn { "[$name] maintainMonitoredOperation: operation already aborted — ignoring" }
+        return handle
     }
+    logger.info { "[$name] maintainMonitoredOperation: ${handle.operation.name} maintained" }
+    return handle.copy(needsMaintenance = false)
+}
+
+/** Called by the game engine at the start of each initiative pass to arm the maintenance check. */
+fun MonitoredOperationHandle.beginInitiativePass(): MonitoredOperationHandle =
+    if (active) copy(needsMaintenance = true) else this
+
+/** Called by the game engine at the end of each initiative pass; aborts if not maintained. PRD: SO-13. */
+fun Decker.checkMaintenance(handle: MonitoredOperationHandle): MonitoredOperationHandle {
+    if (!handle.active || !handle.needsMaintenance) return handle
+    logger.warn { "[$name] checkMaintenance: ${handle.operation.name} missed free action — aborting" }
+    return handle.copy(active = false, needsMaintenance = false)
 }
 
 /** PRD: SO-14 */

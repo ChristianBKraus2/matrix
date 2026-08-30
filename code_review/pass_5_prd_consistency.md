@@ -24,8 +24,8 @@ Legend: ✅ implemented · ⚠️ partial · ❌ missing · 🔴 wrong · ⏭️
 | M-14 | ⚠️ | Same as M-13; chain-order enforcement entirely data-driven | Host.kt:16,31 |
 | M-15 | ✅ | logonToHost from OnPLTG checks pltg.hosts.contains(host) | DeckerNavigationExtensions.kt:177 |
 | M-16 | ✅ | gracefulLogoff uses GRACEFUL_LOGOFF system op, CC-33 Track penalty, correct success/fallback | DeckerNavigationExtensions.kt:201 |
-| M-17 | ✅ | jackOut blocks when isPinnedByBlackIc; sets dumpShock unless immuneToDumpShock | DeckerNavigationExtensions.kt:223 |
-| M-18 | ⚠️ | Voluntary jack-out implemented; **involuntary** disconnection (persona crashed, deck disabled) has no forced-disconnect path in combat code | DeckerNavigationExtensions.kt |
+| M-17 | ✅ | jackOut blocks when isPinnedByBlackIc; sets dumpShock unless immuneToDumpShock — **PRD cross-check (CT-04):** `immuneToDumpShock` is the correct implementation of CT-04 cyberterminal dump-shock immunity; not a deviation. | DeckerNavigationExtensions.kt:223 |
+| M-18 | ⚠️ | Voluntary jack-out implemented; **involuntary** disconnection (persona crashed, deck disabled) has no forced-disconnect path in combat code. **PRD cross-check:** M-18 dump shock should also check `immuneToDumpShock` (CT-04 applies here too), so any future involuntary-disconnect implementation must respect the cyberterminal exception. | DeckerNavigationExtensions.kt |
 
 **Summary:** 9 ✅ · 5 ⚠️ · 0 ❌ · 3 🔴 · 1 ⏭️
 

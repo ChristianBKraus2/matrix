@@ -1,5 +1,9 @@
 package com.shadowrun.matrix.accessories
 
-import com.shadowrun.matrix.common.AccessoryType
+sealed class Accessory {
+    data class OfflineStorage(val capacityMp: Int) : Accessory()
+    object VidScreen : Accessory()
+    data class HitcherJack(val type: HitcherJackType) : Accessory()
+}
 
-data class Accessory(val type: AccessoryType, val description: String = "")
+enum class HitcherJackType { ELECTRODE_NET, DATAJACK_FEED }

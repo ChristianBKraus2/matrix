@@ -2,6 +2,7 @@ package com.shadowrun.matrix.server.dto
 
 import com.shadowrun.matrix.operations.AvailableAction
 import com.shadowrun.matrix.operations.MatrixObject
+import com.shadowrun.matrix.operations.SystemOperation
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonClassDiscriminator
@@ -48,7 +49,8 @@ sealed class AvailableActionDto {
     @SerialName("Operation")
     data class Operation(override val index: Int,
         override val actionType: String, val operation: String,
-        val targetKind: String?, val targetName: String?) : AvailableActionDto()
+        val targetKind: String?, val targetName: String?,
+        val paramKind: String? = null) : AvailableActionDto()
 }
 
 fun List<AvailableAction>.toDto(): List<AvailableActionDto> =
@@ -64,7 +66,16 @@ fun AvailableAction.toDto(index: Int): AvailableActionDto = when (this) {
     is AvailableAction.Operation     -> AvailableActionDto.Operation(index, actionType = actionType.name,
         operation = operation.name,
         targetKind = target?.let { it::class.simpleName },
-        targetName = target?.targetName())
+        targetName = target?.targetName(),
+        paramKind = when (operation) {
+            SystemOperation.LOCATE_FILE,
+            SystemOperation.LOCATE_SLAVE,
+            SystemOperation.LOCATE_ACCESS_NODE -> "precision"
+            SystemOperation.MAKE_COMCALL       -> "hasValidPasscode"
+            SystemOperation.TAP_COMCALL        -> "scannerDeviceRating"
+            SystemOperation.EDIT_FILE          -> "newContent"
+            else                               -> null
+        })
 }
 
 private fun com.shadowrun.matrix.operations.MatrixObject.targetName(): String = when (this) {

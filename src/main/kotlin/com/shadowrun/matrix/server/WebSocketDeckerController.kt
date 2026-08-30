@@ -161,11 +161,8 @@ class WebSocketDeckerController(
         @Suppress("UNUSED_PARAMETER") cmd: ActionCommand,
         diceRoller: DiceRoller
     ): DispatchResult = when (action.operation) {
-        SystemOperation.RELOCATE_ICON    -> dispatchRelocateIcon(diceRoller)
-        SystemOperation.NULL_OPERATION   -> DispatchResult(decker, true, 0, 0, "Turn passed")
-        SystemOperation.ANALYZE_SECURITY -> DispatchResult(decker, false, 0, 0, "ANALYZE_SECURITY is only available inside a host")
-        SystemOperation.LOCATE_IC        -> DispatchResult(decker, false, 0, 0, "LOCATE_IC is only available inside a host")
-        SystemOperation.ANALYZE_IC       -> DispatchResult(decker, false, 0, 0, "ANALYZE_IC is only available inside a host")
+        SystemOperation.RELOCATE_ICON  -> dispatchRelocateIcon(diceRoller)
+        SystemOperation.NULL_OPERATION -> DispatchResult(decker, true, 0, 0, "Turn passed")
         else -> DispatchResult(decker, false, 0, 0, "${action.operation} not supported on grid")
     }
 
@@ -183,7 +180,6 @@ class WebSocketDeckerController(
         SystemOperation.LOCATE_FILE,
         SystemOperation.LOCATE_SLAVE,
         SystemOperation.LOCATE_ACCESS_NODE,
-        SystemOperation.LOCATE_DECKER,
         SystemOperation.LOCATE_IC           -> dispatchLocateOp(action, cmd, host, diceRoller)
         SystemOperation.DOWNLOAD_DATA,
         SystemOperation.EDIT_FILE,
@@ -242,7 +238,6 @@ class WebSocketDeckerController(
                 val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateAccessNode(host, q, prec, diceRoller) }
                 opResult.toDispatch(locateResult.label())
             }
-            SystemOperation.LOCATE_DECKER -> DispatchResult(decker, false, 0, 0, "LOCATE_DECKER requires a target Persona — not supported via WebSocket")
             SystemOperation.LOCATE_IC     -> decker.locateIc(host, diceRoller).toDispatch()
             else -> DispatchResult(decker, false, 0, 0, "Unsupported locate op: ${action.operation}")
         }
@@ -267,7 +262,11 @@ class WebSocketDeckerController(
                 }
                 decker.editFile(file, host, content?.toByteArray(), diceRoller).toDispatch()
             }
-            SystemOperation.UPLOAD_DATA    -> decker.uploadData(host, diceRoller).toDispatch()
+            SystemOperation.UPLOAD_DATA    -> {
+                val dataSizeMp = p?.query?.toIntOrNull() ?: 100
+                val (result, _) = decker.uploadData(host, dataSizeMp, diceRoller)
+                result.toDispatch()
+            }
             SystemOperation.DECRYPT_ACCESS -> decker.decryptAccess(host, diceRoller).toDispatch()
             SystemOperation.DECRYPT_FILE -> {
                 val file = (action.target as? MatrixObject.File)?.file
@@ -301,8 +300,8 @@ class WebSocketDeckerController(
 
     private fun dispatchCommsOp(action: AvailableAction.Operation, cmd: ActionCommand, host: Host, diceRoller: DiceRoller): DispatchResult {
         return when (action.operation) {
-            SystemOperation.MAKE_COMCALL -> decker.makeComcall(host, diceRoller, false).first.toDispatch() // TODO: passcode ledger — see pass_3_security_complete.md
-            SystemOperation.TAP_COMCALL  -> decker.tapComcall(host, 0, diceRoller).first.toDispatch() // TODO: derive scanner rating from server-side device inventory — see pass_3_security_complete.md
+            SystemOperation.MAKE_COMCALL -> decker.makeComcall(host, diceRoller, cmd.params?.hasValidPasscode ?: false).first.toDispatch()
+            SystemOperation.TAP_COMCALL  -> decker.tapComcall(host, cmd.params?.scannerDeviceRating ?: 0, diceRoller).first.toDispatch()
             else -> DispatchResult(decker, false, 0, 0, "Unsupported comms op: ${action.operation}")
         }
     }
@@ -319,8 +318,8 @@ class WebSocketDeckerController(
     private fun dispatchRelocateIcon(diceRoller: DiceRoller): DispatchResult {
         val trackState = decker.trackState
         return decker.relocateIcon(
-            opponentSensor = trackState?.trackingIcRating ?: 0,
-            trackerMcpRating = trackState?.trackingIcRating ?: 0,
+            opponentSensor = trackState?.opponentSensorRating ?: 0,
+            trackerMcpRating = trackState?.trackerMcpRating ?: 0,
             diceRoller
         ).toDispatch()
     }
@@ -345,8 +344,8 @@ class WebSocketDeckerController(
     )
 
     private fun LogonResult.toDispatch() = when (this) {
-        is LogonResult.Success -> DispatchResult(decker, true,  0, 0, "Logged on to $location")
-        is LogonResult.Failure -> DispatchResult(decker, false, 0, 0, "Logon failed")
+        is LogonResult.Success -> DispatchResult(decker, true,  deckerSuccesses, hostSuccesses, "Logged on to $location")
+        is LogonResult.Failure -> DispatchResult(decker, false, deckerSuccesses, hostSuccesses, "Logon failed")
     }
 
     private fun LogoffResult.toDispatch() = when (this) {

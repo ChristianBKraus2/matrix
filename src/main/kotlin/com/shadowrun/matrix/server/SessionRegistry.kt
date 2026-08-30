@@ -62,15 +62,16 @@ class SessionRegistry {
                 deckerSessions.containsKey(name) ->
                     JoinOutcome(ErrorCode.NAME_ALREADY_TAKEN, false, null)
                 disconnectedDeckerNames.contains(name) -> {
-                    val stored = reconnectTokens[name]
-                    if (stored == null || msg.reconnectToken != stored) {
-                        JoinOutcome(ErrorCode.NAME_ALREADY_TAKEN, false, null)
+                    val storedToken = reconnectTokens[name]
+                    if (msg.reconnectToken != null && storedToken != null && msg.reconnectToken != storedToken) {
+                        JoinOutcome(ErrorCode.BAD_REQUEST, false, null)
                     } else {
                         deckerSessions[name] = session
                         sessionDecker[session] = name
                         disconnectedDeckerNames.remove(name)
-                        reconnectTokens.remove(name)
-                        JoinOutcome(null, true, null)
+                        val newToken = UUID.randomUUID().toString()
+                        reconnectTokens[name] = newToken
+                        JoinOutcome(null, true, newToken)
                     }
                 }
                 else -> {
@@ -90,7 +91,6 @@ class SessionRegistry {
                 ControlMessage(
                     role = SessionRole.REGISTERED_DECKER,
                     deckerName = name,
-                    reconnect = isReconnect,
                     reconnectToken = token
                 )
             )))

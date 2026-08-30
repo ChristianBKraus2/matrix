@@ -157,6 +157,16 @@ The rules state: *"Deckers cannot suppress IC in a system they have left."*
 
 ---
 
+## 15. ICC-10 — Companion Plug-Pull While Black IC is Active
+
+PRD ICC-10: *"If a companion at the jackpoint manually pulls the plug while Black IC is active, Black IC also gets one automatic final attack."*
+
+`combat.md`'s `resolveJackOutWithPin` only models the decker's own Willpower test to jack out. The scenario where a third party physically severs the connection at the jackpoint is not designed: it is unclear whether a Willpower test is skipped, whether the same final attack is resolved, and who calls `resolveJackOutWithPin` (or a variant) in that case.
+
+**Where it belongs:** `combat.md` (Black IC Pin section) and `movement.md` (`jackOut` section).
+
+---
+
 ## 14. Legitimate Passcode — Devalidation on Jack-Out (rules p. 226)
 
 The rules state that if a decker uses an acquired or planted Legitimate passcode to gain Legitimate combat status against the host's own IC, *"the host devalidates the passcode when the decker jacks out or logs off. He has blown his cover."* However, the decker may use the passcode in combat against *other* intruding deckers without blowing cover.

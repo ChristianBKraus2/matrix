@@ -91,7 +91,7 @@ Add one field:
 val currentLocation: MatrixLocation? = null
 ```
 
-The seven public movement methods are added to this class (see below).
+The eight public movement methods are added to this class (see below).
 
 ### `Persona`
 
@@ -109,27 +109,21 @@ A stateless object that encapsulates the Success Contest logic reused by every l
 object SystemTestResolver {
     fun resolve(
         decker: Decker,
-        targetNumber: Int,          // subsystem rating (Access Rating)
-        hostSecurityValue: Int,     // host/grid Security Value dice
+        operation: SystemOperation,  // determines which utility (if any) reduces the TN (CD-14/CD-15)
+        targetNumber: Int,           // subsystem rating (Access Rating)
+        hostSecurityValue: Int,      // host/grid Security Value dice
         diceRoller: DiceRoller
     ): SystemTestOutcome
 }
 ```
 
-**Algorithm** (per rulebook p. 209–210):
-1. Roll `decker.computerSkill` dice; count successes ≥ `targetNumber` → `deckerSuccesses`.
-   - Applied modifier: subtract the rating of a loaded Deception utility (if any) from `targetNumber` (minimum 2).
-2. Roll `hostSecurityValue` dice; count successes ≥ `decker.detectionFactor` → `hostSuccesses`.
-3. `deckerWins = deckerSuccesses >= hostSuccesses`.
-4. Return `SystemTestOutcome(deckerSuccesses, hostSuccesses, deckerWins)`.
-
-`Decker.detectionFactor` is derived from `cyberdeck.masking + sleaze utility rating / 2` (already implied by ORD; add as computed property).
+Full algorithm is specified in `cyberdeck_and_program_mechanics.md`. Summary: TN is reduced by the `currentRating` of the utility mapped to `operation` (CD-15), floored at 2; host rolls against `decker.effectiveDetectionFactor`.
 
 ---
 
 ## Public Methods on `Decker`
 
-All seven methods are **pure**: they take immutable inputs and return new `Decker` instances (via `.copy()`) plus a `MatrixLocation` carrying updated security tallies. The caller is responsible for persisting the returned objects.
+All eight methods are **pure**: they take immutable inputs and return new `Decker` instances (via `.copy()`) plus a `MatrixLocation` carrying updated security tallies. The caller is responsible for persisting the returned objects.
 
 ### 1. `jackInToLtg(ltg: LTG, diceRoller: DiceRoller): LogonResult`
 
@@ -141,7 +135,7 @@ All seven methods are **pure**: they take immutable inputs and return new `Decke
 - `jackpoint.type` ∈ `{LEGAL_ACCESS, ILLEGAL_ACCESS, TELECOM, ILLEGAL_JUNCTION_BOX}`
 
 **Logic:**
-1. Run `SystemTestResolver.resolve(decker, ltg.subsystemRatings.access, ltg.securityRating.value, diceRoller)`.
+1. Run `SystemTestResolver.resolve(decker, LOGON_TO_LTG, ltg.subsystemRatings.access, ltg.securityRating.value, diceRoller)`.
 2. Increment `ltg.securityTally` by `outcome.hostSuccesses`.
 3. If `outcome.deckerWins`: create persona, set `currentLocation = OnLTG(updatedLtg)` → return `LogonResult.Success`.
 4. If not: return `LogonResult.Failure` with updated tally (persona remains null).
@@ -161,7 +155,7 @@ All seven methods are **pure**: they take immutable inputs and return new `Decke
 - `jackpoint.connectsToHost == host` (can only log onto the host the trunk is connected to)
 
 **Logic:**
-1. Run `SystemTestResolver.resolve(decker, host.subsystemRatings.access, host.securityRating.value, diceRoller)`.
+1. Run `SystemTestResolver.resolve(decker, LOGON_TO_HOST, host.subsystemRatings.access, host.securityRating.value, diceRoller)`.
 2. Increment `host.securityTally` by `outcome.hostSuccesses`.
 3. If `outcome.deckerWins`: create persona; set `persona.currentNode` based on jackpoint type (M-02, M-03):
    - `WORKSTATION` → the host's Access node (I/O port)
@@ -184,7 +178,7 @@ All seven methods are **pure**: they take immutable inputs and return new `Decke
 
 **Logic:**
 1. Determine whether the target `rtg` is the parent of the current LTG, or a peer RTG.
-2. Run `SystemTestResolver.resolve(decker, rtg.subsystemRatings.access, rtg.securityRating.value, diceRoller)`.
+2. Run `SystemTestResolver.resolve(decker, LOGON_TO_RTG, rtg.subsystemRatings.access, rtg.securityRating.value, diceRoller)`.
 3. Increment `rtg.securityTally` by `outcome.hostSuccesses`.
 4. If different RTG (M-10): carry **no** prior RTG tally; start fresh on target RTG.
 5. If `outcome.deckerWins`: `currentLocation = OnRTG(updatedRtg)` → `LogonResult.Success`.
@@ -204,18 +198,35 @@ Covers both public LTG (from RTG) and PLTG (from LTG/RTG, using `Logon to LTG` o
 - `currentLocation is OnPLTG` (PLTG supports all LTG operations, M-08)
 
 **Logic:**
-1. Run `SystemTestResolver.resolve(decker, ltg.subsystemRatings.access, ltg.securityRating.value, diceRoller)`.
+1. Run `SystemTestResolver.resolve(decker, LOGON_TO_LTG, ltg.subsystemRatings.access, ltg.securityRating.value, diceRoller)`.
 2. Increment `ltg.securityTally` by `outcome.hostSuccesses`.
 3. **Tally inheritance (M-11):** if target `ltg` is a PLTG and current location is on an RTG or LTG, carry over the accumulated RTG tally into the PLTG's initial tally.
 4. **Tally persistence (M-09):** if target `ltg` shares the same parent RTG as current LTG, the RTG tally is unchanged.
-5. If `outcome.deckerWins`: `currentLocation = OnLTG(updatedLtg)` (or `OnPLTG` if the type is `PLTG`) → `LogonResult.Success`.
+5. If `outcome.deckerWins`: `currentLocation = OnLTG(updatedLtg)`. If the target is a `PLTG`, delegate to `logonToPltg` instead (see method 5 below) → `LogonResult.Success`.
 6. Otherwise: `LogonResult.Failure` (M-12: tally on target LTG persists for memory window; callers manage the timer outside this method).
 
 **LTG failed-logon tally memory window (rules p. 218):** Public LTGs retain the accumulated security tally from a failed logon attempt for `1D3 × 5` minutes. If the decker attempts to log on again from the **same jackpoint** before this window expires, the tally continues from its current value (it is not reset to 0). If the decker switches to a **different jackpoint** before the next attempt, the LTG starts a fresh security tally at 0 for that attempt — the prior tally is not carried over. The timer and jackpoint identity are held by the caller (game engine); this method does not track them internally.
 
 ---
 
-### 5. `logonToHost(host: Host, diceRoller: DiceRoller): LogonResult`
+### 5. `logonToPltg(pltg: PLTG, diceRoller: DiceRoller): LogonResult`
+
+**PRD:** M-06, M-08, M-11, M-12
+
+**Preconditions:**
+- `currentLocation is OnLTG` and `pltg` is attached to that LTG, **or**
+- `currentLocation is OnPLTG` (PLTG-to-PLTG hop)
+
+**Logic:**
+1. If current location is `OnLTG`, inherit the LTG's **parent RTG's** `securityTally` as the starting tally for the PLTG (M-11: tally carry-over comes from the RTG, not the LTG itself).
+2. Run `SystemTestResolver.resolve(decker, LOGON_TO_LTG, pltg.subsystemRatings.access, pltg.securityRating.value, diceRoller)`.
+3. Build updated PLTG: `securityTally = inheritedTally + outcome.hostSuccesses`.
+4. If `outcome.deckerWins`: `currentLocation = OnPLTG(updatedPltg)` → `LogonResult.Success`.
+5. Otherwise: `LogonResult.Failure`.
+
+---
+
+### 6. `logonToHost(host: Host, diceRoller: DiceRoller): LogonResult`
 
 **PRD:** M-06, M-13, M-14, M-15
 
@@ -227,14 +238,14 @@ Covers both public LTG (from RTG) and PLTG (from LTG/RTG, using `Logon to LTG` o
 **Tiered topology guard (M-13):** If the current host is a second-tier host and the target is another second-tier host of the same first-tier host, return `LogonResult.Failure` (must re-enter first-tier host first; enforced as a precondition violation, not a dice roll).
 
 **Logic:**
-1. Run `SystemTestResolver.resolve(decker, host.subsystemRatings.access, host.securityRating.value, diceRoller)`.
+1. Run `SystemTestResolver.resolve(decker, LOGON_TO_HOST, host.subsystemRatings.access, host.securityRating.value, diceRoller)`.
 2. Increment `host.securityTally` by `outcome.hostSuccesses`.
 3. If `outcome.deckerWins`: `currentLocation = OnHost(updatedHost)` → `LogonResult.Success`.
 4. Otherwise: `LogonResult.Failure`.
 
 ---
 
-### 6. `gracefulLogoff(diceRoller: DiceRoller): LogoffResult`
+### 7. `gracefulLogoff(diceRoller: DiceRoller): LogoffResult`
 
 **PRD:** M-16
 
@@ -244,15 +255,15 @@ Covers both public LTG (from RTG) and PLTG (from LTG/RTG, using `Logon to LTG` o
 **Logic:**
 1. Resolve the current grid/host's Access Rating and Security Value from `currentLocation`.
 2. Determine effective TN = `accessRating`. If `decker.trackState != null`, add `trackState.trackingIcRating` to TN (CC-33: Graceful Logoff TN is raised by Track Rating while a location cycle is running).
-3. Run `SystemTestResolver.resolve(decker, effectiveTn, securityValue, diceRoller)`.
+3. Run `SystemTestResolver.resolve(decker, GRACEFUL_LOGOFF, effectiveTn, securityValue, diceRoller)`.
 4. If `outcome.deckerWins`: clear persona, set `currentLocation = null` → `LogoffResult.GracefulSuccess`. (Traces cleared — security tally conceptually expunged; the caller discards the grid/host object or resets its tally.)
-5. If not: decker must fall back to jack out → return `LogoffResult.JackOut(decker, dumpShock = true)`.
+5. If not: decker must fall back to jack out → return `LogoffResult.JackOut(decker, dumpShock = !decker.cyberdeck.immuneToDumpShock)`.
 
 **Passcode devalidation (rules p. 226):** If the decker's `PersonaStatus` is `LEGITIMATE` (acquired via a planted or stolen host passcode), the host devalidates that passcode upon successful logoff — the decker's cover is blown. The caller must set `decker.hasValidPasscode(host) = false` after a `GracefulSuccess`. The passcode is **not** devalidated if the decker used Legitimate status only against other intruding deckers (i.e., never exploited it against the host's own IC); the GM tracks this distinction narratively.
 
 ---
 
-### 7. `jackOut(): LogoffResult`
+### 8. `jackOut(): LogoffResult`
 
 **PRD:** M-17, M-18
 
@@ -262,7 +273,7 @@ Covers both public LTG (from RTG) and PLTG (from LTG/RTG, using `Logon to LTG` o
 
 **Logic:**
 1. Clear persona, set `currentLocation = null`.
-2. Return `LogoffResult.JackOut(updatedDecker, dumpShock = true)`.
+2. Return `LogoffResult.JackOut(updatedDecker, dumpShock = !decker.cyberdeck.immuneToDumpShock)`.
 
 Dump shock damage (Power = host Security Value, damage level from Security Code) is applied separately by the caller using the existing combat/damage infrastructure.
 
@@ -340,8 +351,8 @@ The `logonToHost` method enforces topology by validating that `host` appears in 
 | `logonToHost` from second-tier to sibling second-tier | Precondition violation returned |
 | `gracefulLogoff` success | `GracefulSuccess`, `currentLocation = null`, no dump shock |
 | `gracefulLogoff` with Track rating 4 active | Effective TN = `accessRating + 4`; standard test otherwise (CC-33) |
-| `gracefulLogoff` failure | `JackOut(dumpShock = true)` |
-| `jackOut()` with no graceful logoff | `JackOut(dumpShock = true)` |
+| `gracefulLogoff` failure | `JackOut(dumpShock = !cyberdeck.immuneToDumpShock)` |
+| `jackOut()` with no graceful logoff | `JackOut(dumpShock = !cyberdeck.immuneToDumpShock)` |
 | `jackOut()` pinned by Black IC | `IllegalStateException` |
 | `gracefulLogoff` with Legitimate passcode | Caller marks passcode invalid after `GracefulSuccess` |
 | `jackOut()` with Legitimate passcode | Caller marks passcode invalid after jack-out |

@@ -91,7 +91,8 @@ object SystemTestResolver {
                 .firstOrNull { it.type == operation.utility }
                 ?.let { effectiveRating(it, decker.cyberdeck) } ?: 0
         else 0
-        val adjustedTn = maxOf(2, baseSubsystemRating + queryPrecision.modifier - utilityRating)
+        val clampedBase = maxOf(2, baseSubsystemRating - utilityRating)
+        val adjustedTn = maxOf(2, clampedBase + queryPrecision.modifier)
 
         val deckerResult = diceRoller.roll(decker.computerSkill, adjustedTn)
         logger.info { "[${decker.name}] Interrogation ${operation.name}: TN=$adjustedTn (base=$baseSubsystemRating precision=${queryPrecision.modifier} utility=$utilityRating) → ${deckerResult.successes} successes" }
@@ -104,7 +105,7 @@ object SystemTestResolver {
             hostSuccesses = hostResult.successes,
             deckerWins = deckerResult.successes >= hostResult.successes
         )
-        val newState = state.copy(accumulatedSuccesses = state.accumulatedSuccesses + deckerResult.successes)
+        val newState = state.copy(accumulatedSuccesses = state.accumulatedSuccesses + maxOf(0, deckerResult.successes - hostResult.successes))
         logger.info { "[${decker.name}] Interrogation accumulated successes: ${newState.accumulatedSuccesses}" }
         return Pair(outcome, newState)
     }

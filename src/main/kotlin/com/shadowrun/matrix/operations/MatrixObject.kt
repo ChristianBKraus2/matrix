@@ -15,7 +15,7 @@ sealed class MatrixObject {
     data class PrivateGrid(val pltg: PLTG) : MatrixObject()
     data class HostNode(val host: Host) : MatrixObject()
     data class HostSubsystem(val node: Node) : MatrixObject()
-    data class IcProgram(val ic: IC) : MatrixObject()
+    data class IcProgram(val ic: IC, val analyzed: Boolean = false) : MatrixObject()
     data class File(val file: DataFile) : MatrixObject()
     data class Device(val device: RemoteDevice) : MatrixObject()
 }

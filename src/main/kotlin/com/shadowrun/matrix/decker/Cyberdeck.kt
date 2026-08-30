@@ -31,7 +31,7 @@ data class Cyberdeck(
     // True for cyberterminals and hitchers: immune to dump shock and black IC biofeedback (CT-04, ACC-03)
     val immuneToDumpShock: Boolean = false
 ) {
-    val maxResponseIncrease: Int get() = mcpRating / 4
+    val maxResponseIncrease: Int get() = minOf(3, mcpRating / 4)
 
     val usedActiveMemoryMp: Int
         get() = activeUtilities.sumOf { it.mpSize } + pendingUploads.sumOf { it.utility.mpSize }

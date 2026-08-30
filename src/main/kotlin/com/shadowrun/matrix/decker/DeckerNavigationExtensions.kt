@@ -1,6 +1,7 @@
 package com.shadowrun.matrix.decker
 
 import com.shadowrun.matrix.common.JackpointType
+import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.MatrixLocation
@@ -22,7 +23,8 @@ private val LTG_JACKPOINT_TYPES = setOf(
 private val HOST_JACKPOINT_TYPES = setOf(
     JackpointType.WORKSTATION,
     JackpointType.CONSOLE,
-    JackpointType.REMOTE_DEVICE
+    JackpointType.REMOTE_DEVICE,
+    JackpointType.ILLEGAL_JUNCTION_BOX
 )
 
 private fun MatrixLocation?.label(): String = when (this) {
@@ -66,7 +68,7 @@ fun Decker.jackInToHost(host: Host, diceRoller: DiceRoller): LogonResult {
         "Jackpoint type ${jp.type} cannot be used to jack in directly to a host"
     }
     require(jp.connectsToHost == host) { "Jackpoint connects to a different host" }
-    return performLogon(
+    val result = performLogon(
         operation = SystemOperation.LOGON_TO_HOST,
         accessRating = host.subsystemRatings.access,
         securityValue = host.securityRating.value,
@@ -74,11 +76,21 @@ fun Decker.jackInToHost(host: Host, diceRoller: DiceRoller): LogonResult {
         buildLocation = { updatedTally ->
             MatrixLocation.OnHost(host.copy(securityTally = host.securityTally + updatedTally))
         }
-    ).also { result ->
-        when (result) {
-            is LogonResult.Success -> logger.info { "[$name] jackInToHost succeeded: now at ${result.location.label()}" }
-            is LogonResult.Failure -> logger.warn { "[$name] jackInToHost failed: remaining at ${result.location.label()}" }
+    )
+    return if (result is LogonResult.Success) {
+        logger.info { "[$name] jackInToHost succeeded: now at ${result.location.label()}" }
+        val startSubsystem = when (jp.type) {
+            JackpointType.WORKSTATION, JackpointType.ILLEGAL_JUNCTION_BOX -> SubsystemType.ACCESS
+            JackpointType.REMOTE_DEVICE -> SubsystemType.SLAVE
+            JackpointType.CONSOLE -> SubsystemType.CONTROL
+            else -> SubsystemType.ACCESS
         }
+        val startNode = host.nodes.first { it.subsystemType == startSubsystem }
+        val updatedDecker = result.decker.copy(persona = result.decker.persona!!.copy(currentNode = startNode))
+        LogonResult.Success(updatedDecker, result.location)
+    } else {
+        logger.warn { "[$name] jackInToHost failed: remaining at ${(result as LogonResult.Failure).location.label()}" }
+        result
     }
 }
 
@@ -145,13 +157,13 @@ fun Decker.logonToPltg(pltg: PLTG, diceRoller: DiceRoller): LogonResult {
     val inheritedTally: Int = when (val loc = currentLocation) {
         is MatrixLocation.OnLTG -> {
             require(loc.ltg.pltgs.contains(pltg)) { "Target PLTG is not attached to the current LTG" }
-            loc.ltg.securityTally
+            loc.ltg.parentRtg.securityTally
         }
         is MatrixLocation.OnPLTG -> 0
         else -> throw IllegalStateException("Cannot logon to PLTG from $currentLocation")
     }
     return performLogon(
-        operation = SystemOperation.LOGON_TO_PLTG,
+        operation = SystemOperation.LOGON_TO_LTG,
         accessRating = pltg.subsystemRatings.access,
         securityValue = pltg.securityRating.value,
         diceRoller = diceRoller,
@@ -265,9 +277,11 @@ private fun Decker.performLogon(
                 status = com.shadowrun.matrix.common.PersonaStatus.INTRUDING
             )
         }
-        LogonResult.Success(copy(persona = newPersona, currentLocation = newLocation), newLocation)
+        LogonResult.Success(copy(persona = newPersona, currentLocation = newLocation), newLocation,
+            deckerSuccesses = outcome.deckerSuccesses, hostSuccesses = outcome.hostSuccesses)
     } else {
-        LogonResult.Failure(this, currentLocation)
+        LogonResult.Failure(this, newLocation,
+            deckerSuccesses = outcome.deckerSuccesses, hostSuccesses = outcome.hostSuccesses)
     }
 }
 

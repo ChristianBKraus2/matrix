@@ -21,5 +21,7 @@ data class MonitoredOperationHandle(
     val operation: SystemOperation,
     /** The target resource. */
     val target: MonitoredTarget,
-    val active: Boolean = true
+    val active: Boolean = true,
+    /** True when the handle requires a maintenance call this pass to stay active (SO-13). */
+    val needsMaintenance: Boolean = false
 )

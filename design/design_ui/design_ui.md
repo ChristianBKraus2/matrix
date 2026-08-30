@@ -166,14 +166,16 @@ Left and right columns are equal width (`1fr` each). Middle is wider (`2fr`). To
 export interface JoinMessage {
   type: 'join';
   deckerName: string;
+  reconnectToken?: string;  // optional; used to re-associate a returning client with their prior session
 }
 
 export interface ActionParams {
   newContent?: string | null;
-  precision?: 'NORMAL' | 'HIGH';
+  precision?: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC';
   hasValidPasscode?: boolean;
   scannerDeviceRating?: number;
   inactivitySeconds?: number;
+  query?: string;  // search query string for LOCATE_FILE, LOCATE_SLAVE, LOCATE_ACCESS_NODE
 }
 
 export interface ActionCommand {
@@ -190,6 +192,7 @@ export interface ControlMessage {
   type: 'control';
   role: Role;
   deckerName?: string;
+  reconnectToken?: string;  // server-assigned token; present on first registration, absent on role changes
 }
 
 export interface ActiveUtility {
@@ -208,6 +211,7 @@ export interface DeckerStateDto {
   hackingPool: number;
   mcpRating: number;
   activeUtilities: ActiveUtility[];
+  locationIndex: number | null;  // index into visibleObjects for the current location; null when not jacked in; currently always 0 when jacked in (stub)
 }
 
 export type AlertStatus = 'NO_ALERT' | 'PASSIVE_ALERT' | 'ACTIVE_ALERT';
@@ -216,12 +220,12 @@ export type TopologyType = 'OPEN_ACCESS' | 'TIERED' | 'HOST_HOST' | 'PRIVATE_GRI
 export type SubsystemType = 'ACCESS' | 'CONTROL' | 'INDEX' | 'FILES' | 'SLAVE';
 
 export type MatrixObjectDto =
-  | { kind: 'GridNode';      index: number; name: string; region: string; alertStatus: AlertStatus; securityTally: number; ltgCount: number; connectedRtgCount: number }
+  | { kind: 'GridNode';      index: number; name: string; region: string; securityCode: SecurityCode; alertStatus: AlertStatus; securityTally: number; ltgCount: number; connectedRtgCount: number }
   | { kind: 'LocalGrid';     index: number; name: string; parentRtgName: string; alertStatus: AlertStatus; securityTally: number; hostCount: number; pltgCount: number }
-  | { kind: 'PrivateGrid';   index: number; name: string; owner: string; parentLtgName: string; alertStatus: AlertStatus; hostCount: number }
+  | { kind: 'PrivateGrid';   index: number; name: string; owner: string; parentLtgName: string; securityCode: SecurityCode; alertStatus: AlertStatus; hostCount: number }
   | { kind: 'HostNode';      index: number; name: string; topologyType: TopologyType; offline: boolean; alertStatus: AlertStatus; securityCode: SecurityCode; securityTally: number }
   | { kind: 'HostSubsystem'; index: number; subsystemType: SubsystemType; description: string }
-  | { kind: 'IcProgram';     index: number; name: string; rating: number; behavior: 'PROACTIVE' | 'REACTIVE'; guardedNodeType: string | null }
+  | { kind: 'IcProgram';     index: number; name: string; analyzed: boolean; rating: number | null; behavior: 'PROACTIVE' | 'REACTIVE' | null; guardedNodeType: string | null }
   | { kind: 'File';          index: number; name: string; isScrambleProtected: boolean; isPointer: boolean; sizeMp: number }
   | { kind: 'Device';        index: number; name: string; systemAddress: string };
 
@@ -234,7 +238,7 @@ export type AvailableActionDto =
   | { kind: 'LogonToHost';   index: number; actionType: ActionType; hostName: string }
   | { kind: 'GracefulLogoff';index: number; actionType: ActionType }
   | { kind: 'JackOut';       index: number; actionType: ActionType }
-  | { kind: 'Operation';     index: number; actionType: ActionType; operation: string; targetKind: string | null; targetName: string | null };
+  | { kind: 'Operation';     index: number; actionType: ActionType; operation: string; targetKind: string | null; targetName: string | null; paramKind: 'precision' | 'passcode' | 'scanner' | 'edit' | 'query' | null };
 
 export interface StateMessage {
   type: 'state';
@@ -247,14 +251,26 @@ export interface StateMessage {
 export interface ResultMessage {
   type: 'result';
   success: boolean;
-  deckerSuccesses?: number;
-  hostSuccesses?: number;
+  deckerSuccesses: number;
+  hostSuccesses: number;
   details: string;
 }
 
+export type ErrorCode =
+  | 'not_your_turn'
+  | 'no_action_pending'
+  | 'already_registered'
+  | 'name_already_taken'
+  | 'name_too_long'           // decker name exceeds server-enforced maximum length
+  | 'unknown_message_type'    // server received a message with an unrecognised type field
+  | 'bad_request'             // message was parseable but semantically invalid
+  | 'server_full'             // maximum number of registered deckers already reached
+  ;
+
 export interface ErrorMessage {
   type: 'error';
-  message: string;
+  message: ErrorCode;
+  details?: string;  // optional human-readable description of the error cause
 }
 
 export type ServerMessage = ControlMessage | StateMessage | ResultMessage | ErrorMessage;
@@ -292,6 +308,12 @@ interface WsState {
 
 On `onclose` or `onerror`: schedule reconnect after 3 s. Exponential backoff up to 30 s. Re-send `JoinMessage` automatically after re-connection if `deckerName` is known.
 
+**Implementation guards:**
+1. Only schedule a reconnect if the hook is still in `CONNECTING` or `OPEN` state — do not attempt reconnect after an intentional `disconnect()` call.
+2. Before calling `ws.close()` during a manual disconnect, set `ws.onclose = null` and `ws.onerror = null` to prevent the reconnect logic from firing.
+
+**`reconnectToken` flow:** When the server sends `ControlMessage(role="registered_decker", reconnectToken="...")`, the hook stores the token in `WsState`. On reconnect, `JoinMessage` includes the stored `reconnectToken` so the server can re-associate the returning client with their prior session (hacking pool, turn state, etc.). The token is cleared when the user deliberately logs out.
+
 ### `sendAction(index, params?)`
 
 Only callable when `role === "active_controller"`. Sends `ActionCommand` over the socket.
@@ -328,10 +350,12 @@ Parse `decker.location`:
 - Prefix `"Host: "` → find `HostNode`
 - `"not jacked in"` → show `[ NOT JACKED IN ]` placeholder
 
+> **Fragility note:** prefix-matching on a display `name` string is brittle — a name containing `": "` can break parsing. `locationIndex: number | null` is already present on `DeckerStateDto` as a stub (always `0` when jacked in) so the panel can look up the matched object directly by index instead of scanning `visibleObjects` by name prefix. Full implementation of index-based lookup is a future improvement.
+
 Display all fields of the matched object as a horizontal strip of labelled values:
 
 ```
-▶ RTG: SEATTLE     REGION: Pacific Northwest     ALERT: ██ ACTIVE     TALLY: 7     LTGs: 3     RTGs: 2
+▶ RTG: SEATTLE     REGION: Pacific Northwest     SEC: GREEN     ALERT: ██ ACTIVE     TALLY: 7     LTGs: 3     RTGs: 2
 ```
 
 Alert status drives color: `NO_ALERT` = green, `PASSIVE_ALERT` = amber, `ACTIVE_ALERT` = red + blinking.
@@ -345,7 +369,7 @@ Only entity kinds are shown: `HostSubsystem`, `IcProgram`, `File`, `Device`. Loc
 - Clicking a compact card promotes it to focus (moves it to top).
 - If no entities exist, show `[ NO ENTITIES VISIBLE ]`.
 
-**IcProgram card fields:** name, rating, behavior, guardedNodeType.
+**IcProgram card fields:** name, `analyzed` status badge (`[ANALYZED]` / `[UNKNOWN]`), and — only when `analyzed === true` — rating, behavior, guardedNodeType. When not yet analyzed, rating/behavior/guardedNodeType are null and must not be rendered.
 **HostSubsystem card fields:** subsystemType, description.
 **File card fields:** name, sizeMp, `[SCRAMBLED]` badge if `isScrambleProtected`, `[POINTER]` if `isPointer`.
 **Device card fields:** name, systemAddress.
@@ -359,9 +383,22 @@ Horizontal scroll row of cards. Each card shows:
 
 **Inline controls (rendered inside the card):**
 
+The `paramKind` field on `Operation` actions declares which inline control (if any) the card must render. Null means no params needed. Map:
+
+| `paramKind` | Control |
+|---|---|
+| `'precision'` | Five-position selector |
+| `'passcode'` | Checkbox / toggle |
+| `'scanner'` | Numeric stepper |
+| `'edit'` | Text area |
+| `'query'` | Text input |
+| `null` | *(no inline control)* |
+
+Full inline control specs per operation:
+
 | Operation | Control |
 |---|---|
-| `LOCATE_FILE` / `LOCATE_SLAVE` / `LOCATE_ACCESS_NODE` | Two-button toggle `[NORMAL]` / `[HIGH]` — NORMAL selected by default |
+| `LOCATE_FILE` / `LOCATE_SLAVE` / `LOCATE_ACCESS_NODE` | Five-position selector `[VERY VAGUE]` / `[VAGUE]` / `[NORMAL]` / `[SPECIFIC]` / `[VERY SPECIFIC]` — NORMAL selected by default; `LOCATE_FILE` and `LOCATE_SLAVE` also show an optional text input `SEARCH: [________]` mapped to `params.query` |
 | `MAKE_COMCALL` | Checkbox / toggle `VALID PASSCODE: [ ]` |
 | `TAP_COMCALL` | Numeric stepper `SCANNER RATING: [−] 0 [+]` |
 | `EDIT_FILE` | Text area that expands when the card is focused; empty = erase file |
@@ -373,7 +410,7 @@ When `role !== "active_controller"` all cards are dimmed and non-interactive.
 ### Middle — NarrativePanel
 
 Scrollable log of recent events (newest at bottom). Each entry is one of:
-- **Result:** `[✓ SUCCESS]` or `[✗ FAILURE]` in green/red, decker/host dice counts if present, then `details` text.
+- **Result:** `[✓ SUCCESS]` or `[✗ FAILURE]` in green/red, decker/host dice counts, then `details` text.
 - **Error:** `[ERROR] <human-readable message>` in red.
 
 **Error message mapping:**
@@ -383,6 +420,10 @@ Scrollable log of recent events (newest at bottom). Each entry is one of:
 | `no_action_pending` | No action pending |
 | `already_registered` | Already registered |
 | `name_already_taken` | Decker name already taken |
+| `name_too_long` | Decker name too long |
+| `unknown_message_type` | Unknown message type |
+| `bad_request` | Bad request |
+| `server_full` | Server full — maximum deckers already connected |
 
 When `role === "active_controller"`, the Middle panel's outer border pulses green (`animation: pulse-border 0.8s ease-in-out infinite alternate`) to signal it is this client's turn to act.
 

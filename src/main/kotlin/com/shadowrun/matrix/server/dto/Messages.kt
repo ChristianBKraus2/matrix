@@ -53,7 +53,9 @@ data class ActionParams(
     val newContent: String? = null,
     val inactivitySeconds: Int? = null,
     val precision: String? = null,
-    val query: String? = null
+    val query: String? = null,
+    val hasValidPasscode: Boolean? = null,
+    val scannerDeviceRating: Int? = null
 )
 
 @Serializable
@@ -70,7 +72,6 @@ data class ControlMessage(
     val type: String = "control",
     val role: SessionRole,
     val deckerName: String? = null,
-    val reconnect: Boolean = false,
     val reconnectToken: String? = null
 )
 

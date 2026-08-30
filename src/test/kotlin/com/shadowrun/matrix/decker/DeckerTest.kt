@@ -1,7 +1,7 @@
 package com.shadowrun.matrix.decker
 
 import com.shadowrun.matrix.accessories.Accessory
-import com.shadowrun.matrix.common.AccessoryType
+import com.shadowrun.matrix.accessories.HitcherJackType
 import com.shadowrun.matrix.common.ConditionMonitor
 import com.shadowrun.matrix.common.JackpointType
 import com.shadowrun.matrix.common.PersonaAttributeType
@@ -23,6 +23,7 @@ import com.shadowrun.matrix.programs.UtilityType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -103,7 +104,7 @@ class DeckerTest {
     }
 
     @Test
-    fun `Cyberdeck detectionFactor without sleaze rounds up`() {
+    fun `Cyberdeck detectionFactor without sleaze uses ceil`() {
         assertEquals(3, deck().detectionFactor(maskingRating = 5))
     }
 
@@ -170,10 +171,10 @@ class DeckerTest {
 
     @Test
     fun `Cyberdeck carries accessories`() {
-        val hitcher = Accessory(AccessoryType.HITCHER_JACK, "Allows passive observers")
+        val hitcher = Accessory.HitcherJack(HitcherJackType.DATAJACK_FEED)
         val d = deck().copy(accessories = listOf(hitcher))
         assertEquals(1, d.accessories.size)
-        assertEquals(AccessoryType.HITCHER_JACK, d.accessories[0].type)
+        assertIs<Accessory.HitcherJack>(d.accessories[0])
     }
 
     // ── Persona ────────────────────────────────────────────────────────────────
@@ -243,7 +244,7 @@ class DeckerTest {
     }
 
     @Test
-    fun `detectionFactor without Sleaze is ceil(masking div 2)`() {
+    fun `detectionFactor without Sleaze uses ceil(masking div 2)`() {
         assertEquals(3, deckerWithMasking(6).detectionFactor)
         assertEquals(3, deckerWithMasking(5).detectionFactor)
         assertEquals(2, deckerWithMasking(4).detectionFactor)

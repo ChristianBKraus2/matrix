@@ -13,8 +13,10 @@ import com.shadowrun.matrix.operations.MatrixObject
 import com.shadowrun.matrix.operations.SystemOperation
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class DtoMappingTest {
 
@@ -59,6 +61,7 @@ class DtoMappingTest {
         assertIs<MatrixObjectDto.GridNode>(dto)
         assertEquals(0, dto.index)
         assertEquals(rtg.name, dto.name)
+        assertEquals(rtg.securityRating.code.name, dto.securityCode)
         assertEquals(rtg.ltgs.size, dto.ltgCount)
     }
 
@@ -91,22 +94,39 @@ class DtoMappingTest {
     }
 
     @Test
-    fun `MatrixObject IcProgram with null guardedNode toDto`() {
+    fun `MatrixObject IcProgram with null guardedNode toDto unanalyzed`() {
         val ic = Killer(rating = 4)
-        val dto = MatrixObject.IcProgram(ic).toDto(4)
+        val dto = MatrixObject.IcProgram(ic, analyzed = false).toDto(4)
         assertIs<MatrixObjectDto.IcProgram>(dto)
         assertEquals(4, dto.index)
         assertEquals(ic.name, dto.name)
+        assertFalse(dto.analyzed)
+        assertNull(dto.rating)
+        assertNull(dto.behavior)
         assertNull(dto.guardedNodeType)
     }
 
     @Test
-    fun `MatrixObject IcProgram with non-null guardedNode toDto`() {
+    fun `MatrixObject IcProgram with non-null guardedNode toDto analyzed`() {
         val node = GridMock.getDefaultHost().nodes.first()
         val ic = Killer(rating = 4, guardedNode = node)
-        val dto = MatrixObject.IcProgram(ic).toDto(5)
+        val dto = MatrixObject.IcProgram(ic, analyzed = true).toDto(5)
         assertIs<MatrixObjectDto.IcProgram>(dto)
         assertEquals(node.subsystemType.name, dto.guardedNodeType)
+        assertTrue(dto.analyzed)
+        assertEquals(ic.rating, dto.rating)
+    }
+
+    @Test
+    fun `MatrixObject IcProgram with non-null guardedNode toDto unanalyzed hides fields`() {
+        val node = GridMock.getDefaultHost().nodes.first()
+        val ic = Killer(rating = 4, guardedNode = node)
+        val dto = MatrixObject.IcProgram(ic, analyzed = false).toDto(5)
+        assertIs<MatrixObjectDto.IcProgram>(dto)
+        assertFalse(dto.analyzed)
+        assertNull(dto.rating)
+        assertNull(dto.behavior)
+        assertNull(dto.guardedNodeType)
     }
 
     @Test
@@ -189,6 +209,7 @@ class DtoMappingTest {
         assertEquals(8, dto.index)
         assertEquals("Corp-PLTG", dto.name)
         assertEquals("Renraku", dto.owner)
+        assertEquals(pltg.securityRating.code.name, dto.securityCode)
     }
 
     @Test

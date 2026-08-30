@@ -1,7 +1,6 @@
 package com.shadowrun.matrix.decker
 
 import com.shadowrun.matrix.accessories.Accessory
-import com.shadowrun.matrix.common.AccessoryType
 import com.shadowrun.matrix.common.ConditionMonitor
 import com.shadowrun.matrix.common.DamageLevel
 import com.shadowrun.matrix.common.JackpointType
@@ -709,19 +708,19 @@ class CyberdeckAndProgramMechanicsTest {
 
     @Test
     fun `ACC-01 Cyberdeck can carry an OfflineStorage accessory`() {
-        val storage = Accessory(AccessoryType.OFFLINE_STORAGE, "500 Mp offline storage")
+        val storage = Accessory.OfflineStorage(500)
         val d = deck().copy(accessories = listOf(storage))
         assertEquals(1, d.accessories.size)
-        assertEquals(AccessoryType.OFFLINE_STORAGE, d.accessories[0].type)
+        assertIs<Accessory.OfflineStorage>(d.accessories[0])
     }
 
     // ── ACC-02: VidScreen accessory ───────────────────────────────────────────────
 
     @Test
     fun `ACC-02 Cyberdeck can carry a VidScreen accessory`() {
-        val screen = Accessory(AccessoryType.VID_SCREEN, "External monitor for shoulder-surfing")
+        val screen = Accessory.VidScreen
         val d = deck().copy(accessories = listOf(screen))
-        assertEquals(AccessoryType.VID_SCREEN, d.accessories[0].type)
+        assertIs<Accessory.VidScreen>(d.accessories[0])
     }
 
     // ── ACC-03: HitcherJack and HitcherObserver ───────────────────────────────────
@@ -742,7 +741,7 @@ class CyberdeckAndProgramMechanicsTest {
 
     @Test
     fun `ACC-03 DownloadDestination OfflineStorage references accessory`() {
-        val storage = Accessory(AccessoryType.OFFLINE_STORAGE, "External")
+        val storage = Accessory.OfflineStorage(0)
         val dest = DownloadDestination.OfflineStorage(storage)
         assertEquals(storage, dest.accessory)
     }
@@ -751,7 +750,7 @@ class CyberdeckAndProgramMechanicsTest {
     fun `ACC-03 DownloadDestination variants are distinct`() {
         assertIs<DownloadDestination.ActiveMemory>(DownloadDestination.ActiveMemory)
         assertIs<DownloadDestination.StorageMemory>(DownloadDestination.StorageMemory)
-        val storage = Accessory(AccessoryType.OFFLINE_STORAGE)
+        val storage = Accessory.OfflineStorage(0)
         assertIs<DownloadDestination.OfflineStorage>(DownloadDestination.OfflineStorage(storage))
     }
 
@@ -767,14 +766,14 @@ class CyberdeckAndProgramMechanicsTest {
     fun `suppressionDfPenalty equals number of suppressed IC`() {
         val ic1 = Probe(rating = 3)
         val ic2 = Killer(rating = 5)
-        val d = decker(jackedIn = true)
+        val d = decker(jackedIn = true).copy(currentLocation = MatrixLocation.OnHost(suppressionTestHost()))
         val d2 = CombatResolver.suppressIc(CombatResolver.suppressIc(d, ic1), ic2)
         assertEquals(2, d2.suppressionDfPenalty)
     }
 
     @Test
     fun `effectiveDetectionFactor decreases by 1 per suppressed IC`() {
-        val d = decker(jackedIn = true)
+        val d = decker(jackedIn = true).copy(currentLocation = MatrixLocation.OnHost(suppressionTestHost()))
         val baseline = d.effectiveDetectionFactor
         val withOne = CombatResolver.suppressIc(d, Probe(rating = 4))
         assertEquals(baseline - 1, withOne.effectiveDetectionFactor)
@@ -785,7 +784,7 @@ class CyberdeckAndProgramMechanicsTest {
     @Test
     fun `effectiveDetectionFactor restores after unsuppress`() {
         val ic = Probe(rating = 4)
-        val d = decker(jackedIn = true)
+        val d = decker(jackedIn = true).copy(currentLocation = MatrixLocation.OnHost(suppressionTestHost()))
         val baseline = d.effectiveDetectionFactor
         val suppressed = CombatResolver.suppressIc(d, ic)
         assertEquals(baseline - 1, suppressed.effectiveDetectionFactor)
@@ -955,4 +954,12 @@ class CyberdeckAndProgramMechanicsTest {
             d.invokeMediac(fixedRoller(5))
         }
     }
+
+    private fun suppressionTestHost() = Host(
+        name = "TestHost",
+        securityRating = SecurityRating(SecurityCode.GREEN, 6),
+        subsystemRatings = SubsystemRatings(6, 6, 6, 6, 6),
+        intrusionDifficulty = IntrusionDifficulty.EASY,
+        topologyType = TopologyType.OPEN_ACCESS
+    )
 }

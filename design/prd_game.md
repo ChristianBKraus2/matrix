@@ -16,7 +16,7 @@ The game class hold all active icons and their corresponding initiative. When an
 
 There are two modes:
 
-- outside of combat each decker has one action per turn and is called accordingly. There are no active ICs yet.
+- outside of combat there are no active ICs yet. Each decker's action count per turn follows SO-01/SO-02: ⌈Persona Reaction ÷ 10⌉ + Response Increase (e.g. Reaction 5, RI 0 → 1 action; Reaction 9, RI 2 → 3 actions).
 - in combat there are turns. At the start of each turn everyone is rolling for initiative. The icon with the highest initiative value starts (and is called). Afterwards, the initiative value is reduced by 10. As long as the initiative value is postive the icon can action. Assuming there are two icons (A and B) with initiatives of 15 and 8 respectively. Then A gets an action with 15, B gets an action with 8 and A gets an action again with 5. There are no further actions as the resulting initiative roll is non-positive. After the end of a turn, a new turn starts (rolling initiative again) until the combat is resolved.
 
 ## IC Actions
@@ -35,4 +35,4 @@ The `availableActions` list returned to the client must only include operations 
 
 ## Decker State — Multi-Turn Interrogation
 
-`Decker` holds `interrogationStates: Map<SystemOperation, InterrogationState>` as part of its persona state. This map tracks accumulated successes across multiple turns for locate operations (`LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`). The state is cleared automatically when the decker logs off, jacks out, or is dumped.
+The `Decker` data class holds `interrogationStates: Map<SystemOperation, InterrogationState>`. This map tracks accumulated successes across multiple turns for locate operations (`LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`). The relevant entries are cleared when the decker logs off, jacks out, or is dumped.

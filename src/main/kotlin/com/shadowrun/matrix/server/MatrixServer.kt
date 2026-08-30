@@ -45,7 +45,7 @@ fun Application.matrixModule(registry: SessionRegistry) {
             try {
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
-                    try {
+                        try {
                         val json = frame.readText()
                         val msgType = Json.parseToJsonElement(json).jsonObject["type"]?.jsonPrimitive?.content
                         when (msgType) {
@@ -55,16 +55,16 @@ fun Application.matrixModule(registry: SessionRegistry) {
                                 ErrorMessage(message = ErrorCode.UNKNOWN_MESSAGE_TYPE, details = msgType?.take(64))
                             )))
                         }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        logger.error(e) { "Frame dispatch error" }
-                        runCatching {
-                            this.send(Frame.Text(MatrixJson.encodeToString(
-                                ErrorMessage(message = ErrorCode.BAD_REQUEST, details = null)
-                            )))
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            logger.error(e) { "Frame dispatch error" }
+                            runCatching {
+                                this.send(Frame.Text(MatrixJson.encodeToString(
+                                    ErrorMessage(message = ErrorCode.BAD_REQUEST, details = null)
+                                )))
+                            }
                         }
-                    }
                     }
                 }
             } finally {

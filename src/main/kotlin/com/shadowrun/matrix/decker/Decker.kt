@@ -2,6 +2,7 @@ package com.shadowrun.matrix.decker
 
 import com.shadowrun.matrix.common.ConditionMonitor
 import com.shadowrun.matrix.common.PersonaAttributeType
+import com.shadowrun.matrix.network.DataFile
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.Jackpoint
 import com.shadowrun.matrix.network.MatrixLocation
@@ -12,6 +13,8 @@ import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.utility.DiceRoller
 import com.shadowrun.matrix.combat.BlackIcPinState
+import com.shadowrun.matrix.combat.CombatInitiative
+import com.shadowrun.matrix.combat.CombatResolver
 import com.shadowrun.matrix.combat.IcSuppressionState
 import com.shadowrun.matrix.combat.TrackState
 import com.shadowrun.matrix.game.ActionResult
@@ -36,9 +39,13 @@ data class Decker(
     val blackIcPin: BlackIcPinState? = null,
     val trackState: TrackState? = null,
     val suppressedIc: List<IcSuppressionState> = emptyList(),
+    val runDownloadedFiles: List<DataFile> = emptyList(),
     val interrogationStates: Map<SystemOperation, InterrogationState> = emptyMap()
 ) : ActiveIcon {
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = ActionResult.DeckerAction
+
+    override fun initiative(context: GameContext, diceRoller: DiceRoller): CombatInitiative =
+        CombatResolver.rollDeckerInitiative(this, meatworldComm = false, diceRoller)
 
     val hackingPool: Int get() = (intelligence + cyberdeck.mcpRating) / 3
     val isPinnedByBlackIc: Boolean get() = blackIcPin != null
@@ -149,10 +156,8 @@ data class Decker(
 
     private fun MutableList<AvailableAction>.addGridSystemActions() {
         add(AvailableAction.Operation(SystemOperation.NULL_OPERATION))
-        add(AvailableAction.Operation(SystemOperation.ANALYZE_SECURITY))
         add(AvailableAction.Operation(SystemOperation.RELOCATE_ICON))
-        add(AvailableAction.Operation(SystemOperation.LOCATE_IC))
-        visibleObjects().filterIsInstance<MatrixObject.IcProgram>()            .forEach { add(AvailableAction.Operation(SystemOperation.ANALYZE_IC, it)) }
+        add(AvailableAction.Operation(SystemOperation.LOCATE_ACCESS_NODE))
     }
 
     private fun MutableList<AvailableAction>.addHostSystemActions(host: Host) {
@@ -179,12 +184,16 @@ data class Decker(
         }
         host.dataFiles.forEach {
             val obj = MatrixObject.File(it)
-            add(AvailableAction.Operation(SystemOperation.DOWNLOAD_DATA, obj))
-            add(AvailableAction.Operation(SystemOperation.EDIT_FILE, obj))
+            add(AvailableAction.Operation(SystemOperation.ANALYZE_ICON, obj))
+            if (!it.isScrambleProtected) {
+                add(AvailableAction.Operation(SystemOperation.DOWNLOAD_DATA, obj))
+                add(AvailableAction.Operation(SystemOperation.EDIT_FILE, obj))
+            }
             if (it.isScrambleProtected) add(AvailableAction.Operation(SystemOperation.DECRYPT_FILE, obj))
         }
         host.remoteDevices.forEach {
             val obj = MatrixObject.Device(it)
+            add(AvailableAction.Operation(SystemOperation.ANALYZE_ICON, obj))
             add(AvailableAction.Operation(SystemOperation.CONTROL_SLAVE, obj))
             add(AvailableAction.Operation(SystemOperation.EDIT_SLAVE, obj))
             add(AvailableAction.Operation(SystemOperation.MONITOR_SLAVE, obj))
