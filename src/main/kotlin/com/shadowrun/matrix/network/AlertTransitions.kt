@@ -7,6 +7,9 @@ import com.shadowrun.matrix.common.AlertStatus
  *
  * AL-01 — Passive Alert: all five subsystem ratings raised by +2; increase is permanent for the
  * session (not reversed if tally later drops below the trigger step).
+ * **Stacking is intentional:** calling this function a second time on a host already in
+ * `PASSIVE_ALERT` adds another +2 to each rating. The game rules impose no cap on passive-alert
+ * stacking, and the test suite (`AlertTransitionsTest`) verifies this behaviour.
  *
  * AL-02 — Active Alert: sets alertStatus to ACTIVE_ALERT. The triggering TriggerStep may carry
  * [securityDeckerCount]; the caller is responsible for actually spawning those NPC deckers on

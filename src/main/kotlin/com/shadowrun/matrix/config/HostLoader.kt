@@ -27,10 +27,13 @@ import com.shadowrun.matrix.network.RemoteDevice
 import com.shadowrun.matrix.network.SAN
 import com.shadowrun.matrix.network.SecuritySheaf
 import com.shadowrun.matrix.network.TriggerStep
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.yaml.snakeyaml.LoaderOptions
 import org.yaml.snakeyaml.Yaml
 import org.yaml.snakeyaml.constructor.SafeConstructor
 import java.io.InputStream
+
+private val logger = KotlinLogging.logger {}
 
 object HostLoader {
 
@@ -54,7 +57,10 @@ object HostLoader {
         val resetTime = (data["reset_time_minutes"] as? Int)
 
         val nodes = buildNodes(data["nodes"])
-        val nodesByType = nodes.groupBy { it.subsystemType }.mapValues { (_, v) -> v.first() }
+        val nodesByType = nodes.groupBy { it.subsystemType }.also { grouped ->
+            val dupes = grouped.filterValues { it.size > 1 }.keys
+            if (dupes.isNotEmpty()) logger.warn { "Host YAML has duplicate subsystem types — using first for each: $dupes" }
+        }.mapValues { (_, v) -> v.first() }
 
         @Suppress("UNCHECKED_CAST")
         val sans = (data["sans"] as? List<Map<String, Any>> ?: emptyList()).map { buildSan(it) }
