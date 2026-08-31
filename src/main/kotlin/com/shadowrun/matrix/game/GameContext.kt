@@ -65,7 +65,7 @@ class GameContext(
         for (step in newlyTriggered) {
             _activeIc.addAll(step.activatedIc)
             step.alertTransition?.let { transition ->
-                if (transition.ordinal > host.alertStatus.ordinal)
+                if (transition != host.alertStatus)
                     updateHost(applyAlertTransition(host, transition))
             }
         }

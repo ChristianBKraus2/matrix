@@ -242,7 +242,9 @@ PRD: ICC-05, ICC-09. `bothCrashed = true` means both the IC and the triggered ut
 ```kotlin
 data class TrackState(
     val trackingIcRating: Int,
-    val locationCycleTurnsRemaining: Int
+    val locationCycleTurnsRemaining: Int,
+    val opponentSensorRating: Int,
+    val trackerMcpRating: Int
 )
 ```
 
@@ -419,9 +421,9 @@ PRD: CC-20–CC-26.
 1. `tn = attackTn(defender.personaStatus, defender.securityCode)` — CC-21 table (see below).
 2. `tn += attacker.modifiers.parryAttackBonus` — from an opponent's prior Parry Attack (CC-18).
 3. `tn -= attacker.modifiers.positionAttackTnBonus` — from own prior Position Attack (CC-19).
-4. `power = attacker.utilityRating + attacker.modifiers.positionAttackPowerBonus`
+4. `power = attacker.weaponPower + attacker.modifiers.positionAttackPowerBonus`
 5. `effectivePower = max(0, power - defender.armorCurrentRating)`
-6. Roll `attacker.utilityRating + attacker.hackingPool` dice vs. `max(2, tn)` → `attackerSuccesses`.
+6. Roll `attacker.attackDicePool` dice vs. `max(2, tn)` → `attackerSuccesses`.
 7. If `attackerSuccesses == 0` → return `AttackResult.Miss`.
 8. Roll `defender.bod` dice vs. `effectivePower` → `defenderSuccesses`.
 9. `net = attackerSuccesses - defenderSuccesses`
@@ -455,7 +457,7 @@ PRD: CC-27, CC-28, ICC-10.
    - Else if `attack.stagedDamageLevel == DEADLY` → `simsenseOverload = null`; set `dumpShockTriggered = true` (auto-crash, no test).
    - Else → `overloadTn = when (attack.stagedDamageLevel) { LIGHT → 2; MODERATE → 3; SERIOUS → 5; else → error }`. Roll `decker.willpower` dice vs. `overloadTn`. If `successes == 0`: apply 1 Stun box to Mental Condition Monitor; `stressBoxesApplied = 1`.
 3. If `conditionMonitor.isCrashed` → `dumpShockTriggered = true`.
-4. If `ic is BlackIC && attack.attackerSuccesses > 0` → set `decker.blackIcPin = BlackIcPinState(ic as BlackIC)`.
+4. If `ic is BlackIC && attack.attackerSuccesses > 0 && decker.blackIcPin == null` → set `decker.blackIcPin = BlackIcPinState(ic as BlackIC)`. The pin is only set when the decker is not already pinned — a decker already pinned by one Black IC is not re-pinned by a second hit from a different Black IC.
 5. Return `IcDamageResult(updatedDecker, attack, simsenseOverload, dumpShockTriggered)`.
 
 ---
@@ -517,17 +519,16 @@ The caller (game engine) handles the tally update; the method's callback keeps `
 
 ---
 
-#### `resolveCrippler(decker: Decker, ic: Crippler, securityCode: SecurityCode, diceRoller: DiceRoller): CripplerResult`
+#### `resolveCrippler(decker: Decker, ic: Crippler, securityValue: Int, diceRoller: DiceRoller): CripplerResult`
 
 PRD: ICC-01.
 
-1. `sv = securityValue(securityCode)` — from `SecurityRating.value`.
-2. Roll `sv` dice vs. `decker.effectiveDetectionFactor` → `icSuccesses`. (`effectiveDetectionFactor = detectionFactor - suppressionDfPenalty`; each IC the decker is suppressing lowers the TN the host rolls against, compounding the benefit of suppression.)
-3. Roll `decker.persona!!.attribute(ic.targetAttribute)` dice vs. `ic.rating` → `deckerSuccesses`.
-4. `net = icSuccesses - deckerSuccesses`
-5. `reduction = max(0, net / 2)`
-6. `newValue = max(1, currentAttribute - reduction)`
-7. Return `CripplerResult(updatedDecker, ic.targetAttribute, reduction)`.
+1. Roll `securityValue` dice vs. `decker.effectiveDetectionFactor` → `icSuccesses`. (`effectiveDetectionFactor = detectionFactor - suppressionDfPenalty`; each IC the decker is suppressing lowers the TN the host rolls against, compounding the benefit of suppression.)
+2. Roll `decker.persona!!.attribute(ic.targetAttribute)` dice vs. `ic.rating` → `deckerSuccesses`.
+3. `net = icSuccesses - deckerSuccesses`
+4. `reduction = max(0, net / 2)`
+5. `newValue = max(1, currentAttribute - reduction)`
+6. Return `CripplerResult(updatedDecker, ic.targetAttribute, reduction)`.
 
 Armor and Hardening provide no protection (ICC-01).
 
@@ -584,7 +585,7 @@ PRD: ICC-06.
 
 ---
 
-#### `resolveRipper(decker: Decker, ic: Ripper, securityCode: SecurityCode, diceRoller: DiceRoller): CripplerResult`
+#### `resolveRipper(decker: Decker, ic: Ripper, securityValue: Int, diceRoller: DiceRoller): CripplerResult`
 
 PRD: ICC-07. Same algorithm as `resolveCrippler` with one critical difference: the attribute floor is **0**, not 1. (`resolveCrippler` floors at `max(1, ...)` per ICC-01; `resolveRipper` must use `max(0, ...)` because ICC-07 explicitly requires the attribute to be reducible to 0 in order to trigger `resolveRipperMpcpTest`.) The caller checks whether the resulting attribute value is 0 and, if so, calls `resolveRipperMpcpTest`.
 
@@ -651,11 +652,15 @@ PRD: ICC-11.
 9. Apply Black IC pin if first hit (ICC-10).
 10. Return `IcDamageResult`. `simsenseOverload = null` (Black IC, CC-28).
 
+**Implementation note:** The MPCP rating reduction logic is implemented inline in the Kotlin code rather than delegated to `resolveBlasterMpcpTest`; this is an acceptable implementation choice.
+
 #### `resolveNonLethalBlackIc(decker: Decker, ic: NonLethalBlackIC, securityCode: SecurityCode, diceRoller: DiceRoller): IcDamageResult`
 
 PRD: ICC-12. Identical to `resolveLethalBlackIc` except physical body damage is replaced with Mental damage (Willpower resistance tests); unconsciousness triggers auto-disconnect. Mental damage overflow into Physical CM follows standard SR3 rules (handled by `ConditionMonitor`).
 
 **Final MPCP attack on unconsciousness (rules p. 230):** When the decker is rendered unconscious (Mental CM full), `resolveNonLethalBlackIc` inlines the final MPCP attack via `resolveBlasterMpcpTest(decker, ic, diceRoller, ratingOverride = ic.rating * 2)` before returning; the reduction is reported in `IcDamageResult.mpcpReductionOnKill` (ICC-11/ICC-12: double rating, same as lethal Black IC). If the resulting `cyberdeck.mcpRating == 0`, all data downloaded during the run is deleted, identical to the lethal Black IC rule (ICC-11).
+
+**Implementation note:** The MPCP rating reduction logic is implemented inline in the Kotlin code rather than delegated to `resolveBlasterMpcpTest`; this is an acceptable implementation choice.
 
 ---
 
@@ -691,20 +696,19 @@ The caller sets `decker.trackState = result`. While `trackState != null`, Gracef
 
 ### Slow Utility
 
-#### `resolveSlow(ic: IC, slowRating: Int, securityCode: SecurityCode, icInitiative: CombatInitiative, diceRoller: DiceRoller): SlowResult`
+#### `resolveSlow(ic: IC, slowRating: Int, securityValue: Int, icInitiative: CombatInitiative, diceRoller: DiceRoller): SlowResult`
 
 PRD: ICC-15.
 
 **Precondition:** `ic.behavior == IcBehavior.PROACTIVE` (reactive IC is immune; return `SlowResult(0, false)` immediately if reactive).
 
-1. `sv = securityValue(securityCode)`
-2. Roll `sv` dice vs. `slowRating` → `icSuccesses`.
-3. Roll `slowRating` dice vs. `sv` → `slowSuccesses`.
-4. `net = slowSuccesses - icSuccesses`
-5. If `net <= 0` → return `SlowResult(0, false)`.
-6. `actionsLost = net / 2`
-7. `icInert = (icInitiative.initiativePasses - actionsLost) <= 0`
-8. Return `SlowResult(actionsLost, icInert)`.
+1. Roll `securityValue` dice vs. `slowRating` → `icSuccesses`.
+2. Roll `slowRating` dice vs. `securityValue` → `slowSuccesses`.
+3. `net = slowSuccesses - icSuccesses`
+4. If `net <= 0` → return `SlowResult(0, false)`.
+5. `actionsLost = net / 2`
+6. `icInert = (icInitiative.initiativePasses - actionsLost) <= 0`
+7. Return `SlowResult(actionsLost, icInert)`.
 
 If `icInert`, the IC does not add to the security tally. If not suppressed before the next Combat Turn, the caller re-rolls its initiative and it resumes.
 
@@ -740,7 +744,7 @@ If `icInert`, the IC does not add to the security tally. If not suppressed befor
 | Evade Detection: tally gains 2 points while hidden | Countdown reduced by 2 (from 3 to 1 turn remaining) |
 | Lethal Black IC kills decker; MPCP → 0 | All downloaded data deleted from deck and offline storage |
 | Lethal Black IC kills decker; MPCP survives | No data deletion; only decker death effects apply |
-| Non-lethal Black IC renders decker unconscious | Final MPCP attack at `ic.rating` before disconnect; data deleted if MPCP → 0 |
+| Non-lethal Black IC renders decker unconscious | Final MPCP attack at `ic.rating * 2` before disconnect; data deleted if MPCP → 0 |
 | Moderate damage from White IC, Willpower fails | `stressBoxesApplied = 1` (CC-31) |
 | Deadly damage from Gray IC | `simsenseOverload = null`; `dumpShockTriggered = true`; no Willpower test (CC-31) |
 | Black IC damage | `simsenseOverload = null`; pin state set after first hit (CC-31, ICC-10) |

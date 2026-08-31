@@ -175,7 +175,7 @@ export interface ActionParams {
   hasValidPasscode?: boolean;
   scannerDeviceRating?: number;
   inactivitySeconds?: number;
-  query?: string;  // search query string for LOCATE_FILE, LOCATE_SLAVE, LOCATE_ACCESS_NODE
+  query?: string;  // search query string for LOCATE_ACCESS_NODE
 }
 
 export interface ActionCommand {
@@ -238,7 +238,7 @@ export type AvailableActionDto =
   | { kind: 'LogonToHost';   index: number; actionType: ActionType; hostName: string }
   | { kind: 'GracefulLogoff';index: number; actionType: ActionType }
   | { kind: 'JackOut';       index: number; actionType: ActionType }
-  | { kind: 'Operation';     index: number; actionType: ActionType; operation: string; targetKind: string | null; targetName: string | null; paramKind: 'precision' | 'passcode' | 'scanner' | 'edit' | 'query' | null };
+  | { kind: 'Operation';     index: number; actionType: ActionType; operation: string; targetKind: string | null; targetName: string | null; paramKind: "precision" | "hasValidPasscode" | "scannerDeviceRating" | "newContent" | null };
 
 export interface StateMessage {
   type: 'state';
@@ -387,18 +387,17 @@ The `paramKind` field on `Operation` actions declares which inline control (if a
 
 | `paramKind` | Control |
 |---|---|
-| `'precision'` | Five-position selector |
-| `'passcode'` | Checkbox / toggle |
-| `'scanner'` | Numeric stepper |
-| `'edit'` | Text area |
-| `'query'` | Text input |
+| `"precision"` | Five-position selector |
+| `"hasValidPasscode"` | Checkbox / toggle |
+| `"scannerDeviceRating"` | Numeric stepper |
+| `"newContent"` | Text area |
 | `null` | *(no inline control)* |
 
 Full inline control specs per operation:
 
 | Operation | Control |
 |---|---|
-| `LOCATE_FILE` / `LOCATE_SLAVE` / `LOCATE_ACCESS_NODE` | Five-position selector `[VERY VAGUE]` / `[VAGUE]` / `[NORMAL]` / `[SPECIFIC]` / `[VERY SPECIFIC]` — NORMAL selected by default; `LOCATE_FILE` and `LOCATE_SLAVE` also show an optional text input `SEARCH: [________]` mapped to `params.query` |
+| `LOCATE_FILE` / `LOCATE_SLAVE` / `LOCATE_ACCESS_NODE` | Five-position selector `[VERY VAGUE]` / `[VAGUE]` / `[NORMAL]` / `[SPECIFIC]` / `[VERY SPECIFIC]` — NORMAL selected by default |
 | `MAKE_COMCALL` | Checkbox / toggle `VALID PASSCODE: [ ]` |
 | `TAP_COMCALL` | Numeric stepper `SCANNER RATING: [−] 0 [+]` |
 | `EDIT_FILE` | Text area that expands when the card is focused; empty = erase file |

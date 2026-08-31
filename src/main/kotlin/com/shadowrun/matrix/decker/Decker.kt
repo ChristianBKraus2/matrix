@@ -158,6 +158,9 @@ data class Decker(
         add(AvailableAction.Operation(SystemOperation.NULL_OPERATION))
         add(AvailableAction.Operation(SystemOperation.RELOCATE_ICON))
         add(AvailableAction.Operation(SystemOperation.LOCATE_ACCESS_NODE))
+        add(AvailableAction.Operation(SystemOperation.ANALYZE_SECURITY))
+        add(AvailableAction.Operation(SystemOperation.LOCATE_IC))
+        add(AvailableAction.Operation(SystemOperation.ANALYZE_IC))
     }
 
     private fun MutableList<AvailableAction>.addHostSystemActions(host: Host) {

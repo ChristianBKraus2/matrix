@@ -42,7 +42,7 @@ sealed class LogonResult {
     /** Decker failed the System Test; still at previous location. */
     data class Failure(
         val decker: Decker,
-        val location: MatrixLocation   // unchanged previous location (or null if jacking in)
+        val location: MatrixLocation?  // attempted destination (null if not applicable)
     ) : LogonResult()
 }
 ```
@@ -173,11 +173,11 @@ All eight methods are **pure**: they take immutable inputs and return new `Decke
 **PRD:** M-06 (from LTG), M-07 (from another RTG), M-10 (tally reset)
 
 **Preconditions:**
-- `currentLocation is MatrixLocation.OnLTG` — the parent RTG of that LTG, **or** any RTG connected via `connectedRtgs`
+- `currentLocation is MatrixLocation.OnLTG` — only the parent RTG of that LTG is reachable
 - **or** `currentLocation is MatrixLocation.OnRTG` — another RTG (long-distance hop)
 
 **Logic:**
-1. Determine whether the target `rtg` is the parent of the current LTG, or a peer RTG.
+1. Determine whether the decker is hopping from an LTG (to its parent RTG) or from an RTG (to a peer RTG).
 2. Run `SystemTestResolver.resolve(decker, LOGON_TO_RTG, rtg.subsystemRatings.access, rtg.securityRating.value, diceRoller)`.
 3. Increment `rtg.securityTally` by `outcome.hostSuccesses`.
 4. If different RTG (M-10): carry **no** prior RTG tally; start fresh on target RTG.
@@ -188,22 +188,20 @@ All eight methods are **pure**: they take immutable inputs and return new `Decke
 
 ### 4. `logonToLtg(ltg: LTG, diceRoller: DiceRoller): LogonResult`
 
-**PRD:** M-06, M-07, M-08, M-09, M-11, M-12
+**PRD:** M-06, M-07, M-09, M-12
 
-Covers both public LTG (from RTG) and PLTG (from LTG/RTG, using `Logon to LTG` operation on a PLTG target).
+Navigates to a public LTG. `LTG` and `PLTG` are sibling types — `PLTG` is **not** a subtype of `LTG`. To navigate to a PLTG, callers must invoke `logonToPltg` directly; this method does not accept or dispatch PLTG targets.
 
 **Preconditions:**
 - `currentLocation is OnRTG` and `ltg` is attached to that RTG, **or**
-- `currentLocation is OnLTG` and `ltg` is a PLTG (`ltg is PLTG`) attached to that LTG, **or**
 - `currentLocation is OnPLTG` (PLTG supports all LTG operations, M-08)
 
 **Logic:**
 1. Run `SystemTestResolver.resolve(decker, LOGON_TO_LTG, ltg.subsystemRatings.access, ltg.securityRating.value, diceRoller)`.
 2. Increment `ltg.securityTally` by `outcome.hostSuccesses`.
-3. **Tally inheritance (M-11):** if target `ltg` is a PLTG and current location is on an RTG or LTG, carry over the accumulated RTG tally into the PLTG's initial tally.
-4. **Tally persistence (M-09):** if target `ltg` shares the same parent RTG as current LTG, the RTG tally is unchanged.
-5. If `outcome.deckerWins`: `currentLocation = OnLTG(updatedLtg)`. If the target is a `PLTG`, delegate to `logonToPltg` instead (see method 5 below) → `LogonResult.Success`.
-6. Otherwise: `LogonResult.Failure` (M-12: tally on target LTG persists for memory window; callers manage the timer outside this method).
+3. **Tally persistence (M-09):** if target `ltg` shares the same parent RTG as current LTG, the RTG tally is unchanged.
+4. If `outcome.deckerWins`: `currentLocation = OnLTG(updatedLtg)` → `LogonResult.Success`.
+5. Otherwise: `LogonResult.Failure` (M-12: tally on target LTG persists for memory window; callers manage the timer outside this method).
 
 **LTG failed-logon tally memory window (rules p. 218):** Public LTGs retain the accumulated security tally from a failed logon attempt for `1D3 × 5` minutes. If the decker attempts to log on again from the **same jackpoint** before this window expires, the tally continues from its current value (it is not reset to 0). If the decker switches to a **different jackpoint** before the next attempt, the LTG starts a fresh security tally at 0 for that attempt — the prior tally is not carried over. The timer and jackpoint identity are held by the caller (game engine); this method does not track them internally.
 
@@ -212,6 +210,8 @@ Covers both public LTG (from RTG) and PLTG (from LTG/RTG, using `Logon to LTG` o
 ### 5. `logonToPltg(pltg: PLTG, diceRoller: DiceRoller): LogonResult`
 
 **PRD:** M-06, M-08, M-11, M-12
+
+Dedicated method for navigating to a PLTG. Because `PLTG` and `LTG` are sibling types (neither is a subtype of the other), callers invoke this method directly when the destination is a PLTG — it is never dispatched from `logonToLtg`.
 
 **Preconditions:**
 - `currentLocation is OnLTG` and `pltg` is attached to that LTG, **or**
@@ -347,7 +347,7 @@ The `logonToHost` method enforces topology by validating that `host` appears in 
 | Failed `jackInToLtg` | `LogonResult.Failure`, persona null, tally incremented |
 | `logonToRtg` to different RTG | New RTG, prior tally not carried |
 | `logonToLtg` same-RTG sibling | RTG tally unchanged |
-| `logonToLtg` targeting PLTG | PLTG tally initialized from RTG tally |
+| `logonToPltg` called directly from OnLTG | PLTG tally initialized from RTG tally |
 | `logonToHost` from second-tier to sibling second-tier | Precondition violation returned |
 | `gracefulLogoff` success | `GracefulSuccess`, `currentLocation = null`, no dump shock |
 | `gracefulLogoff` with Track rating 4 active | Effective TN = `accessRating + 4`; standard test otherwise (CC-33) |

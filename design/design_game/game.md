@@ -142,7 +142,9 @@ suspend fun runCombatTurn()
 
 3. Repeat step 2 until all entries have `currentInitiative ≤ 0`. The turn is over.
 
-4. Return to step 1 for the next turn. Combat ends when `context.activeIc` is empty (all IC crashed or suppressed) or when the caller signals resolution externally.
+4. Advance utility upload timers for all deckers by calling `decker.advanceCombatTurn()` on each entry in `context.deckers` (CD-11/CC-33).
+
+5. Return to step 1 for the next turn. Combat ends when `context.activeIc` is empty (all IC crashed or suppressed) or when the caller signals resolution externally.
 
 ---
 
@@ -215,7 +217,7 @@ Each subclass calls `findTarget()`, then `moveIfNeeded()`, then its specific `Co
 override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
-    val attacker = CombatResolver.icAttackParticipant(this, context.securityCode)
+    val attacker = CombatResolver.icAttackParticipant(this, context.securityCode, context.host.securityRating.value)
     val result = CombatResolver.resolveKiller(attacker, target.asDefenderParticipant(), diceRoller)
     if (result is AttackResult.Hit) {
         val dmg = CombatResolver.applyIcDamage(target, result, this, diceRoller)
@@ -231,7 +233,7 @@ override suspend fun action(context: GameContext, diceRoller: DiceRoller): Actio
 override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
-    val result = CombatResolver.resolveCrippler(target, this, context.securityCode, diceRoller)
+    val result = CombatResolver.resolveCrippler(target, this, context.host.securityRating.value, diceRoller)
     context.updateDecker(target, result.updatedDecker)
     return ActionResult.IcAttack("Crippler reduced ${target.name} ${result.targetAttribute} by ${result.reduction}")
 }
@@ -243,7 +245,7 @@ override suspend fun action(context: GameContext, diceRoller: DiceRoller): Actio
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
     val tallyPoints = CombatResolver.resolveProbe(this, target, diceRoller)
-    context.addToSecurityTally(tallyPoints)
+    if (tallyPoints > 0) context.addToSecurityTally(tallyPoints)
     return ActionResult.IcAttack("Probe added $tallyPoints tally against ${target.name}")
 }
 ```
@@ -276,7 +278,7 @@ override suspend fun action(context: GameContext, diceRoller: DiceRoller): Actio
 override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
-    val attacker = CombatResolver.icAttackParticipant(this, context.securityCode)
+    val attacker = CombatResolver.icAttackParticipant(this, context.securityCode, context.host.securityRating.value)
     val result = CombatResolver.resolveBlaster(attacker, target.asDefenderParticipant(), diceRoller)
     if (result is AttackResult.Hit) {
         val dmg = CombatResolver.applyIcDamage(target, result, this, diceRoller)
@@ -295,8 +297,11 @@ override suspend fun action(context: GameContext, diceRoller: DiceRoller): Actio
 override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
-    val result = CombatResolver.resolveRipper(target, this, context.securityCode, diceRoller)
-    context.updateDecker(target, result.updatedDecker)
+    val result = CombatResolver.resolveRipper(target, this, context.host.securityRating.value, diceRoller)
+    val finalDecker = if (result.attributeReachedZero)
+        CombatResolver.resolveRipperMpcpTest(result.updatedDecker, this, diceRoller)
+    else result.updatedDecker
+    context.updateDecker(target, finalDecker)
     return ActionResult.IcAttack("Ripper reduced ${target.name} ${result.targetAttribute} by ${result.reduction}")
 }
 ```
@@ -306,7 +311,7 @@ override suspend fun action(context: GameContext, diceRoller: DiceRoller): Actio
 override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
-    val attacker = CombatResolver.icAttackParticipant(this, context.securityCode)
+    val attacker = CombatResolver.icAttackParticipant(this, context.securityCode, context.host.securityRating.value)
     val result = CombatResolver.resolveSparky(attacker, target.asDefenderParticipant(), diceRoller)
     if (result is AttackResult.Hit) {
         val dmg = CombatResolver.applyIcDamage(target, result, this, diceRoller)

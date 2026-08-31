@@ -183,13 +183,14 @@ class WebSocketServerTest {
         registry.register(session1)
         session1.nextText() // observer
         registry.receiveJoin(session1, JoinMessage(deckerName = "Kylie"))
-        session1.nextText() // registered_decker
+        val regMsg = Json.parseToJsonElement(session1.nextText()).jsonObject
+        val token = regMsg["reconnectToken"]?.jsonPrimitive?.content
         registry.deregister(session1)
 
         val session2 = FakeWebSocketSession()
         registry.register(session2)
         session2.nextText() // observer
-        registry.receiveJoin(session2, JoinMessage(deckerName = "Kylie"))
+        registry.receiveJoin(session2, JoinMessage(deckerName = "Kylie", reconnectToken = token))
         val obj = Json.parseToJsonElement(session2.nextText()).jsonObject
         assertEquals("registered_decker", obj["role"]?.jsonPrimitive?.content)
     }

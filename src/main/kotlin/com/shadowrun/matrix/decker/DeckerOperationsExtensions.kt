@@ -417,7 +417,10 @@ fun Decker.invokeMediac(diceRoller: DiceRoller): MedicResult {
         "Medic utility is not loaded"
     }
     val filled = p.conditionMonitor.damage
-    require(filled < 10) { "Cannot use Medic on a Deadly (10-box) condition monitor" }
+    if (filled >= 10) {
+        logger.warn { "[$name] invokeMediac: CM at Deadly — cannot repair" }
+        return MedicResult(this, 0, medic.currentRating)
+    }
     val tn = when {
         filled <= 3 -> 4
         filled <= 6 -> 5

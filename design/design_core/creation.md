@@ -44,21 +44,21 @@ rtgs:
       - id: UCAS-SEA
         region: Seattle
         # ratings omitted → inherited from parent RTG
-        host_files:
+        hosts:
           - mitsuhama_pagoda.yaml
           - lone_star_gridsec_seattle.yaml
           - renraku_public_relations.yaml
       - id: UCAS-CHI
         region: Chicago
-        host_files:
+        hosts:
           - ares_macrotechnology_chicago.yaml
       - id: UCAS-NYC
         region: New York City
-        host_files:
+        hosts:
           - fuchi_industrial_electronics_east_coast.yaml
       - id: UCAS-BOS
         region: Boston
-        host_files:
+        hosts:
           - mitt_academic_network.yaml
     pltgs:
       - id: UCAS-PLTG-ARES
@@ -73,13 +73,13 @@ rtgs:
     ltgs:
       - id: CAS-ATL
         region: Atlanta
-        host_files: [cas_government_archives.yaml]
+        hosts: [cas_government_archives.yaml]
       - id: CAS-DAL
         region: Dallas
-        host_files: [lone_star_corporate_hq.yaml]
+        hosts: [lone_star_corporate_hq.yaml]
       - id: CAS-MIA
         region: Miami
-        host_files: [caribbean_trade_exchange.yaml]
+        hosts: [caribbean_trade_exchange.yaml]
 
   - id: CFS
     name: California Free State Grid
@@ -88,10 +88,10 @@ rtgs:
     ltgs:
       - id: CFS-LAX
         region: Los Angeles
-        host_files: [horizon_entertainment_archive.yaml]
+        hosts: [horizon_entertainment_archive.yaml]
       - id: CFS-SFO
         region: San Francisco
-        host_files: [shiawase_envirotech_west_coast.yaml]
+        hosts: [shiawase_envirotech_west_coast.yaml]
 
   - id: AZT
     name: Aztlan Grid
@@ -100,12 +100,12 @@ rtgs:
     ltgs:
       - id: AZT-MEX
         region: Mexico City
-        host_files:
+        hosts:
           - aztechnology_archive.yaml
           - aztlan_ministry_of_information.yaml
       - id: AZT-GDL
         region: Guadalajara
-        host_files: [aztechnology_regional_office.yaml]
+        hosts: [aztechnology_regional_office.yaml]
     pltgs:
       - id: AZT-PLTG-AZTECHNOLOGY
         owner: Aztechnology
@@ -120,10 +120,10 @@ rtgs:
     ltgs:
       - id: SS-PDX
         region: Portland
-        host_files: [salish_shidhe_council_datastore.yaml]
+        hosts: [salish_shidhe_council_datastore.yaml]
       - id: SS-VAN
         region: Vancouver
-        host_files: [wuxing_pacific_rim_office.yaml]
+        hosts: [wuxing_pacific_rim_office.yaml]
 
   - id: SIO
     name: Sioux Nation Grid
@@ -132,7 +132,7 @@ rtgs:
     ltgs:
       - id: SIO-RAP
         region: Rapid City
-        host_files: [sioux_military_intelligence.yaml]
+        hosts: [sioux_military_intelligence.yaml]
 
   - id: PUE
     name: Pueblo Corporate Council Grid
@@ -141,7 +141,7 @@ rtgs:
     ltgs:
       - id: PUE-DEN
         region: Denver
-        host_files: [pueblo_corporate_data_exchange.yaml]
+        hosts: [pueblo_corporate_data_exchange.yaml]
 
   - id: QUE
     name: Québec Grid
@@ -150,10 +150,10 @@ rtgs:
     ltgs:
       - id: QUE-MTL
         region: Montreal
-        host_files: [quebec_provincial_archives.yaml]
+        hosts: [quebec_provincial_archives.yaml]
       - id: QUE-QBC
         region: Quebec City
-        host_files: [universite_laval_research.yaml]
+        hosts: [universite_laval_research.yaml]
 
   - id: TT
     name: Tir Tairngire Grid
@@ -162,7 +162,7 @@ rtgs:
     ltgs:
       - id: TT-PDX
         region: Portland Border Zone
-        host_files: [tir_tairngire_embassy.yaml]
+        hosts: [tir_tairngire_embassy.yaml]
 
   - id: TSI
     name: Tsimshian Grid
@@ -171,7 +171,7 @@ rtgs:
     ltgs:
       - id: TSI-PRI
         region: Prince Rupert
-        host_files: [tsimshian_council_datastore.yaml]
+        hosts: [tsimshian_council_datastore.yaml]
 
   # Remaining RTGs (Caribbean League sub-nations, NAN nations) follow the same pattern.
   # Ratings taken verbatim from the North American RTG System Ratings table (rules p. 203).
@@ -192,17 +192,26 @@ ratings: { access: 8, control: 8, index: 8, files: 8, slave: 8 }
 sculpt: medieval_japanese
 topology: open-access
 security_sheaf:
-  - tally: 3
-    ic: [Probe-5]
-  - tally: 7
-    ic: [Probe-7]
-  - tally: 10
-    ic: [Killer-8]
-    alert: passive
-  - tally: 13
-    ic: [Killer-10]
-    alert: active
-    security_deckers: 1
+  trigger_steps:
+    - tally_threshold: 3
+      description: Initial probe deployed
+      activated_ic:
+        - {type: probe, rating: 5}
+    - tally_threshold: 7
+      description: Second probe deployed
+      activated_ic:
+        - {type: probe, rating: 7}
+    - tally_threshold: 10
+      description: Passive alert; Killer IC deployed
+      activated_ic:
+        - {type: killer, rating: 8}
+      alert_transition: passive
+    - tally_threshold: 13
+      description: Active alert; reinforcements called
+      activated_ic:
+        - {type: killer, rating: 10}
+      alert_transition: active
+      security_decker_count: 1
 ```
 
 ```yaml
@@ -213,17 +222,26 @@ security: Orange-7
 ratings: { access: 9, control: 9, index: 8, files: 8, slave: 8 }
 topology: open-access
 security_sheaf:
-  - tally: 3
-    ic: [Probe-6]
-  - tally: 6
-    ic: [Killer-7]
-  - tally: 10
-    ic: [Killer-9]
-    alert: passive
-  - tally: 13
-    ic: [Killer-10]
-    alert: active
-    security_deckers: 2
+  trigger_steps:
+    - tally_threshold: 3
+      description: Initial probe deployed
+      activated_ic:
+        - {type: probe, rating: 6}
+    - tally_threshold: 6
+      description: Killer IC deployed
+      activated_ic:
+        - {type: killer, rating: 7}
+    - tally_threshold: 10
+      description: Passive alert; heavy Killer IC
+      activated_ic:
+        - {type: killer, rating: 9}
+      alert_transition: passive
+    - tally_threshold: 13
+      description: Active alert; GridSec deckers dispatched
+      activated_ic:
+        - {type: killer, rating: 10}
+      alert_transition: active
+      security_decker_count: 2
 ```
 
 ```yaml
@@ -234,12 +252,18 @@ security: Green-5
 ratings: { access: 7, control: 8, index: 7, files: 7, slave: 7 }
 topology: open-access
 security_sheaf:
-  - tally: 4
-    ic: [Probe-4]
-  - tally: 8
-    ic: [Probe-6]
-  - tally: 12
-    alert: passive
+  trigger_steps:
+    - tally_threshold: 4
+      description: Probe IC deployed
+      activated_ic:
+        - {type: probe, rating: 4}
+    - tally_threshold: 8
+      description: Second probe deployed
+      activated_ic:
+        - {type: probe, rating: 6}
+    - tally_threshold: 12
+      description: Passive alert triggered
+      alert_transition: passive
 ```
 
 Offline hosts carry an additional `offline: true` flag (see Offline Hosts section below). The `ltg` field is still required so the loader can resolve the host's address space, but the host cannot be reached remotely.
@@ -247,7 +271,7 @@ Offline hosts carry an additional `offline: true` flag (see Offline Hosts sectio
 ### Initialization Sequence (updated)
 
 1. Parse `grid.yaml`; instantiate all RTG, LTG, and PLTG objects.
-2. For each LTG entry, load each filename listed under `host_files` from `src/main/resources/hosts/`.
+2. For each LTG entry, load each filename listed under `hosts` from `src/main/resources/hosts/`.
 3. Validate the `ltg:` field in each host file references an existing LTG id. Emit a load error if not found.
 4. Register the host under its LTG.
 

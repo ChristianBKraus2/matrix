@@ -1,7 +1,5 @@
 package com.shadowrun.matrix.server
 
-import com.shadowrun.matrix.operations.InterrogationState
-import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.server.dto.ActionCommand
 import io.ktor.server.websocket.DefaultWebSocketServerSession
 import kotlinx.coroutines.CompletableDeferred
@@ -12,21 +10,6 @@ class TurnCoordinator {
     private val mutex = Mutex()
     @Volatile private var activeController: DefaultWebSocketServerSession? = null
     @Volatile private var pendingAction: CompletableDeferred<ActionCommand>? = null
-
-    // D-11: Per-decker interrogation state owned by the game engine (PRD: prd_game.md)
-    private val interrogationStatesByDecker: MutableMap<String, Map<SystemOperation, InterrogationState>> = mutableMapOf()
-
-    fun getInterrogationStates(deckerName: String): Map<SystemOperation, InterrogationState> =
-        interrogationStatesByDecker[deckerName] ?: emptyMap()
-
-    fun setInterrogationStates(deckerName: String, states: Map<SystemOperation, InterrogationState>) {
-        if (states.isEmpty()) interrogationStatesByDecker.remove(deckerName)
-        else interrogationStatesByDecker[deckerName] = states
-    }
-
-    fun clearInterrogationStates(deckerName: String) {
-        interrogationStatesByDecker.remove(deckerName)
-    }
 
     suspend fun setPendingAction(deferred: CompletableDeferred<ActionCommand>?) = mutex.withLock {
         pendingAction = deferred

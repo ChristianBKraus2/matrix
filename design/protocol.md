@@ -70,7 +70,7 @@ All messages are JSON objects. Every message has a `"type"` discriminator field.
 ```json
 { "type": "join", "deckerName": "Kylie", "reconnectToken": "<string|omit>" }
 ```
-`reconnectToken` is required when rejoining after a disconnect to reclaim the same decker slot. Omit on first join. If the token is missing or wrong for a disconnected name, the server responds with `name_already_taken`.
+`reconnectToken` is required when rejoining after a disconnect to reclaim the same decker slot. Omit on first join. If the token is missing or wrong for a disconnected name, the server responds with `BAD_REQUEST`.
 
 ### `ActionCommand` (client → server)
 ```json
@@ -86,6 +86,7 @@ All messages are JSON objects. Every message has a `"type"` discriminator field.
 | `EDIT_FILE` | `newContent` (string or null to erase) |
 | `NULL_OPERATION` | `inactivitySeconds` (int, 0–3600) |
 | `TAP_COMCALL` | `scannerDeviceRating` (int, 0–10) |
+| `MAKE_COMCALL` | `hasValidPasscode` (boolean, default false) |
 
 ---
 

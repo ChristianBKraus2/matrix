@@ -63,6 +63,14 @@ data class AnalyzeHostResult(
 
 **File:** `src/main/kotlin/com/shadowrun/matrix/operations/OperationResult.kt`
 
+```kotlin
+sealed class LocatedTarget {
+    data class File(val file: DataFile) : LocatedTarget()
+    data class Slave(val device: RemoteDevice) : LocatedTarget()
+    data class AccessNode(val node: MatrixNode) : LocatedTarget()
+}
+```
+
 Shared by Locate File, Locate Slave, and Locate Access Node (interrogation operations).
 
 ```kotlin
@@ -70,7 +78,7 @@ sealed class LocateResult {
     /** Accumulated successes < threshold; still searching. */
     data class Ongoing(val accumulatedSuccesses: Int) : LocateResult()
     /** Accumulated successes ≥ threshold; target located. */
-    data class Located(val target: Any, val accumulatedSuccesses: Int) : LocateResult()
+    data class Located(val target: LocatedTarget, val accumulatedSuccesses: Int) : LocateResult()
     /** Host confirmed it does not contain the queried data (≥ 3 successes). */
     object NotFound : LocateResult()
 }
@@ -143,11 +151,11 @@ enum class NullOperationModifier(val bonus: Int) {
     ONE_HOUR_TO_TWELVE_HOURS(4);
 
     companion object {
-        fun forDuration(seconds: Int): NullOperationModifier = when {
-            seconds < 10    -> UNDER_TEN_SECONDS
-            seconds < 60    -> TEN_SECONDS_TO_ONE_MINUTE
-            seconds < 3600  -> ONE_MINUTE_TO_ONE_HOUR
-            else            -> ONE_HOUR_TO_TWELVE_HOURS
+        fun totalBonusForDuration(seconds: Int): Int = when {
+            seconds < 10    -> UNDER_TEN_SECONDS.bonus
+            seconds < 60    -> TEN_SECONDS_TO_ONE_MINUTE.bonus
+            seconds < 3600  -> ONE_MINUTE_TO_ONE_HOUR.bonus
+            else            -> ONE_HOUR_TO_TWELVE_HOURS.bonus
         }
     }
 }
@@ -232,9 +240,9 @@ fun resolveNullOperation(
 ```
 
 Algorithm:
-1. Modifier = `NullOperationModifier.forDuration(inactivitySeconds).bonus`; add +1 per additional 12 hours beyond the first.
+1. Modifier = `NullOperationModifier.totalBonusForDuration(inactivitySeconds)`; add +1 per additional 12 hours beyond the first.
 2. Base TN for decker = `host.controlRating - deception.currentRating` (floor 2) as normal.
-3. Effective Security Value for host = `host.securityValue + modifier`.
+3. Effective Security Value for host = `host.securityRating.value + modifier`.
 4. Roll as standard System Test.
 
 **Interrogation accumulation wrapper:**
@@ -387,7 +395,7 @@ fun analyzeHost(
 ```
 
 **Algorithm:**
-1. Resolve `SystemTestResolver.resolve(this, ANALYZE_HOST, host.controlRating, host.securityValue, diceRoller)`.
+1. Resolve `SystemTestResolver.resolve(this, ANALYZE_HOST, host.controlRating, host.securityRating.value, diceRoller)`.
 2. Net successes = `outcome.deckerSuccesses - outcome.hostSuccesses`.
 3. If net ≤ 0: reveal nothing.
 4. If net ≥ 7: ignore `requestedItems` — reveal Security Rating + all 5 subsystem ratings.
@@ -505,9 +513,9 @@ data class LocateDeckerResult(
 ```
 
 **Algorithm:**
-1. Resolve Index Test: `SystemTestResolver.resolve(this, LOCATE_DECKER, host.indexRating, host.securityValue, diceRoller)`.
+1. Resolve Index Test: `SystemTestResolver.resolve(this, LOCATE_DECKER, host.indexRating, host.securityRating.value, diceRoller)`.
 2. If Index Test fails: return `LocateDeckerResult(decker, outcome, located = false, targetNotified = false)`.
-3. On success, resolve open-ended Sensor Test: roll `persona!!.sensor` dice vs. TN = `targetPersona.masking + (targetPersona.sleaze?.currentRating ?: 0)`. If Sensor Test achieves ≥ 1 success: decker is located.
+3. On success, resolve open-ended Sensor Test: roll `persona!!.sensor` dice vs. TN = `max(2, targetPersona.masking + (targetPersona.sleaze?.currentRating ?: 0))` (`sensorTn = max(2, masking + sleazeRating)`). If Sensor Test achieves ≥ 1 success: decker is located.
 4. If located: `targetNotified = true` — the game engine must fire a notification event to the target decker (MP-10). The target does not learn *who* performed the operation.
 5. Return `LocateDeckerResult(updatedDecker, outcome, located, targetNotified)`.
 
@@ -612,7 +620,7 @@ Uses `SystemTestResolver.resolveNullOperation(...)` which applies the inactivity
 ### Make Comcall / Tap Comcall
 
 Both are monitored operations. Their multi-step resolution (Index Test to find commcode, Control Test to trace, Files Test to tap) uses standard `SystemTestResolver.resolve()` calls sequenced by the caller. **Tap Comcall — dataline scanner mechanics (PRD: Tap Comcall):**
-If the target phone has one or more dataline scanners, resolve an Opposed Computer Skill vs. scanner Device Rating test. When multiple scanners are present, use only the **highest** Device Rating (not the sum). The Commlink utility reduces the decker's TN on this test (floor 2). The decker needs at least 1 success; failure means the scanner detects the tap. These scanner tests do **not** affect the decker's RTG security tally — they are resolved entirely outside the normal security-tally system.
+If the target phone has one or more dataline scanners, the decker makes a Computer Skill test (not opposed — the scanner does not roll). When multiple scanners are present, use only the **highest** Device Rating (not the sum). The Commlink utility reduces the decker's TN on this test (floor 2). If zero successes → tap succeeds (scanner does not detect the tap). If any successes → tap fails (scanner detects the tap). These scanner tests do **not** affect the decker's RTG security tally — they are resolved entirely outside the normal security-tally system.
 
 The encrypt/decrypt sub-test in `Tap Comcall` is an opposed `Computer Skill vs. Device Rating` test with the Decrypt utility reducing the decker's TN. Each failed attempt adds +2 to the TN for subsequent tries. These sub-tests also do **not** affect the decker's RTG security tally.
 
@@ -645,7 +653,7 @@ Each Decrypt operation resolves as a standard System Test. On success, the encry
 
 **Scramble IC destruct test on failed decrypt (rules p. 228):** If a decker attempts to decrypt an item that is protected by Scramble IC and **fails** the Decrypt System Test, the GM immediately makes a counter-test on behalf of the Scramble IC:
 
-1. Roll `ic.rating` dice vs. TN = `decker.computerSkill` → `scrambleSuccesses`.
+1. Roll `ic.rating` dice vs. TN = `max(2, decker.computerSkill)` → `scrambleSuccesses`.
 2. If `scrambleSuccesses == 0`: the decker has suppressed the Scramble IC's destruct code — the data is safe, and the Scramble IC is effectively defused for this attempt.
 3. If `scrambleSuccesses >= 1`: the destruct code fires and the data is destroyed. The GM removes the `DataFile` from the host permanently.
 
@@ -664,7 +672,7 @@ data class ScrambleDestructResult(
 
 **Algorithm:**
 
-1. Roll `ic.rating` dice vs. TN = `decker.computerSkill` → `successes`.
+1. Roll `ic.rating` dice vs. TN = `max(2, decker.computerSkill)` → `successes`.
 2. Return `ScrambleDestructResult(dataDestroyed = successes >= 1, icRating = ic.rating)`.
 
 The caller removes `file` from the host when `dataDestroyed == true`.
@@ -798,8 +806,8 @@ Each 3-second game turn the decker may perform `actionsPerTurn` actions. Free Ac
 | Tally crosses Passive Alert step | `applyAlertTransition` returns host with all five ratings +2; `alertStatus = PASSIVE_ALERT` (AL-01) |
 | Tally crosses Active Alert step with `securityDeckerCount = 2` | `alertStatus = ACTIVE_ALERT`; 2 NPC decker personas spawned on host (AL-02) |
 | Tally drops below Passive Alert step after transition | Ratings remain at +2; effect is permanent for the session (AL-01) |
-| Tap Comcall with 3 scanners (ratings 4, 6, 7) | Only rating 7 used for the opposed test |
-| Decker rolls 0 successes on scanner test | Tap detected; scanner test failure does not increment RTG tally |
+| Tap Comcall with 3 scanners (ratings 4, 6, 7) | Only rating 7 used for the scanner test |
+| Decker rolls 0 successes on scanner test | Tap succeeds (scanner does not detect the tap); scanner test does not increment RTG tally |
 | `tapComcall` decrypt fails twice | TN +4 cumulative on third attempt |
 | Tap Comcall: commcode already tapped | No new Index Test; trace/tap steps still required for new call on same commcode |
 | Make Comcall: licensed decker with valid passcode | All System Tests skipped; proceed directly to call |

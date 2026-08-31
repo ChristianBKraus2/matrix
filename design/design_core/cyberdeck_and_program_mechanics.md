@@ -110,6 +110,12 @@ require(activeUtilities.all { it.rating <= mcpRating }) {
 require(storedUtilities.all { it.rating <= mcpRating }) {
     "Utility rating exceeds MPCP: ${storedUtilities.first { it.rating > mcpRating }.type}"
 }
+require(activeMp <= activeMemoryMp) {
+    "Active utilities exceed active memory capacity"
+}
+require(storageMp <= storageMemoryMp) {
+    "Stored utilities exceed storage memory capacity"
+}
 ```
 
 **Add computed properties** (used by `loadUtility` to check capacity):
@@ -123,6 +129,14 @@ val freeActiveMemoryMp: Int
 ```
 
 PRD: CD-01, CD-11.
+
+**Add method:**
+
+```kotlin
+fun detectionFactor(maskingRating: Int, sleazeRating: Int? = null): Int
+```
+
+Computes the Detection Factor per CD-18. If `sleazeRating` is non-null (i.e. a Sleaze utility is fully active), returns `ceil((maskingRating + sleazeRating) / 2)`; otherwise returns `ceil(maskingRating / 2)`. `Decker.detectionFactor` delegates to this method, passing `masking` from the persona and the `currentRating` of the active Sleaze utility (if present).
 
 ---
 
@@ -224,7 +238,7 @@ All four methods are **pure**: they return new `Decker` instances via `.copy()`;
 
 **Logic:**
 
-1. Calculate `turnsRequired = ceil(utility.mpSize.toDouble() / cyberdeck.ioSpeedMpPerTurn)`.
+1. Calculate `turnsRequired = ceil(utility.mpSize.toDouble() / cyberdeck.ioSpeedMpPerTurn)`. If `cyberdeck.ioSpeedMpPerTurn <= 0`, log a warning and set `turnsRequired = 0` (instant load, preventing a divide-by-zero).
 2. If `cyberdeck.freeActiveMemoryMp < utility.mpSize` → return `LoadUtilityResult.InsufficientMemory(this, utility.mpSize, cyberdeck.freeActiveMemoryMp)`. No action economy spent (CD-08).
 3. Add `PendingUpload(utility, turnsRequired)` to `cyberdeck.pendingUploads`.
 4. Return `LoadUtilityResult.Success(updatedDecker)`.
@@ -329,11 +343,13 @@ val hackingPool: Int
 
 **PRD:** CD-20, Utilities section (Medic mechanics)
 
+**File:** `src/main/kotlin/com/shadowrun/matrix/decker/DeckerOperationsExtensions.kt`
+
 ```kotlin
 fun invokeMediac(diceRoller: DiceRoller): MedicResult
 ```
 
-**File:** `src/main/kotlin/com/shadowrun/matrix/decker/Decker.kt`
+**File:** `src/main/kotlin/com/shadowrun/matrix/decker/MedicResult.kt`
 
 ```kotlin
 data class MedicResult(
@@ -353,7 +369,7 @@ data class MedicResult(
 2. Roll `medic.currentRating` dice vs. TN → `successes`.
 3. `boxesRepaired = successes` — each success removes one filled box from the persona's Condition Monitor (floor at 0 filled boxes).
 4. Decrement `medic.currentRating` by 1 (degradation per CD-20), regardless of success or failure.
-5. If `medic.currentRating == 0`: trigger CD-22 auto-unload (medic removed from active memory and storage).
+5. If `medic.currentRating <= 0`: trigger CD-22 auto-unload (medic removed from active memory and storage).
 6. Return `MedicResult(updatedDecker, boxesRepaired, medic.currentRating)`.
 
 **Action cost:** Complex Action (caller deducts from action budget).
@@ -481,7 +497,7 @@ fun Cyberterminal(
     ioSpeedMpPerTurn: Int,
     activeUtilities: List<Utility> = emptyList(),
     storedUtilities: List<Utility> = emptyList(),
-    costNuyen: Int = 0
+    costNuyen: Int
 ): Cyberdeck {
     require(mcpRating <= 4) { "Cyberterminal MPCP may not exceed 4 (CT-01); got $mcpRating" }
     return Cyberdeck(

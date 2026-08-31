@@ -61,13 +61,12 @@ object GridLoader {
         @Suppress("UNCHECKED_CAST")
         val pltgDataList = (data["pltgs"] as? List<Map<String, Any>>) ?: emptyList()
 
-        // If pltgs are at the RTG level, attach them to the first LTG (or create a synthetic one).
-        // Per the model, PLTGs attach to LTGs. We attach RTG-level PLTGs to each LTG so deckers
-        // on any of those LTGs can reach the PLTG.
+        // RTG-level PLTGs are attached to every LTG of that RTG so deckers on any LTG can reach them.
         val ltgsWithPltgs = if (pltgDataList.isNotEmpty() && ltgs.isNotEmpty()) {
-            val pltgsForFirstLtg = pltgDataList.map { buildPltg(it, ltgs.first()) }
-            val updatedFirst = ltgs.first().copy(pltgs = pltgsForFirstLtg)
-            listOf(updatedFirst) + ltgs.drop(1)
+            ltgs.map { ltg ->
+                val pltgsForLtg = pltgDataList.map { buildPltg(it, ltg) }
+                ltg.copy(pltgs = ltg.pltgs + pltgsForLtg)
+            }
         } else {
             ltgs
         }

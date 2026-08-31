@@ -51,7 +51,7 @@ object HostLoader {
             (data["intrusion_difficulty"] as? String ?: "AVERAGE").uppercase()
         )
         val topology = TopologyType.valueOf(
-            (data["topology"] as? String ?: "OPEN_ACCESS").uppercase()
+            (data["topology"] as? String ?: "OPEN_ACCESS").uppercase().replace('-', '_')
         )
         val offline = (data["offline"] as? Boolean) ?: false
         val resetTime = (data["reset_time_minutes"] as? Int)

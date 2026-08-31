@@ -63,7 +63,7 @@ class SessionRegistry {
                     JoinOutcome(ErrorCode.NAME_ALREADY_TAKEN, false, null)
                 disconnectedDeckerNames.contains(name) -> {
                     val storedToken = reconnectTokens[name]
-                    if (msg.reconnectToken != null && storedToken != null && msg.reconnectToken != storedToken) {
+                    if (storedToken != null && (msg.reconnectToken == null || msg.reconnectToken != storedToken)) {
                         JoinOutcome(ErrorCode.BAD_REQUEST, false, null)
                     } else {
                         deckerSessions[name] = session

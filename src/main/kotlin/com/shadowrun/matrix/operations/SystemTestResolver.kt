@@ -85,7 +85,7 @@ object SystemTestResolver {
         diceRoller: DiceRoller
     ): Pair<SystemTestOutcome, InterrogationState> {
         val baseSubsystemRating = host.subsystemRatings.get(operation.testType)
-        // Apply precision modifier before utility reduction; then clamp ≥ 2
+        // Reduce TN by utility rating first, then apply query-precision modifier; clamp to ≥ 2 at each step
         val utilityRating = if (operation.utility != null)
             decker.cyberdeck.activeUtilities
                 .firstOrNull { it.type == operation.utility }

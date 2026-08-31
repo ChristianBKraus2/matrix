@@ -33,7 +33,7 @@ fun Application.matrixModule(registry: SessionRegistry) {
     }
 
     routing {
-        staticResources("/", "static")
+        staticResources("/", "static") { default("index.html") }
         webSocket("/decker/ws") {
             if (!registry.register(this, maxConnections = MAX_CONNECTIONS)) {
                 logger.warn { "Connection refused: server at capacity ($MAX_CONNECTIONS)" }

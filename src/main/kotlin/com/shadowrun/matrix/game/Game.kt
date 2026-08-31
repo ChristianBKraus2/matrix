@@ -15,7 +15,7 @@ class Game(
 
     suspend fun runOutOfCombatTurn() {
         for (decker in context.deckers.toList()) {
-            val count = decker.persona?.let { decker.actionsPerTurn } ?: 1
+            val count = decker.persona?.let { decker.actionsPerTurn } ?: continue
             repeat(count) {
                 try { decker.action(context, diceRoller) }
                 catch (e: Exception) {

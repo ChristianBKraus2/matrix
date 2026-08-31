@@ -923,11 +923,12 @@ class CyberdeckAndProgramMechanicsTest {
     }
 
     @Test
-    fun `invokeMediac throws when persona CM is at 10 boxes`() {
+    fun `invokeMediac returns no-op result when persona CM is at 10 boxes`() {
         val d = deckerWithMedic(medicRating = 4, damage = 10)
-        assertFailsWith<IllegalArgumentException> {
-            d.invokeMediac(fixedRoller(5))
-        }
+        val result = d.invokeMediac(fixedRoller(5))
+        assertEquals(0, result.boxesRepaired)
+        assertEquals(4, result.medicRating)
+        assertEquals(d, result.updatedDecker)
     }
 
     @Test
