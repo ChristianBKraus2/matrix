@@ -998,7 +998,7 @@ class CombatResolverTest {
 
     @Test
     fun `resolveBlackHammer throws for immune decker`() {
-        val immuneDeck = deck().copy(immuneToDumpShock = true)
+        val immuneDeck = deck().copy(isCyberterminal = true)
         val d = decker(cyberdeck = immuneDeck)
         val attack = AttackResult.Hit(3, DamageLevel.SERIOUS, DamageLevel.SERIOUS, 6)
         val result = runCatching { CombatResolver.resolveBlackHammer(d, attack, allFaces(1)) }
@@ -1007,7 +1007,7 @@ class CombatResolverTest {
 
     @Test
     fun `resolveKilljoy throws for immune decker`() {
-        val immuneDeck = deck().copy(immuneToDumpShock = true)
+        val immuneDeck = deck().copy(isCyberterminal = true)
         val d = decker(cyberdeck = immuneDeck)
         val attack = AttackResult.Hit(3, DamageLevel.MODERATE, DamageLevel.MODERATE, 6)
         val result = runCatching { CombatResolver.resolveKilljoy(d, attack, allFaces(1)) }

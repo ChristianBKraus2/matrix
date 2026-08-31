@@ -558,8 +558,8 @@ class CyberdeckAndProgramMechanicsTest {
     // ── SystemOperation count updated ────────────────────────────────────────────
 
     @Test
-    fun `SystemOperation has 28 entries`() {
-        assertEquals(28, SystemOperation.entries.size)
+    fun `SystemOperation has 29 entries`() {
+        assertEquals(29, SystemOperation.entries.size)
     }
 
     // ── freeActiveMemoryMp / usedActiveMemoryMp ────────────────────────────────────
@@ -651,7 +651,7 @@ class CyberdeckAndProgramMechanicsTest {
             name = "TestTerm", mcpRating = 3, activeMemoryMp = 200,
             storageMemoryMp = 500, ioSpeedMpPerTurn = 100, costNuyen = 2_000
         )
-        assertEquals(true, ct.immuneToDumpShock)
+        assertEquals(true, ct.isCyberterminal)
     }
 
     @Test

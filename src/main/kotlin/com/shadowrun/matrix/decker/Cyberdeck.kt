@@ -28,10 +28,8 @@ data class Cyberdeck(
     val pendingUploads: List<PendingUpload> = emptyList(),
     // Passive observers attached via hitcher jacks; they cannot control the persona (ACC-03)
     val hitchers: List<HitcherObserver> = emptyList(),
-    // True when this deck is a cyberterminal (CT-01 through CT-04); enables the CT-03 utility rating reduction
-    val isCyberterminal: Boolean = false,
-    // True for cyberterminals and hitcher-equipped decks: persona user immune to dump shock and black IC biofeedback (CT-04, ACC-03)
-    val immuneToDumpShock: Boolean = false
+    // True when this deck is a cyberterminal (CT-01 through CT-04); enables CT-03 rating reduction and CT-04 dump-shock immunity
+    val isCyberterminal: Boolean = false
 ) {
     val maxResponseIncrease: Int get() = minOf(3, mcpRating / 4)
 

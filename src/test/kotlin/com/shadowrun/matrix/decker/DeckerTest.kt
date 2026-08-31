@@ -218,7 +218,7 @@ class DeckerTest {
             activeMemoryMp = 200, storageMemoryMp = 500, ioSpeedMpPerTurn = 100,
             costNuyen = 400
         )
-        assertEquals(true, terminal.immuneToDumpShock)
+        assertEquals(true, terminal.isCyberterminal)
     }
 
     // ── detectionFactor ───────────────────────────────────────────────────────────

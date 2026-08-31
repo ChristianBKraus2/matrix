@@ -510,7 +510,7 @@ fun Cyberterminal(
         responseIncrease = 0,       // CT-02: no Response Increase
         activeUtilities = activeUtilities,
         storedUtilities = storedUtilities,
-        immuneToDumpShock = true,   // CT-04
+        isCyberterminal = true,       // CT-04: enables CT-03 rating reduction and dump-shock immunity
         costNuyen = costNuyen
     )
 }
@@ -522,17 +522,17 @@ Constraints enforced at construction time (CT-01, CT-02):
 - `responseIncrease` is always fixed at 0; the factory accepts no `responseIncrease` argument.
 - `immuneToDumpShock = true` is set unconditionally (CT-04).
 
-**CT-03 — Program rating reduction:** Applied transparently inside `SystemTestResolver`. When the active decker is using a Cyberterminal (`cyberdeck.immuneToDumpShock == true` is the distinguishing flag), each utility's `currentRating` used in TN reduction is treated as `max(0, currentRating - 1)`. No change to the stored `Utility` objects; the adjustment is applied at test resolution time.
+**CT-03 — Program rating reduction:** Applied transparently inside `SystemTestResolver`. When the active decker is using a Cyberterminal (`cyberdeck.isCyberterminal == true`), each utility's `currentRating` used in TN reduction is treated as `max(0, currentRating - 1)`. No change to the stored `Utility` objects; the adjustment is applied at test resolution time.
 
 Add a helper to `SystemTestResolver`:
 
 ```kotlin
 private fun effectiveRating(utility: Utility, deck: Cyberdeck): Int =
-    if (deck.immuneToDumpShock) max(0, utility.currentRating - 1)
+    if (deck.isCyberterminal) max(0, utility.currentRating - 1)
     else utility.currentRating
 ```
 
-**CT-04 — Immunity to Black IC and Dump Shock:** `Cyberdeck` carries a constructor parameter `immuneToDumpShock: Boolean = false`. The factory function sets it to `true`. The `jackOut()` and `gracefulLogoff()` methods (in `movement.md`) pass `dumpShock = !decker.cyberdeck.immuneToDumpShock` — standard decks receive dump shock; cyberterminal decks do not.
+**CT-04 — Immunity to Black IC and Dump Shock:** `Cyberdeck` carries a constructor parameter `isCyberterminal: Boolean = false`. This single flag covers both the CT-03 utility-rating reduction and the CT-04 dump-shock/Black IC immunity. The `jackOut()` and `gracefulLogoff()` methods (in `movement.md`) pass `dumpShock = !decker.cyberdeck.isCyberterminal`.
 
 **CT-05 — Cost:** No code change required; the cost is a data value seeded in YAML. Cyberterminal models are seeded at approximately 10% of the equivalent cyberdeck's `costNuyen`.
 
@@ -548,7 +548,7 @@ The `DeckCatalogLoader` and `DeckerLoader` support cyberterminals transparently:
 
 ### `Accessory` (sealed class)
 
-**File:** `src/main/kotlin/com/shadowrun/matrix/decker/Accessory.kt`
+**File:** `src/main/kotlin/com/shadowrun/matrix/accessories/Accessory.kt`
 
 Already present in `ord.md`. Make it a sealed class:
 

@@ -785,6 +785,44 @@ Each 3-second game turn the decker may perform `actionsPerTurn` actions. Free Ac
 
 ---
 
+## Grid-Context Variants
+
+Four operations accept a `Grid` (LTG, RTG, or PLTG) in place of a `Host`. The mechanics are
+identical to the host-context versions; only the subsystem rating source changes.
+
+### `analyzeSecurity(grid: Grid, diceRoller: DiceRoller): AnalyzeSecurityResult`
+
+Uses `grid.subsystemRatings.control` as TN and `grid.securityRating.value` as Security Value.
+Returns the grid's current `SecurityRating`, the accumulated tally after this test, and the grid's
+`alertStatus`.
+
+### `analyzeIc(ic: IC, grid: Grid, diceRoller: DiceRoller): OperationResult`
+
+Uses `grid.subsystemRatings.control` as TN and `grid.securityRating.value` as Security Value.
+Resolves `ANALYZE_IC` against the grid rather than a host subsystem.
+
+### `locateAccessNode(grid: Grid, query: String, precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult>`
+
+Interrogation operation. Uses `grid.subsystemRatings.index` implicitly via
+`SystemTestResolver.resolveInterrogation`. The "accessible host" pool used to evaluate
+`nodeExists` is:
+
+| Grid type | Pool |
+|---|---|
+| `LTG`  | `ltg.hosts` |
+| `RTG`  | all hosts across all child `LTG`s |
+| `PLTG` | `pltg.hosts` |
+
+Thresholds and accumulated-success rules are identical to the host-context variant (≥ 5 to locate,
+≥ 3 with absent target → `NotFound`).
+
+### `locateIc(grid: Grid, diceRoller: DiceRoller): OperationResult`
+
+Uses `grid.subsystemRatings.index` as TN and `grid.securityRating.value` as Security Value.
+Resolves `LOCATE_IC` against the grid.
+
+---
+
 ## Verification
 
 | Scenario | Expected Result |

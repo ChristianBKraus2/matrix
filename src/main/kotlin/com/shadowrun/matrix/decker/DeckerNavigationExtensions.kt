@@ -235,7 +235,7 @@ fun Decker.gracefulLogoff(diceRoller: DiceRoller): LogoffResult {
             logger.info { "[$name] gracefulLogoff succeeded: traces cleared, no dump shock" }
         }
     } else {
-        val shock = !cyberdeck.immuneToDumpShock
+        val shock = !cyberdeck.isCyberterminal
         LogoffResult.JackOut(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet()), dumpShock = shock).also {
             logger.warn { "[$name] gracefulLogoff failed: falling back to jack-out (dumpShock=$shock)" }
         }
@@ -247,7 +247,7 @@ fun Decker.jackOut(): LogoffResult {
     logger.info { "[$name] jackOut from ${currentLocation.label()}" }
     requireJackedIn()
     check(!isPinnedByBlackIc) { "Cannot jack out while pinned by Black IC" }
-    val shock = !cyberdeck.immuneToDumpShock
+    val shock = !cyberdeck.isCyberterminal
     return LogoffResult.JackOut(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet()), dumpShock = shock).also {
         logger.info { "[$name] jackOut complete: dumpShock=$shock" }
     }

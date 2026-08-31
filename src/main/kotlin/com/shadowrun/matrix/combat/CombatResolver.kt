@@ -357,14 +357,16 @@ object CombatResolver {
         }
 
         val attack = AttackResult.Hit(1, rawLevel, iconStaged, power)
-        return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered, mpcpReductionOnKill = mpcpReduction)
+        val personaOnlyCrashed = newCm.isCrashed && !newMentalCm.isCrashed
+        return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered,
+            mpcpReductionOnKill = mpcpReduction, personaOnlyCrashed = personaOnlyCrashed)
     }
 
     // ── Black Hammer and Killjoy ──────────────────────────────────────────────────
 
     fun resolveBlackHammer(targetDecker: Decker, attack: AttackResult.Hit, diceRoller: DiceRoller): IcDamageResult {
-        require(!targetDecker.cyberdeck.immuneToDumpShock) {
-            "resolveBlackHammer: cyberterminal users and hitchers are immune to Black Hammer (ICC-13, CT-04)"
+        require(!targetDecker.cyberdeck.isCyberterminal) {
+            "resolveBlackHammer: cyberterminal users are immune to Black Hammer (ICC-13, CT-04)"
         }
         val power = attack.power
         val effectivePower = max(0, power - targetDecker.cyberdeck.hardening)
@@ -383,8 +385,8 @@ object CombatResolver {
     }
 
     fun resolveKilljoy(targetDecker: Decker, attack: AttackResult.Hit, diceRoller: DiceRoller): IcDamageResult {
-        require(!targetDecker.cyberdeck.immuneToDumpShock) {
-            "resolveKilljoy: cyberterminal users and hitchers are immune to Killjoy (ICC-14, CT-04)"
+        require(!targetDecker.cyberdeck.isCyberterminal) {
+            "resolveKilljoy: cyberterminal users are immune to Killjoy (ICC-14, CT-04)"
         }
         val power = attack.power
         val effectivePower = max(0, power - targetDecker.cyberdeck.hardening)

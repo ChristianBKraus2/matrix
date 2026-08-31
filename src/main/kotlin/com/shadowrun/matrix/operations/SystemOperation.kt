@@ -49,6 +49,8 @@ enum class SystemOperation(
     MONITOR_SLAVE(SLAVE, UtilityType.SPOOF, SIMPLE, MONITORED),
     NULL_OPERATION(CONTROL, UtilityType.DECEPTION, COMPLEX, STANDARD),
     RELOCATE_ICON(CONTROL, UtilityType.RELOCATE, SIMPLE, STANDARD),
+    /** Deferred operation (not yet implemented); excluded from availableActions(). */
+    SWAP_MEMORY(null, null, SIMPLE, STANDARD),
     TAP_COMCALL(FILES, UtilityType.COMMLINK, COMPLEX, MONITORED),
     UPLOAD_DATA(FILES, UtilityType.READ_WRITE, SIMPLE, ONGOING)
 }

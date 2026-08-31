@@ -10,7 +10,7 @@ import com.shadowrun.matrix.programs.Utility
  * Enforced constraints (PRD: CT-01 through CT-04):
  *  - MPCP may not exceed 4 (CT-01).
  *  - Response Increase is always 0 (CT-02).
- *  - immuneToDumpShock = true — user cannot be harmed by Black IC or dump shock (CT-04).
+ *  - isCyberterminal = true — enables CT-03 utility rating reduction and CT-04 dump-shock immunity.
  *
  * The –1 program-rating modifier (CT-03) is applied at test resolution time by
  * SystemTestResolver.effectiveRating(), not stored here.
@@ -44,7 +44,6 @@ fun Cyberterminal(
         activeUtilities = activeUtilities,
         storedUtilities = storedUtilities,
         accessories = accessories,
-        isCyberterminal = true,
-        immuneToDumpShock = true
+        isCyberterminal = true
     )
 }

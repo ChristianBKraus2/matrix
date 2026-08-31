@@ -206,6 +206,6 @@ Sealed by `"kind"` field:
 | `PrivateGrid` | `name`, `owner`, `parentLtgName` |
 | `HostNode` | `name`, `topologyType`, `securityCode`, `securityTally` |
 | `HostSubsystem` | `subsystemType`, `description` | Rating intentionally omitted — revealed only after a successful `ANALYZE_HOST` or `ANALYZE_SUBSYSTEM` operation. |
-| `IcProgram` | `name`, `rating`, `behavior` |
+| `IcProgram` | `name`, `analyzed: Boolean`, `rating: Int?` (null when not analyzed), `behavior: String?` (null when not analyzed), `guardedNodeType: String?` (null when not analyzed) |
 | `File` | `name`, `isScrambleProtected`, `sizeMp` |
 | `Device` | `name`, `systemAddress` |
