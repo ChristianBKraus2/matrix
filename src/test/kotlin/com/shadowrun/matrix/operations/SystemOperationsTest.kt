@@ -129,7 +129,7 @@ class SystemOperationsTest {
     fun `MP-01 noticeIcon returns Undetected when sensor test fails`() {
         val ic = Killer(rating = 10)
         val d = decker(jackedIn = true)
-        val result = d.noticeIcon(MatrixIcon.IcIcon(ic), loseRoller)
+        val result = d.noticeIcon(Icon.IcIcon(ic), loseRoller)
         assertIs<SensorTestResult.Undetected>(result)
     }
 
@@ -137,7 +137,7 @@ class SystemOperationsTest {
     fun `MP-01 noticeIcon returns Detected when sensor test succeeds`() {
         val ic = Killer(rating = 2)  // TN=2 → face=8 succeeds
         val d = decker(jackedIn = true)
-        val result = d.noticeIcon(MatrixIcon.IcIcon(ic), winRoller)
+        val result = d.noticeIcon(Icon.IcIcon(ic), winRoller)
         assertIs<SensorTestResult.Detected>(result)
         assertTrue((result as SensorTestResult.Detected).successes >= 1)
     }
@@ -145,7 +145,7 @@ class SystemOperationsTest {
     @Test
     fun `MP-02 noticeIcon vs persona TN uses masking plus sleaze`() {
         val otherPersona = Persona(bod = 4, evasion = 4, masking = 6, sensor = 4)
-        val icon = MatrixIcon.PersonaIcon(otherPersona, sleazeRating = 4)
+        val icon = Icon.PersonaIcon(otherPersona, sleazeRating = 4)
         // TN = masking(6) + sleaze(4) = 10 → face=5 < 10 → fails (no open-ended loop)
         val d = decker(jackedIn = true)
         val result = d.noticeIcon(icon, fixedRoller(5))
@@ -156,7 +156,7 @@ class SystemOperationsTest {
     fun `MP-03 Detected with 2 successes for IC type`() {
         val ic = Probe(rating = 2)
         val d = decker(jackedIn = true)
-        val result = d.noticeIcon(MatrixIcon.IcIcon(ic), winRoller)
+        val result = d.noticeIcon(Icon.IcIcon(ic), winRoller)
         val detected = result as? SensorTestResult.Detected
         assertNotNull(detected)
         assertTrue(detected.successes >= 2)

@@ -23,7 +23,7 @@ import com.shadowrun.matrix.operations.LinkedObserver
 import com.shadowrun.matrix.operations.LocateDeckerResult
 import com.shadowrun.matrix.operations.LocateResult
 import com.shadowrun.matrix.operations.LocatedTarget
-import com.shadowrun.matrix.operations.MatrixIcon
+import com.shadowrun.matrix.operations.Icon
 import com.shadowrun.matrix.operations.MonitoredOperationHandle
 import com.shadowrun.matrix.operations.MonitoredTarget
 import com.shadowrun.matrix.operations.OperationResult
@@ -47,7 +47,7 @@ private val WORD_SPLIT_REGEX = "\\s+".toRegex()
 // ── Matrix Perception ──────────────────────────────────────────────────────────
 
 /** PRD: MP-01 through MP-05, MP-09 */
-fun Decker.noticeIcon(icon: MatrixIcon, diceRoller: DiceRoller, friendlyReveal: Boolean = false): SensorTestResult {
+fun Decker.noticeIcon(icon: Icon, diceRoller: DiceRoller, friendlyReveal: Boolean = false): SensorTestResult {
     logger.info { "[$name] noticeIcon: $icon (friendlyReveal=$friendlyReveal)" }
     check(persona != null) { "noticeIcon requires a jacked-in persona" }
     if (friendlyReveal) {
@@ -55,8 +55,8 @@ fun Decker.noticeIcon(icon: MatrixIcon, diceRoller: DiceRoller, friendlyReveal: 
         return SensorTestResult.Detected(icon, 1)
     }
     val tn = when (icon) {
-        is MatrixIcon.PersonaIcon -> icon.persona.masking + icon.sleazeRating
-        is MatrixIcon.IcIcon     -> icon.ic.rating
+        is Icon.PersonaIcon -> icon.persona.masking + icon.sleazeRating
+        is Icon.IcIcon     -> icon.ic.rating
     }
     val p = persona
     val result = diceRoller.roll(p.sensor, tn)
@@ -121,11 +121,11 @@ fun Decker.analyzeIc(ic: IC, host: Host, diceRoller: DiceRoller): OperationResul
     }
 }
 
-fun Decker.analyzeIcon(icon: MatrixIcon, host: Host, diceRoller: DiceRoller): OperationResult {
+fun Decker.analyzeIcon(icon: Icon, host: Host, diceRoller: DiceRoller): OperationResult {
     logger.info { "[$name] analyzeIcon" }
     requireJackedIn()
     val sensorRating = persona?.sensor ?: 0
-    val tn = host.subsystemRatings.control - sensorRating
+    val tn = maxOf(2, host.subsystemRatings.control - sensorRating)
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_ICON, tn, host.securityRating.value, diceRoller)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome)
@@ -488,6 +488,7 @@ fun Decker.nullOperation(host: Host, inactivitySeconds: Int, diceRoller: DiceRol
 
 /** PRD: CD-26 / G-15 */
 fun Decker.invokeMedic(diceRoller: DiceRoller): MedicResult {
+    logger.info { "[$name] invokeMedic: invoking Medic utility" }
     check(persona != null) { "invokeMedic requires a jacked-in persona" }
     val p = persona
     val medic = checkNotNull(cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.MEDIC }) {
@@ -623,8 +624,11 @@ fun Decker.tapComcall(host: Host, scannerDeviceRating: Int = 0, diceRoller: Dice
 fun Decker.relocateIcon(host: Host, diceRoller: DiceRoller): OperationResult {
     logger.info { "[$name] relocateIcon on ${host.name}" }
     requireJackedIn()
+    // PRD: TN = opponent's Sensor − Relocate rating. Use opponentSensorRating from TrackState when
+    // available (non-zero); fall back to Control subsystem when not currently being tracked.
+    val tn = trackState?.opponentSensorRating?.takeIf { it > 0 } ?: host.subsystemRatings.control
     val outcome = SystemTestResolver.resolve(this, SystemOperation.RELOCATE_ICON,
-        host.subsystemRatings.control, host.securityRating.value, diceRoller)
+        tn, host.securityRating.value, diceRoller)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome)
     else OperationResult.Failure(updated, outcome)

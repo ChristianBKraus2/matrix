@@ -185,7 +185,7 @@ ANALYZE_HOST(CONTROL, ANALYZE, COMPLEX, STANDARD),
 ANALYZE_IC(CONTROL, ANALYZE, FREE, STANDARD),
 ANALYZE_ICON(CONTROL, ANALYZE, FREE, STANDARD),
 ANALYZE_SECURITY(CONTROL, ANALYZE, SIMPLE, STANDARD),
-ANALYZE_SUBSYSTEM(CONTROL, ANALYZE, SIMPLE, STANDARD),     // test type = targeted subsystem (passed at call time)
+ANALYZE_SUBSYSTEM(null, ANALYZE, SIMPLE, STANDARD),         // testType is null — the targeted subsystem TN is passed dynamically at call time
 
 // Slave group
 CONTROL_SLAVE(SLAVE, SPOOF, COMPLEX, MONITORED),
@@ -216,6 +216,9 @@ TAP_COMCALL(FILES, COMMLINK, COMPLEX, MONITORED),           // test type varies 
 // Misc
 NULL_OPERATION(CONTROL, DECEPTION, COMPLEX, STANDARD),
 RELOCATE_ICON(CONTROL, RELOCATE, SIMPLE, STANDARD),        // already added in cyberdeck doc
+
+// UI convenience — Medic is not a System Test; testType=CONTROL is nominal (see invokeMedic() design)
+INVOKE_MEDIC(CONTROL, null, COMPLEX, STANDARD),
 ```
 
 `ANALYZE_SUBSYSTEM` and `TAP_COMCALL` accept the relevant subsystem type as a runtime parameter rather than a fixed enum field, since the test type varies by context.
@@ -557,6 +560,35 @@ Transfer rate = `cyberdeck.ioSpeedMpPerTurn`. Total turns = `ceil(file.sizeMp / 
 
 ---
 
+### Upload Data
+
+**PRD:** SO individual table, SO-10–SO-12  
+**Action:** Simple (starts the upload); the transfer itself is ongoing.
+
+```kotlin
+fun uploadData(
+    host: Host,
+    dataSizeMp: Int,
+    diceRoller: DiceRoller
+): Pair<OperationResult, UploadHandle?>
+```
+
+```kotlin
+data class UploadHandle(
+    val description: String,
+    val totalMp: Int,
+    val ioSpeedMpPerTurn: Int,
+    val turnsRemaining: Int,
+    val active: Boolean = true
+)
+```
+
+Transfer rate = `cyberdeck.ioSpeedMpPerTurn`. Total turns = `ceil(dataSizeMp / ioSpeedMpPerTurn)`. A partial transfer (aborted before completion) produces an incomplete file on the host unless the GM rules otherwise (SO-12).
+
+`advanceCombatTurn()` decrements `UploadHandle.turnsRemaining`. At 0, the upload is complete.
+
+---
+
 ### Edit File
 
 **PRD:** SO individual table  
@@ -647,6 +679,8 @@ Once a commcode has been successfully tapped, the decker does **not** need a new
 ### Relocate Icon
 
 Already registered in `cyberdeck_and_program_mechanics.md` as `RELOCATE_ICON`. The operation is a Success Contest: decker makes a Computer Test (TN = opponent's Sensor − Relocate utility rating); tracker makes an MPCP Test vs. Relocate utility rating. Relocating decker wins → track fails; the tracker must successfully attack again before relaunching the Track utility.
+
+Implementation note: `relocateIcon()` uses `trackState.opponentSensorRating` as the base TN when available (non-zero), falling back to `host.subsystemRatings.control` when the decker is not currently being tracked. `SystemTestResolver` subtracts the Relocate utility's `currentRating` internally.
 
 ---
 

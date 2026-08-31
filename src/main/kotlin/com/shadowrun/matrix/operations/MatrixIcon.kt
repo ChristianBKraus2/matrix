@@ -9,18 +9,18 @@ import com.shadowrun.matrix.ic.IC
  * target number without needing to know the concrete type at call sites.
  * PRD: MP-01 through MP-06
  */
-sealed class MatrixIcon {
+sealed class Icon {
     /** Another decker's persona. TN for notice = masking + sleaze (if any). */
-    data class PersonaIcon(val persona: Persona, val sleazeRating: Int = 0) : MatrixIcon()
+    data class PersonaIcon(val persona: Persona, val sleazeRating: Int = 0) : Icon()
 
     /** An IC program. TN for notice = ic.rating. */
-    data class IcIcon(val ic: IC) : MatrixIcon()
+    data class IcIcon(val ic: IC) : Icon()
 }
 
 /** Return type of [Decker.noticeIcon]. PRD: MP-01–MP-05 */
 sealed class SensorTestResult {
     object Undetected : SensorTestResult()
-    data class Detected(val icon: MatrixIcon, val successes: Int) : SensorTestResult()
+    data class Detected(val icon: Icon, val successes: Int) : SensorTestResult()
 }
 
 /** Return type of [Decker.noticeTriggeredIc]. PRD: MP-07, MP-08 */

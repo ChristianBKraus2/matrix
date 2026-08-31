@@ -264,7 +264,7 @@ Dedicated method for navigating to a PLTG. Because `PLTG` and `LTG` are sibling 
 2. Determine effective TN = `accessRating`. If `decker.trackState != null`, add `trackState.trackingIcRating` to TN (CC-33: Graceful Logoff TN is raised by Track Rating while a location cycle is running).
 3. Run `SystemTestResolver.resolve(decker, GRACEFUL_LOGOFF, effectiveTn, securityValue, diceRoller)`.
 4. If `outcome.deckerWins`: clear persona, set `currentLocation = null` → `LogoffResult.GracefulSuccess`. (Traces cleared — security tally conceptually expunged; the caller discards the grid/host object or resets its tally.)
-5. If not: decker must fall back to jack out → return `LogoffResult.JackOut(decker, dumpShock = !decker.cyberdeck.immuneToDumpShock)`.
+5. If not: decker must fall back to jack out → return `LogoffResult.JackOut(decker, dumpShock = !decker.cyberdeck.isCyberterminal)`.
 
 **Passcode devalidation (rules p. 226):** If the decker's `PersonaStatus` is `LEGITIMATE` (acquired via a planted or stolen host passcode), the host devalidates that passcode upon successful logoff — the decker's cover is blown. The caller must set `decker.hasValidPasscode(host) = false` after a `GracefulSuccess`. The passcode is **not** devalidated if the decker used Legitimate status only against other intruding deckers (i.e., never exploited it against the host's own IC); the GM tracks this distinction narratively.
 
@@ -280,7 +280,7 @@ Dedicated method for navigating to a PLTG. Because `PLTG` and `LTG` are sibling 
 
 **Logic:**
 1. Clear persona, set `currentLocation = null`.
-2. Return `LogoffResult.JackOut(updatedDecker, dumpShock = !decker.cyberdeck.immuneToDumpShock)`.
+2. Return `LogoffResult.JackOut(updatedDecker, dumpShock = !decker.cyberdeck.isCyberterminal)`.
 
 Dump shock damage (Power = host Security Value, damage level from Security Code) is applied separately by the caller using the existing combat/damage infrastructure.
 
@@ -360,8 +360,8 @@ The `logonToHost` method enforces topology by validating that `host` appears in 
 | `logonToHost` from second-tier to sibling second-tier | Precondition violation returned |
 | `gracefulLogoff` success | `GracefulSuccess`, `currentLocation = null`, no dump shock |
 | `gracefulLogoff` with Track rating 4 active | Effective TN = `accessRating + 4`; standard test otherwise (CC-33) |
-| `gracefulLogoff` failure | `JackOut(dumpShock = !cyberdeck.immuneToDumpShock)` |
-| `jackOut()` with no graceful logoff | `JackOut(dumpShock = !cyberdeck.immuneToDumpShock)` |
+| `gracefulLogoff` failure | `JackOut(dumpShock = !cyberdeck.isCyberterminal)` |
+| `jackOut()` with no graceful logoff | `JackOut(dumpShock = !cyberdeck.isCyberterminal)` |
 | `jackOut()` pinned by Black IC | `IllegalStateException` |
 | `gracefulLogoff` with Legitimate passcode | Caller marks passcode invalid after `GracefulSuccess` |
 | `jackOut()` with Legitimate passcode | Caller marks passcode invalid after jack-out |

@@ -144,7 +144,7 @@ class DeckerOperationsTest {
     fun `analyzeIcon returns Success when decker wins`() {
         val h = host(secValue = 2, control = 2)
         val d = decker(host = h)
-        val icon = com.shadowrun.matrix.operations.MatrixIcon.IcIcon(Probe(rating = 3))
+        val icon = com.shadowrun.matrix.operations.Icon.IcIcon(Probe(rating = 3))
         val result = d.analyzeIcon(icon, h, winRoller)
         assertIs<OperationResult.Success>(result)
     }
@@ -155,7 +155,7 @@ class DeckerOperationsTest {
         val analyze = Utility(UtilityType.ANALYZE, rating = 4)
         val d = decker(cyberdeck = deck(activeUtilities = listOf(analyze), storedUtilities = listOf(analyze)))
             .copy(currentLocation = MatrixLocation.OnHost(host()))
-        val result = d.analyzeIcon(com.shadowrun.matrix.operations.MatrixIcon.IcIcon(Probe(3)), host(), winRoller)
+        val result = d.analyzeIcon(com.shadowrun.matrix.operations.Icon.IcIcon(Probe(3)), host(), winRoller)
         assertNotNull(result)
     }
 
@@ -166,7 +166,7 @@ class DeckerOperationsTest {
         val d = decker(cyberdeck = deck(activeUtilities = listOf(analyze), storedUtilities = listOf(analyze)))
             .copy(currentLocation = MatrixLocation.OnHost(host(control = 2)))
         val result = d.analyzeIcon(
-            com.shadowrun.matrix.operations.MatrixIcon.IcIcon(Probe(3)),
+            com.shadowrun.matrix.operations.Icon.IcIcon(Probe(3)),
             host(control = 2),
             fixedRoller(2)
         )

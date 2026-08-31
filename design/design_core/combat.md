@@ -674,7 +674,7 @@ PRD: ICC-12. Identical to `resolveLethalBlackIc` except physical body damage is 
 
 PRD: ICC-13. Identical to `resolveLethalBlackIc` **except** no final MPCP attack on decker death and no `blackIcPin` set.
 
-**Precondition:** Caller must verify `!targetDecker.cyberdeck.immuneToDumpShock` before calling; cyberterminal users and hitchers are immune (CT-04, ACC-03).
+**Precondition:** Caller must verify `!targetDecker.cyberdeck.isCyberterminal` before calling; cyberterminal users and hitchers are immune (CT-04, ACC-03).
 
 #### `resolveKilljoy(targetDecker: Decker, attack: AttackResult.Hit, diceRoller: DiceRoller): IcDamageResult`
 
@@ -766,5 +766,5 @@ If `icInert`, the IC does not add to the security tally. If not suppressed befor
 | Track: evader matches attacker successes | `null` returned — no lock (CC-33) |
 | Slow on Reactive IC | Precondition check fails; `SlowResult(0, false)` (ICC-15) |
 | Slow: 4 net successes, IC has 2 passes | `SlowResult(actionsLost = 2, icInert = true)` (ICC-15) |
-| Black Hammer vs. Cyberterminal user | Caller checks `immuneToDumpShock = true`; does not call `resolveBlackHammer` (ICC-13) |
+| Black Hammer vs. Cyberterminal user | Caller checks `isCyberterminal = true`; does not call `resolveBlackHammer` (ICC-13) |
 | Black IC physical body test, Armor-5 loaded | Armor does NOT reduce Power for body test; only Hardening applies (ICC-11) |

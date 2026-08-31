@@ -520,7 +520,7 @@ Constraints enforced at construction time (CT-01, CT-02):
 
 - MPCP ≤ 4 (hard requirement).
 - `responseIncrease` is always fixed at 0; the factory accepts no `responseIncrease` argument.
-- `immuneToDumpShock = true` is set unconditionally (CT-04).
+- `isCyberterminal = true` is set unconditionally (CT-04); this single flag covers the CT-03 utility-rating reduction and CT-04 dump-shock/Black IC immunity.
 
 **CT-03 — Program rating reduction:** Applied transparently inside `SystemTestResolver`. When the active decker is using a Cyberterminal (`cyberdeck.isCyberterminal == true`), each utility's `currentRating` used in TN reduction is treated as `max(0, currentRating - 1)`. No change to the stored `Utility` objects; the adjustment is applied at test resolution time.
 
@@ -575,7 +575,7 @@ enum class HitcherJackType { ELECTRODE_NET, DATAJACK_FEED }
 **ACC-03 — Hitcher behavior:**
 
 - A hitcher is represented as a read-only observer on the `Persona`; the hitcher has no `Decker` of their own and cannot modify any state.
-- `HitcherJack` carries `immuneToDumpShock = true` for its passenger, mirroring the cyberterminal rule (CT-04).
+- `HitcherJack` carries immunity for its passenger (the `isCyberterminal` check covers this path), mirroring the cyberterminal rule (CT-04).
 
 Add a `hitchers: List<HitcherObserver>` field to `Cyberdeck` (default empty):
 
@@ -587,7 +587,7 @@ Hitchers are purely informational for the current scope (no game-mechanical effe
 
 **ACC-01 — Off-line storage effect on downloads:**
 
-`DownloadHandle` (designed in `operations.md`) accepts an optional `destination: DownloadDestination`:
+The `DownloadDestination` type exists in code as a stub for future routing support:
 
 ```kotlin
 sealed class DownloadDestination {
@@ -597,7 +597,7 @@ sealed class DownloadDestination {
 }
 ```
 
-When `destination` is `OfflineStorage`, the download does not consume `storedUtilities` capacity on the cyberdeck itself; it flows to the external device. The total available Mp for offline storage is `accessory.capacityMp`.
+**Current implementation:** `DownloadHandle` (designed in `operations.md`) does **not** yet include a `destination` field. Downloads always route to deck storage. The `DownloadDestination` type is defined in code but unused. When `OfflineStorage` routing is implemented, `DownloadHandle` will accept an optional `destination: DownloadDestination`; when set to `OfflineStorage`, the download will not consume `storedUtilities` capacity on the cyberdeck itself — it will flow to the external device (`accessory.capacityMp` total available).
 
 ---
 

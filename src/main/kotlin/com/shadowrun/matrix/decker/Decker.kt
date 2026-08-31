@@ -8,7 +8,7 @@ import com.shadowrun.matrix.network.Jackpoint
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.operations.AvailableAction
 import com.shadowrun.matrix.operations.InterrogationState
-import com.shadowrun.matrix.operations.MatrixIcon
+import com.shadowrun.matrix.operations.Icon
 import com.shadowrun.matrix.operations.MatrixObject
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.programs.UtilityType
@@ -43,7 +43,7 @@ data class Decker(
     val suppressedIc: List<IcSuppressionState> = emptyList(),
     val runDownloadedFiles: List<DataFile> = emptyList(),
     val interrogationStates: Map<SystemOperation, InterrogationState> = emptyMap(),
-    val detectedIcons: Set<MatrixIcon> = emptySet()
+    val detectedIcons: Set<Icon> = emptySet()
 ) : ActiveIcon {
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = ActionResult.DeckerAction
 
@@ -192,7 +192,6 @@ data class Decker(
         }
         host.dataFiles.forEach {
             val obj = MatrixObject.File(it)
-            add(AvailableAction.Operation(SystemOperation.ANALYZE_ICON, obj))
             if (!it.isScrambleProtected) {
                 add(AvailableAction.Operation(SystemOperation.DOWNLOAD_DATA, obj))
                 add(AvailableAction.Operation(SystemOperation.EDIT_FILE, obj))
@@ -201,7 +200,6 @@ data class Decker(
         }
         host.remoteDevices.forEach {
             val obj = MatrixObject.Device(it)
-            add(AvailableAction.Operation(SystemOperation.ANALYZE_ICON, obj))
             add(AvailableAction.Operation(SystemOperation.CONTROL_SLAVE, obj))
             add(AvailableAction.Operation(SystemOperation.EDIT_SLAVE, obj))
             add(AvailableAction.Operation(SystemOperation.MONITOR_SLAVE, obj))

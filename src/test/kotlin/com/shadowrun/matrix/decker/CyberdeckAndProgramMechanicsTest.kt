@@ -19,7 +19,7 @@ import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.config.DeckCatalogEntry
 import com.shadowrun.matrix.config.DeckCatalogLoader
 import com.shadowrun.matrix.config.DeckerLoader
-import com.shadowrun.matrix.operations.MatrixIcon
+import com.shadowrun.matrix.operations.Icon
 import com.shadowrun.matrix.operations.SensorTestResult
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.operations.SystemTestResolver
@@ -800,7 +800,7 @@ class CyberdeckAndProgramMechanicsTest {
     @Test
     fun `noticeIcon friendlyReveal skips sensor test and returns Detected with 1 success`() {
         val d = decker(jackedIn = true)
-        val icon = MatrixIcon.IcIcon(Probe(rating = 8))
+        val icon = Icon.IcIcon(Probe(rating = 8))
         // roller all fails — the friendly path must not call it
         val roller = DiceRoller(object : Random() {
             override fun nextBits(bitCount: Int) = 0
@@ -815,7 +815,7 @@ class CyberdeckAndProgramMechanicsTest {
     @Test
     fun `noticeIcon without friendlyReveal runs normal sensor test`() {
         val d = decker(jackedIn = true)
-        val icon = MatrixIcon.IcIcon(Probe(rating = 3))
+        val icon = Icon.IcIcon(Probe(rating = 3))
         // Sensor dice all show 5 → 1 success at TN=3
         val roller = DiceRoller(object : Random() {
             override fun nextBits(bitCount: Int) = 0
@@ -828,7 +828,7 @@ class CyberdeckAndProgramMechanicsTest {
     @Test
     fun `noticeIcon without friendlyReveal can return Undetected when all dice fail`() {
         val d = decker(jackedIn = true)
-        val icon = MatrixIcon.IcIcon(Probe(rating = 8))
+        val icon = Icon.IcIcon(Probe(rating = 8))
         val roller = DiceRoller(object : Random() {
             override fun nextBits(bitCount: Int) = 0
             override fun nextInt(from: Int, until: Int) = 1.coerceIn(from, until - 1)

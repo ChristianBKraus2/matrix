@@ -160,7 +160,7 @@ suspend fun runCombatTurn()
 data class Decker(...) : ActiveIcon {
 
     override fun initiative(context: GameContext, diceRoller: DiceRoller): CombatInitiative =
-        CombatResolver.rollDeckerInitiative(this, meatworldComm = false, diceRoller)
+        CombatResolver.rollDeckerInitiative(this, meatworldComm = meatworldComm, diceRoller)
 
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult =
         ActionResult.DeckerAction

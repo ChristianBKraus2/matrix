@@ -17,7 +17,7 @@ import com.shadowrun.matrix.operations.EditFileResult
 import com.shadowrun.matrix.operations.HostInfoItem
 import com.shadowrun.matrix.operations.LocateDeckerResult
 import com.shadowrun.matrix.operations.LocateResult
-import com.shadowrun.matrix.operations.MatrixIcon
+import com.shadowrun.matrix.operations.Icon
 import com.shadowrun.matrix.operations.MatrixObject
 import com.shadowrun.matrix.operations.OperationResult
 import com.shadowrun.matrix.operations.QueryPrecision
@@ -235,7 +235,7 @@ class WebSocketDeckerController(
             SystemOperation.ANALYZE_ICON -> {
                 val ic = (action.target as? MatrixObject.IcProgram)?.ic
                     ?: return DispatchResult(decker, false, 0, 0, "ANALYZE_ICON requires an IcProgram target")
-                decker.analyzeIcon(MatrixIcon.IcIcon(ic), host, diceRoller).toDispatch()
+                decker.analyzeIcon(Icon.IcIcon(ic), host, diceRoller).toDispatch()
             }
             SystemOperation.ANALYZE_SECURITY  -> decker.analyzeSecurity(host, diceRoller).toDispatch()
             SystemOperation.ANALYZE_SUBSYSTEM -> {
