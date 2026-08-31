@@ -508,7 +508,7 @@ class CombatResolverTest {
     }
 
     @Test
-    fun `applyIcDamage Black IC does not overwrite existing pin on second hit`() {
+    fun `applyIcDamage Black IC overwrites existing pin on second hit`() {
         val roller = allFaces(5)
         val existingIc = LethalBlackIC(rating = 6)
         val newIc = LethalBlackIC(rating = 8)
@@ -516,8 +516,7 @@ class CombatResolverTest {
         val d = decker().copy(blackIcPin = existingPin)
         val attack = AttackResult.Hit(2, DamageLevel.MODERATE, DamageLevel.MODERATE, 8)
         val result = CombatResolver.applyIcDamage(d, attack, newIc, roller)
-        // Pin should still reference the FIRST Black IC that hit, not the new one
-        assertEquals(existingIc, result.updatedDecker.blackIcPin!!.pinningIc)
+        assertEquals(newIc, result.updatedDecker.blackIcPin!!.pinningIc)
     }
 
     // ── resolveDumpShock ──────────────────────────────────────────────────────────
@@ -1146,8 +1145,9 @@ class CombatResolverTest {
     @Test
     fun `suppressIc adds IC to suppressedIc list`() {
         val ic = Probe(rating = 4)
-        val d = decker().copy(currentLocation = MatrixLocation.OnHost(host()))
-        val updated = CombatResolver.suppressIc(d, ic)
+        val h = host()
+        val d = decker().copy(currentLocation = MatrixLocation.OnHost(h))
+        val updated = CombatResolver.suppressIc(d, ic, h)
         assertEquals(1, updated.suppressedIc.size)
         assertEquals(ic, updated.suppressedIc.first().ic)
         assertEquals(4, updated.suppressedIc.first().icRating)
@@ -1156,7 +1156,8 @@ class CombatResolverTest {
     @Test
     fun `suppressIc records rating at crash time`() {
         val ic = Probe(rating = 6)
-        val updated = CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(host())), ic)
+        val h = host()
+        val updated = CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(h)), ic, h)
         assertEquals(6, updated.suppressedIc.first().icRating)
     }
 
@@ -1164,8 +1165,9 @@ class CombatResolverTest {
     fun `suppressIc multiple times accumulates entries`() {
         val ic1 = Probe(rating = 3)
         val ic2 = Killer(rating = 5)
-        val d = CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(host())), ic1)
-        val d2 = CombatResolver.suppressIc(d, ic2)
+        val h = host()
+        val d = CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(h)), ic1, h)
+        val d2 = CombatResolver.suppressIc(d, ic2, h)
         assertEquals(2, d2.suppressedIc.size)
     }
 
@@ -1173,7 +1175,7 @@ class CombatResolverTest {
     fun `suppressIc throws when decker has no persona (already left system)`() {
         val ic = Probe(rating = 4)
         val d = decker(persona = null)
-        val result = runCatching { CombatResolver.suppressIc(d, ic) }
+        val result = runCatching { CombatResolver.suppressIc(d, ic, host()) }
         assertTrue(result.isFailure)
     }
 
@@ -1183,14 +1185,15 @@ class CombatResolverTest {
         val ic = Probe(rating = 4)
         // decker() fixture has currentLocation=null; we need to check the persona+location combo
         val d = decker() // currentLocation is null → not OnHost → should throw
-        val result = runCatching { CombatResolver.suppressIc(d, ic) }
+        val result = runCatching { CombatResolver.suppressIc(d, ic, host()) }
         assertTrue(result.isFailure)
     }
 
     @Test
     fun `unsuppressIc removes IC from suppressedIc list`() {
         val ic = Probe(rating = 4)
-        val withSuppressed = CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(host())), ic)
+        val h = host()
+        val withSuppressed = CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(h)), ic, h)
         var callbackRating = -1
         val released = CombatResolver.unsuppressIc(withSuppressed, ic) { callbackRating = it }
         assertEquals(0, released.suppressedIc.size)
@@ -1199,7 +1202,8 @@ class CombatResolverTest {
     @Test
     fun `unsuppressIc calls onTallyIncrease with stored IC rating`() {
         val ic = Probe(rating = 7)
-        val withSuppressed = CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(host())), ic)
+        val h = host()
+        val withSuppressed = CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(h)), ic, h)
         var callbackRating = -1
         CombatResolver.unsuppressIc(withSuppressed, ic) { callbackRating = it }
         assertEquals(7, callbackRating)
@@ -1219,8 +1223,9 @@ class CombatResolverTest {
     fun `unsuppressIc only removes the matching IC when multiple are suppressed`() {
         val ic1 = Probe(rating = 3)
         val ic2 = Killer(rating = 5)
-        val base = decker().copy(currentLocation = MatrixLocation.OnHost(host()))
-        val d = CombatResolver.suppressIc(CombatResolver.suppressIc(base, ic1), ic2)
+        val h = host()
+        val base = decker().copy(currentLocation = MatrixLocation.OnHost(h))
+        val d = CombatResolver.suppressIc(CombatResolver.suppressIc(base, ic1, h), ic2, h)
         val released = CombatResolver.unsuppressIc(d, ic1) {}
         assertEquals(1, released.suppressedIc.size)
         assertEquals(ic2, released.suppressedIc.first().ic)
@@ -1289,8 +1294,9 @@ class CombatResolverTest {
         ))
 
         val baseline = CombatResolver.resolveCrippler(decker(), ic, 4, roller)
+        val h = host()
         val withSuppression = CombatResolver.resolveCrippler(
-            CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(host())), suppressedIc), ic, 4, roller
+            CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(h)), suppressedIc, h), ic, 4, roller
         )
         // Both should produce the same structural result (roller is deterministic).
         assertEquals(baseline.reduction, withSuppression.reduction)

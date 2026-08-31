@@ -99,7 +99,7 @@ object CombatResolver {
         when {
             ic is BlackIC -> {
                 // No simsense overload for Black IC (CC-28)
-                if (attack.attackerSuccesses > 0 && updatedDecker.blackIcPin == null) {
+                if (attack.attackerSuccesses > 0) {
                     updatedDecker = updatedDecker.copy(blackIcPin = BlackIcPinState(ic))
                 }
             }
@@ -300,7 +300,9 @@ object CombatResolver {
         }
 
         val attack = AttackResult.Hit(1, rawLevel, iconStaged, power)
-        return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered, mpcpReductionOnKill = mpcpReduction)
+        val personaOnlyCrashed = newCm.isCrashed && !newPhysicalCm.isCrashed
+        return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered,
+            mpcpReductionOnKill = mpcpReduction, personaOnlyCrashed = personaOnlyCrashed)
     }
 
     /**
@@ -424,8 +426,9 @@ object CombatResolver {
      * Returns the updated Decker (does NOT modify tally).
      * Requires the decker to be jacked in — a decker who has left the system cannot suppress IC.
      */
-    fun suppressIc(decker: Decker, ic: IC): Decker {
-        require(decker.persona != null && decker.currentLocation is MatrixLocation.OnHost) {
+    fun suppressIc(decker: Decker, ic: IC, host: Host): Decker {
+        val onHost = decker.currentLocation as? MatrixLocation.OnHost
+        require(decker.persona != null && onHost?.host == host) {
             "Cannot suppress IC after leaving the system"
         }
         val state = IcSuppressionState(ic, ic.rating)

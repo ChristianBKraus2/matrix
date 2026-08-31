@@ -15,6 +15,8 @@ data class Persona(
      * Used to compute [Decker.actionsPerTurn] (SO-01, SO-02).
      */
     val reaction: Int = 0,
+    /** Rating of the Sleaze utility currently running for this persona. Used in Locate Decker TN. */
+    val sleazeRating: Int = 0,
     val conditionMonitor: ConditionMonitor = ConditionMonitor(),
     val status: PersonaStatus = PersonaStatus.LEGITIMATE,
     // The node (or null when on a grid / not yet logged into a host) where this persona is currently located

@@ -8,6 +8,7 @@ import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.ic.Killer
 import com.shadowrun.matrix.ic.Probe
 import com.shadowrun.matrix.integration.utility.IntegrationTestBase
+import com.shadowrun.matrix.network.MatrixLocation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -109,10 +110,11 @@ class DeckerCombatTest : IntegrationTestBase() {
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
         }
         val decker = icon.currentDecker()
+        val currentHost = (decker.currentLocation as MatrixLocation.OnHost).host
         val dfBefore = decker.effectiveDetectionFactor
 
         val probe = Probe(rating = 4)
-        val suppressed = CombatResolver.suppressIc(decker, probe)
+        val suppressed = CombatResolver.suppressIc(decker, probe, currentHost)
 
         assertEquals(1, suppressed.suppressedIc.size, "Suppressed IC list should contain one entry")
         assertEquals(dfBefore - 1, suppressed.effectiveDetectionFactor, "Each suppressed IC reduces DF by 1")
@@ -125,10 +127,11 @@ class DeckerCombatTest : IntegrationTestBase() {
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
         }
         val decker = icon.currentDecker()
+        val currentHost = (decker.currentLocation as MatrixLocation.OnHost).host
         val dfBefore = decker.effectiveDetectionFactor
 
         val probe = Probe(rating = 4)
-        val suppressed = CombatResolver.suppressIc(decker, probe)
+        val suppressed = CombatResolver.suppressIc(decker, probe, currentHost)
         var tallyAdded = 0
         val restored = CombatResolver.unsuppressIc(suppressed, probe) { tallyAdded = it }
 
@@ -144,12 +147,13 @@ class DeckerCombatTest : IntegrationTestBase() {
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
         }
         val decker = icon.currentDecker()
+        val currentHost = (decker.currentLocation as MatrixLocation.OnHost).host
         val dfBefore = decker.effectiveDetectionFactor
 
         val probe = Probe(rating = 3)
         val killer = Killer(rating = 4)
-        val afterFirst = CombatResolver.suppressIc(decker, probe)
-        val afterSecond = CombatResolver.suppressIc(afterFirst, killer)
+        val afterFirst = CombatResolver.suppressIc(decker, probe, currentHost)
+        val afterSecond = CombatResolver.suppressIc(afterFirst, killer, currentHost)
 
         assertEquals(dfBefore - 2, afterSecond.effectiveDetectionFactor, "Two suppressed ICs should reduce DF by 2")
     }

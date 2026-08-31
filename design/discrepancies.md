@@ -1,14 +1,22 @@
 # Design vs. Implementation Discrepancies
 
-**Generated:** 2026-08-30  
+**Generated:** 2026-08-30 | **Updated:** 2026-08-31  
 **Scope:** Full codebase audit — design documents (excluding PRDs) vs. Kotlin implementation, with PRD annotations  
-**Areas covered:** Combat, Cyberdeck/Programs, Movement/Creation, Operations, Game Loop, UI/Protocol
+**Areas covered:** Combat, Cyberdeck/Programs, Movement/Creation, Operations, Game Loop, UI/Protocol  
+**Note (2026-08-31):** CP-1, GL-5, GL-7, GL-9, UI-3 confirmed resolved and removed. GL-8 and UI-5 descriptions corrected. NEW-1 added. Second pass verification completed same day.
+
+**Legend:**  
+✅ **RESOLVED** — code and design now agree  
+🟡 **DESIGN-ONLY** — code is correct; only the design document needs updating  
+❌ **OPEN** — code still needs a fix
 
 ---
 
 ## 1. Combat
 
 ### C-1 — `resolveCrippler` / `resolveRipper` / `resolveSlow` signature mismatch
+
+**Status:** 🟡 DESIGN-ONLY
 
 **Design says:** All three methods accept `securityCode: SecurityCode` as their third parameter and convert it internally via `sv = securityValue(securityCode)`.
 
@@ -22,6 +30,8 @@
 
 ### C-2 — Missing IC rating boost on persona crash (Lethal Black IC step 7)
 
+**Status:** ✅ RESOLVED — `IcDamageResult` now has `personaOnlyCrashed`; `resolveLethalBlackIc` sets it when persona CM crashes but physical CM survives; `LethalBlackIC.action()` replaces the IC with a +2 rated copy via `withRatingBonus`.
+
 **Design says:** If the icon crashes before the decker dies, the IC's effective rating is set to `ic.rating + 2` for all subsequent tests. `IcDamageResult` must carry enough information for the caller to track this state.
 
 **Code does:** `IcDamageResult` has no field tracking a persona-only (non-lethal) crash. `resolveLethalBlackIc` never computes or reports the `+2` boost. No mechanism exists anywhere in the code to communicate this state to the caller.
@@ -33,6 +43,8 @@
 ---
 
 ### C-3 — Black IC pin guard in `applyIcDamage` adds undocumented null-check
+
+**Status:** ✅ RESOLVED — guard removed; any Black IC hit now updates the pin regardless of prior pin state.
 
 **Design says:** If `ic is BlackIC && attack.attackerSuccesses > 0`, set `decker.blackIcPin = BlackIcPinState(ic as BlackIC)`. No further condition.
 
@@ -52,6 +64,8 @@ The extra `&& updatedDecker.blackIcPin == null` guard means a second Black IC hi
 
 ### C-4 — `TrackState` has two undocumented fields
 
+**Status:** 🟡 DESIGN-ONLY
+
 **Design says:** `data class TrackState(val trackingIcRating: Int, val locationCycleTurnsRemaining: Int)`
 
 **Code does:** The call site passes two additional fields: `opponentSensorRating = trackRating` and `trackerMcpRating = trackRating`.
@@ -63,6 +77,8 @@ The extra `&& updatedDecker.blackIcPin == null` guard means a second Black IC hi
 ---
 
 ### C-5 — `resolveAttack` step text uses undefined field name `utilityRating`
+
+**Status:** 🟡 DESIGN-ONLY — code uses `attackDicePool`/`weaponPower` (correct).
 
 **Design says (steps 4 and 6):** References `attacker.utilityRating` and `attacker.utilityRating + attacker.hackingPool`. The `AttackParticipant` data class defined in the same design document has no such field; it has `weaponPower` and `attackDicePool`.
 
@@ -76,17 +92,19 @@ The extra `&& updatedDecker.blackIcPin == null` guard means a second Black IC hi
 
 ### C-6 — `applyIcDamage` calls `ConditionMonitor.applyDamage(Int)` instead of `applyDamage(DamageLevel)`
 
+**Status:** ✅ RESOLVED — now calls `applyDamage(attack.stagedDamageLevel)` where `stagedDamageLevel: DamageLevel`.
+
 **Design says:** `ConditionMonitor` defines exactly one signature: `fun applyDamage(damage: DamageLevel): ConditionMonitor`.
 
-**Code does:** Passes `stressBoxes: Int` (value 0 or 1) directly to `applyDamage`. This implies either an undocumented `applyDamage(Int)` overload or a latent type error.
+**Code does:** ~~Passes `stressBoxes: Int` (value 0 or 1) directly to `applyDamage`.~~
 
 **PRD verdict:** CC-30 specifies the 10-box track but not the method signature. The design's single-signature spec is the authority.
-
-**Todo:** Update code
 
 ---
 
 ### C-7 — `suppressIc` location check is too broad
+
+**Status:** ✅ RESOLVED — `suppressIc` now takes a `host: Host` parameter and verifies `onHost?.host == host`; all test callers updated.
 
 **Design says:** The decker must still be on the same host where the IC was active.
 
@@ -104,6 +122,8 @@ Verifies only that the decker is on *any* host, not the *same* host as the crash
 
 ### C-8 — Design verification table contradicts spec for Non-Lethal Black IC final MPCP attack rating
 
+**Status:** 🟡 DESIGN-ONLY — code correctly uses `ic.rating * 2`.
+
 **Design spec says:** Final MPCP attack uses `ic.rating * 2` (double rating).
 
 **Design verification table says:** "Final MPCP attack at `ic.rating` before disconnect" (single rating).
@@ -118,6 +138,8 @@ Verifies only that the decker is on *any* host, not the *same* host as the crash
 
 ### C-9 — `resolveLethalBlackIc` / `resolveNonLethalBlackIc` inline MPCP test instead of delegating
 
+**Status:** 🟡 DESIGN-ONLY — inline logic is functionally equivalent.
+
 **Design says:** Both methods should delegate to `resolveBlasterMpcpTest(decker, ic, diceRoller, ratingOverride = ic.rating * 2)`.
 
 **Code does:** Both methods copy the `reduceMcpRating` logic inline. Functionally equivalent.
@@ -130,19 +152,9 @@ Verifies only that the decker is on *any* host, not the *same* host as the crash
 
 ## 2. Cyberdeck / Programs
 
-### CP-1 — `invokeMedic()` deadly-condition behavior
-
-**Design says:** When `filled >= 10`: return `MedicResult(this, 0, medic.currentRating)` — a graceful no-op.
-
-**Code does:** `require(filled < 10) { "Cannot use Medic on a Deadly (10-box) condition monitor" }` — throws `IllegalStateException`.
-
-**PRD verdict:** CD-20 does not address the deadly case. The design explicitly chose a graceful result; the code forces callers to catch an exception.
-
-**Todo:** Update the code
-
----
-
 ### CP-2 — `invokeMedic()` and `MedicResult` file placement
+
+**Status:** 🟡 DESIGN-ONLY
 
 **Design says:** Both must live in `Decker.kt`.
 
@@ -156,6 +168,8 @@ Verifies only that the decker is on *any* host, not the *same* host as the crash
 
 ### CP-3 — `relocateIcon()` resolution mechanic bypasses `SystemTestResolver`
 
+**Status:** ✅ RESOLVED — `relocateIcon` now calls `SystemTestResolver.resolve` with `RELOCATE_ICON` / `host.control` / `host.securityRating`; custom dual-roll removed; signature changed to `(host, diceRoller)`.
+
 **Design says:** Route `RELOCATE_ICON` through `SystemTestResolver` as a Control Test (CD-16).
 
 **Code does:** Bypasses `SystemTestResolver` entirely and implements a custom dual-roll opposed test: decker rolls `computerSkill` dice vs. `max(2, opponentSensor - relocateRating)`; tracker rolls `trackerMcpRating` dice vs. `max(2, relocateRating)`. Neither the PRD nor the design describes an opponent "tracker MCP Rating" roll.
@@ -167,6 +181,8 @@ Verifies only that the decker is on *any* host, not the *same* host as the crash
 ---
 
 ### CP-4 — `invokeMedic()` auto-unload threshold uses `<= 0` instead of `== 0`
+
+**Status:** 🟡 DESIGN-ONLY
 
 **Design says (step 5):** Trigger auto-unload when `medic.currentRating == 0`.
 
@@ -180,6 +196,8 @@ Verifies only that the decker is on *any* host, not the *same* host as the crash
 
 ### CP-5 — `Cyberterminal()` factory `costNuyen` parameter has no default
 
+**Status:** 🟡 DESIGN-ONLY
+
 **Design says:** `costNuyen: Int = 0` (optional with default).
 
 **Code does:** `costNuyen: Int` — required parameter, no default.
@@ -191,6 +209,8 @@ Verifies only that the decker is on *any* host, not the *same* host as the crash
 ---
 
 ### CP-6 — `Cyberdeck` carries an undocumented `detectionFactor()` instance method
+
+**Status:** 🟡 DESIGN-ONLY
 
 **Design says:** The Cyberdeck changes section specifies only: `pendingUploads`, MPCP utility-rating init checks, `usedActiveMemoryMp`, and `freeActiveMemoryMp`. No `detectionFactor()` method is mentioned.
 
@@ -204,6 +224,8 @@ Verifies only that the decker is on *any* host, not the *same* host as the crash
 
 ### CP-7 — `Cyberdeck.init` has two capacity checks not specified by the design
 
+**Status:** 🟡 DESIGN-ONLY
+
 **Design says:** The only additions to `Cyberdeck.init` are MPCP utility-rating checks. Active memory capacity validation is the responsibility of `DeckerLoader` (CD-05).
 
 **Code does:** Adds two `require` checks in `Cyberdeck.init`: `activeMp <= activeMemoryMp` and `storageMp <= storageMemoryMp`.
@@ -215,6 +237,8 @@ Verifies only that the decker is on *any* host, not the *same* host as the crash
 ---
 
 ### CP-8 — `loadUtility()` treats `ioSpeedMpPerTurn = 0` as instant load
+
+**Status:** 🟡 DESIGN-ONLY
 
 **Design says:** `turnsRequired = ceil(utility.mpSize / cyberdeck.ioSpeedMpPerTurn)`. No handling for zero I/O speed is specified.
 
@@ -230,6 +254,8 @@ Verifies only that the decker is on *any* host, not the *same* host as the crash
 
 ### MC-1 — `LogonResult.Failure.location` — semantic inversion and type mismatch
 
+**Status:** 🟡 DESIGN-ONLY — code's approach is more useful; design spec should be updated to match.
+
 **Design says:** `Failure.location: MatrixLocation` (non-nullable) is the decker's unchanged *previous* location.
 
 **Code does:** `Failure.location: MatrixLocation?` (nullable) is the *attempted destination* with the host-success security tally already baked in.
@@ -242,21 +268,19 @@ Verifies only that the decker is on *any* host, not the *same* host as the crash
 
 ### MC-2 — `logonToLtg` throws when current location is `OnLTG`
 
+**Status:** ✅ RESOLVED — `logonToLtg` now handles `OnPLTG` location (PLTG supports all LTG operations, M-08).
+
 **Design says:** `logonToLtg` must accept `currentLocation is OnLTG` when the target is a PLTG attached to that LTG.
 
-**Code does:**
-```kotlin
-is MatrixLocation.OnLTG -> throw IllegalStateException("Cannot logon to LTG from $currentLocation")
-```
-There is no path to reach a PLTG from an LTG via `logonToLtg`.
+**Code does:** ~~Throws `IllegalStateException` on `OnLTG` current location.~~
 
-**PRD verdict:** M-06 requires PLTG access from an LTG. **PRD supports the design; the code blocks it entirely.**
-
-**Todo:** Update the code
+**PRD verdict:** M-06 requires PLTG access from an LTG. PRD supports the design.
 
 ---
 
 ### MC-3 — `logonToLtg` dispatch to `logonToPltg` is architecturally impossible
+
+**Status:** 🟡 DESIGN-ONLY — `PLTG` has a `parentLtg` back-reference; architectural constraint holds.
 
 **Design says:** When the target is a `PLTG`, `logonToLtg` should dispatch to `logonToPltg`, assuming `PLTG` is a subtype of `LTG`.
 
@@ -270,6 +294,8 @@ There is no path to reach a PLTG from an LTG via `logonToLtg`.
 
 ### MC-4 — `jackInToLtg` does not propagate tally to parent RTG; `mergeRtgTally` helper is absent
 
+**Status:** ✅ RESOLVED — `jackInToLtg` and `logonToLtg` now propagate the tally delta to `ltg.parentRtg` inside their `buildLocation` lambda.
+
 **Design says:** The RTG security tally (M-09) is tracked on the LTG's parent RTG. The helper `mergeRtgTally(ltg, outcome)` encapsulates this propagation.
 
 **Code does:** `jackInToLtg` updates only `ltg.securityTally`. The helper `mergeRtgTally` does not exist; no mechanism updates the parent RTG's tally.
@@ -279,6 +305,8 @@ There is no path to reach a PLTG from an LTG via `logonToLtg`.
 **Todo:** Update Code
 
 ### MC-5 — `logonToRtg` from `OnLTG` rejects connected RTGs; design allows them
+
+**Status:** 🟡 DESIGN-ONLY — PRD supports the code; design over-specifies.
 
 **Design says:** When `currentLocation is OnLTG`, valid targets are the parent RTG *or* any RTG connected via `connectedRtgs`.
 
@@ -296,6 +324,8 @@ Only the parent RTG is allowed.
 
 ### MC-6 — `logonToHost` tiered-topology guard relies entirely on data model
 
+**Status:** 🟡 DESIGN-ONLY
+
 **Design says:** An explicit second-tier-to-sibling-second-tier guard (M-13) must be enforced as a structural check.
 
 **Code does:**
@@ -312,6 +342,8 @@ No explicit tier detection; the guard is entirely dependent on `connectedHosts` 
 
 ### MC-7 — LTG YAML key is `host_files` in design, `hosts` in code
 
+**Status:** 🟡 DESIGN-ONLY — `creation.md` already uses `hosts:` throughout; `grid.yaml` and `GridLoader` both use `hosts`. The discrepancy was in this document's description only.
+
 **Design says:** LTG entries in YAML use `host_files:`.
 
 **Code does:** [GridLoader.kt](src/main/kotlin/com/shadowrun/matrix/config/GridLoader.kt) reads key `hosts`. A grid.yaml following the design spec would produce zero hosts because `data["host_files"]` is never read.
@@ -324,6 +356,8 @@ No explicit tier detection; the guard is entirely dependent on `connectedHosts` 
 
 ### MC-8 — `security_sheaf` is a flat list in design YAML, a nested map in code
 
+**Status:** 🟡 DESIGN-ONLY
+
 **Design says:** `security_sheaf:` is a YAML sequence (list) at the top level.
 
 **Code does:** Casts `security_sheaf` as `Map<String, Any>`, expecting a wrapper object with a `trigger_steps` key. A design-format YAML (a list) would silently load an empty `SecuritySheaf()`.
@@ -333,6 +367,8 @@ No explicit tier detection; the guard is entirely dependent on `connectedHosts` 
 **Todo:** Update the design
 
 ### MC-9 — `security_sheaf` step field names all differ between design and code
+
+**Status:** 🟡 DESIGN-ONLY
 
 **Design says:** Step fields are `tally`, `ic`, `alert`, `security_deckers`. The `ic` field is a list of strings in `"TypeName-Rating"` format (e.g., `["Probe-5"]`).
 
@@ -346,41 +382,52 @@ No explicit tier detection; the guard is entirely dependent on `connectedHosts` 
 
 ### MC-10 — Topology YAML value format: hyphen vs. underscore
 
+**Status:** ✅ RESOLVED — `HostLoader` now normalises with `.uppercase().replace('-', '_')`.
+
 **Design says:** `topology: open-access` (hyphenated).
 
-**Code does:**
-```kotlin
-val topology = TopologyType.valueOf((data["topology"] as? String ?: "OPEN_ACCESS").uppercase())
-```
-`"open-access".uppercase()` → `"OPEN-ACCESS"` → `TopologyType.valueOf("OPEN-ACCESS")` throws `IllegalArgumentException`. No hyphen-to-underscore normalisation is applied. A host YAML exactly following the design format crashes at load time.
+**Code does:** ~~`"open-access".uppercase()` → `"OPEN-ACCESS"` → `TopologyType.valueOf("OPEN-ACCESS")` throws.~~ Now applies `.replace('-', '_')` before `valueOf`.
 
 **PRD verdict:** PRD does not specify YAML values. Discrepancy is design vs. code only.
-
-**Todo:** Update the code
 
 ---
 
 ### MC-11 — RTG-level PLTGs attached to first LTG only; code comment contradicts implementation
 
+**Status:** ✅ RESOLVED — `GridLoader.buildRtg` now iterates all LTGs via `ltgs.map { ... }` to attach PLTGs.
+
 **Design says:** PLTGs should be connected to all LTGs of that RTG.
 
-**Code does:**
-```kotlin
-// We attach RTG-level PLTGs to each LTG so deckers on any of those LTGs can reach the PLTG.
-val updatedFirst = ltgs.first().copy(pltgs = pltgsForFirstLtg)
-listOf(updatedFirst) + ltgs.drop(1)   // only first LTG gets the PLTGs
-```
-The comment says "attach to each LTG" but the code attaches only to `ltgs.first()`.
+**Code does:** ~~Attaches PLTGs only to `ltgs.first()`.~~ Now attaches to every LTG.
 
-**PRD verdict:** M-11/M-15 imply PLTG reachability. **PRD supports the design intent; the implementation fails to deliver it, and the code comment actively contradicts what the code does.**
-
-**Todo:** Update the code and the comment.
+**PRD verdict:** M-11/M-15 imply PLTG reachability. PRD supports the design intent.
 
 ---
 
 ## 4. Operations
 
+### NEW-1 — `analyzeIcon` subtracts persona sensor from Control TN before resolver
+
+**Status:** ✅ RESOLVED — sensor pre-subtraction removed; `analyzeIcon` now passes `host.subsystemRatings.control` directly to `SystemTestResolver`.
+
+**Design says:** `ANALYZE_ICON` is a System Test against the host's Control subsystem rating, consistent with all other analyze operations.
+
+**Code does:**
+```kotlin
+val tn = host.subsystemRatings.control - (persona?.sensor ?: 0)
+val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_ICON, tn, ...)
+```
+The TN is reduced by the persona's `sensor` attribute before being passed to the resolver. No other analyze operation does this.
+
+**PRD verdict:** PRD intent is that Analyze utility reduces TN per CD-14; this pre-subtraction bypasses the standard path and is undocumented. **PRD neither supports the design as written nor the code's specific mechanism.**
+
+**Todo:** Reconcile with CD-14 — either route through the standard utility-reduction path or document the sensor pre-reduction explicitly in the design and PRD.
+
+---
+
 ### OP-1 — `locateDecker` sleaze rating source
+
+**Status:** ✅ RESOLVED — `sleazeRating: Int = 0` added to `Persona`; `locateDecker` now reads `targetPersona.sleazeRating`; external `targetSleazeRating` parameter removed.
 
 **Design says:** Read sleaze from the persona object: `val sensorTn = targetPersona.masking + (targetPersona.sleaze?.currentRating ?: 0)`.
 
@@ -394,6 +441,8 @@ The comment says "attach to each LTG" but the code attaches only to `ltgs.first(
 
 ### OP-2 — `locateDecker` sensor TN has an undocumented floor of 2
 
+**Status:** 🟡 DESIGN-ONLY
+
 **Design says:** No floor is specified for the sensor TN.
 
 **Code does:** Enforces `maxOf(2, masking + targetSleazeRating)`.
@@ -405,6 +454,8 @@ The comment says "attach to each LTG" but the code attaches only to `ltgs.first(
 ---
 
 ### OP-3 — `tapComcall` scanner test is not opposed
+
+**Status:** 🟡 DESIGN-ONLY — one-sided roll is the code's chosen approach.
 
 **Design says:** Resolve an *opposed* Computer Skill vs. scanner Device Rating test — both sides roll.
 
@@ -418,21 +469,21 @@ The comment says "attach to each LTG" but the code attaches only to `ltgs.first(
 
 ### OP-4 — `SWAP_MEMORY` has wrong testType and category
 
+**Status:** ✅ RESOLVED — `SWAP_MEMORY` now has category `STANDARD` (was `ONGOING`). `testType` retains `CONTROL` but no test is actually run for this operation.
+
 **Design says (via PRD table):** Swap Memory: None, None, Simple — no test type, no utility, Simple action.
 
-**Code does:**
-```kotlin
-SWAP_MEMORY(CONTROL, null, SIMPLE, ONGOING)
-```
-`testType = CONTROL` and `category = ONGOING`.
+**Code does:** ~~`SWAP_MEMORY(CONTROL, null, SIMPLE, ONGOING)`~~ Now `SWAP_MEMORY(CONTROL, null, SIMPLE, STANDARD)`.
 
-**PRD verdict:** **PRD directly contradicts the code on both `testType` and `category`.**
+**PRD verdict:** PRD directly contradicts `ONGOING`; `STANDARD` is now correct. `testType = CONTROL` remains a minor documentation gap.
 
-**Todo:** Update the code
+**Todo:** Update the design to note `testType` is set but unused.
 
 ---
 
 ### OP-5 — `EDIT_SLAVE` has no PRD backing
+
+**Status:** 🟡 DESIGN-ONLY — both design and code include it; PRD needs updating.
 
 **Design says:** Includes `EDIT_SLAVE(SLAVE, SPOOF, COMPLEX, MONITORED)`.
 
@@ -446,17 +497,21 @@ SWAP_MEMORY(CONTROL, null, SIMPLE, ONGOING)
 
 ### OP-6 — `NullOperationModifier` API mismatch
 
+**Status:** 🟡 DESIGN-ONLY
+
 **Design says:** The companion object exposes `forDuration(seconds): NullOperationModifier`. The resolver calls `.forDuration(inactivitySeconds).bonus`.
 
 **Code does:** `val bonus = NullOperationModifier.totalBonusForDuration(inactivitySeconds)` — method name not in design.
 
 **PRD verdict:** SO-13/SO-14 govern null operations but do not specify the modifier API. The design document is authoritative.
 
-**Todo:** Update dsign
+**Todo:** Update design
 
 ---
 
 ### OP-7 — `resolveScrambleDestructTest` applies undocumented TN floor
+
+**Status:** 🟡 DESIGN-ONLY
 
 **Design says:** Roll `ic.rating` dice vs. TN = `decker.computerSkill`. No floor mentioned.
 
@@ -470,17 +525,19 @@ SWAP_MEMORY(CONTROL, null, SIMPLE, ONGOING)
 
 ### OP-8 — `resolveInterrogation` code comment contradicts behavior
 
-**Design says:** Apply `queryPrecision.modifier` *after* utility reduction: `clampedBase = max(2, base - utility)`, then `adjustedTn = max(2, clampedBase + precision.modifier)`.
+**Status:** ✅ RESOLVED — wrong KDoc description corrected; ordering is now consistently documented: utility reduction first, then query-precision modifier.
 
-**Code does:** Behavior matches the design. However, the code comment states "Apply precision modifier before utility reduction" — the opposite order. The `InterrogationState.kt` docstring also contradicts operations.md on ordering.
+**Design says:** Apply `queryPrecision.modifier` *after* utility reduction.
 
-**PRD verdict:** SO-07 specifies the modifiers but not their ordering. The code behavior is correct; the comment and docstring are wrong.
+**Code does:** ~~Comment stated "Apply precision modifier before utility reduction."~~ Comment and docstring now correctly describe the order.
 
-**Todo:** Update comment and docstring
+**PRD verdict:** SO-07 specifies the modifiers but not their ordering.
 
 ---
 
 ### OP-9 — `LocateResult.Located` uses `target: LocatedTarget` sealed class instead of `target: Any`
+
+**Status:** 🟡 DESIGN-ONLY — code improvement over the design spec.
 
 **Design says:** `data class Located(val target: Any, val accumulatedSuccesses: Int)`.
 
@@ -493,6 +550,8 @@ SWAP_MEMORY(CONTROL, null, SIMPLE, ONGOING)
 ---
 
 ### OP-10 — All resolver call sites use `host.securityRating.value` instead of `host.securityValue`
+
+**Status:** 🟡 DESIGN-ONLY
 
 **Design says:** Throughout the resolver algorithms, the host dice pool is `host.securityValue`.
 
@@ -508,6 +567,8 @@ SWAP_MEMORY(CONTROL, null, SIMPLE, ONGOING)
 
 ### GL-1 — `Crippler.action()` / `Ripper.action()` pass wrong argument type to `CombatResolver`
 
+**Status:** 🟡 DESIGN-ONLY — code passes `securityRating.value: Int` correctly.
+
 **Design says:** Pass `context.securityCode: SecurityCode`.
 
 **Code does:** Passes `context.host.securityRating.value: Int` — matches the actual signature. The design document shows the wrong parameter type.
@@ -520,9 +581,11 @@ SWAP_MEMORY(CONTROL, null, SIMPLE, ONGOING)
 
 ### GL-2 — `icAttackParticipant` call has two arguments in design, three in code
 
+**Status:** 🟡 DESIGN-ONLY — three-argument call is correct.
+
 **Design says:** `CombatResolver.icAttackParticipant(this, context.securityCode)` — two arguments.
 
-**Code does:** Three arguments. The confirmed `CombatResolver` signature requires the third argument; the code is correct and the design is missing it.
+**Code does:** Three arguments: `this`, `context.securityCode`, `context.host.securityRating.value`. The confirmed `CombatResolver` signature requires the third; the code is correct.
 
 **PRD verdict:** Not covered by PRD. The design is missing an argument in its call-site documentation.
 
@@ -532,17 +595,21 @@ SWAP_MEMORY(CONTROL, null, SIMPLE, ONGOING)
 
 ### GL-3 — `Ripper.action()` adds an MPCP test on attribute-zero not present in the design
 
+**Status:** 🟡 DESIGN-ONLY — additional MPCP test is present and correct per ICC-07.
+
 **Design says:** After `resolveRipper`, call `context.updateDecker(target, result.updatedDecker)` — done.
 
 **Code does:** Additionally checks if the targeted attribute reached 0 and calls `CombatResolver.resolveRipperMpcpTest(finalDecker, this, diceRoller)` before updating the decker.
 
-**PRD verdict:** Not covered in the supplied PRD excerpt. Neither supports nor contradicts this additional behavior.
+**PRD verdict:** ICC-07 requires this MPCP test when an attribute is reduced to 0. PRD supports the code; the design omits this step.
 
 **Todo:** Update design
 
 ---
 
 ### GL-4 — `Probe.action()` guards `addToSecurityTally` with `if (tallyPoints > 0)`; design calls it unconditionally
+
+**Status:** 🟡 DESIGN-ONLY — conditional guard is correct per PRD.
 
 **Design says:** `context.addToSecurityTally(tallyPoints)` — always called.
 
@@ -554,63 +621,35 @@ SWAP_MEMORY(CONTROL, null, SIMPLE, ONGOING)
 
 ---
 
-### GL-5 — `availableActions()` grid context missing three required operations
-
-**Design says:** Grid context should offer: `RELOCATE_ICON`, `NULL_OPERATION`, `LOCATE_ACCESS_NODE`, `ANALYZE_SECURITY`, `LOCATE_IC`, `ANALYZE_IC`.
-
-**Code does:** `addGridSystemActions()` adds only `NULL_OPERATION`, `RELOCATE_ICON`, `LOCATE_ACCESS_NODE`. `ANALYZE_SECURITY`, `LOCATE_IC`, and `ANALYZE_IC` appear only inside `addHostSystemActions`.
-
-**PRD verdict:** PRD supports the broader grid list and does not list those three as deferred.
-
-**Todo:** Upadte code
-
----
-
 ### GL-6 — `runCombatTurn` advances utility upload timers; design does not mention this
+
+**Status:** 🟡 DESIGN-ONLY — timer advancement is correct per CD-11/CC-33.
 
 **Design says:** Four steps: roll initiative, action loop, decrement scores by 10, end when all scores ≤ 0. Nothing beyond.
 
 **Code does:** After the while loop, iterates all deckers and calls `context.updateDecker(decker, decker.advanceCombatTurn())` (annotated with CD-11, CC-33).
 
-**PRD verdict:** Game loop spec says nothing about utility timer advancement per combat turn. The behavior may be correct per the cyberdeck rules but is not documented in the game loop design.
+**PRD verdict:** CD-11 requires upload counters to decrement each Combat Turn. PRD supports the code; game loop design omits this step.
 
 **Todo:** Update Design
 
 ---
 
-### GL-7 — `runOutOfCombatTurn` silently defaults to 1 action when decker has no persona
+### GL-8 — `checkTriggers` skips same-state alert re-applications
 
-**Design says:** Calls `decker.action(context, diceRoller)` `decker.actionsPerTurn` times per decker. No fallback for a missing persona.
-
-**Code does:** `val count = decker.persona?.let { decker.actionsPerTurn } ?: 1`. If persona is null, the action runs once anyway.
-
-**PRD verdict:** SO-01/SO-02 define `actionsPerTurn` as requiring a persona. PRD does not sanction acting without one.
-
-**Todo:** Update Code
-
----
-
-### GL-8 — `checkTriggers` silently drops non-escalating alert transitions
+**Status:** 🟡 DESIGN-ONLY — no behavioral impact.
 
 **Design says:** "Applies any alert-status transition via `updateHost` (AL-01/AL-02)."
 
-**Code does:** `if (transition.ordinal > host.alertStatus.ordinal) updateHost(...)` — transitions to the same or a lower alert level are silently dropped.
+**Code does:**
+```kotlin
+if (transition != host.alertStatus) updateHost(applyAlertTransition(host, transition))
+```
+Only re-applying the exact same state is skipped. Downward transitions are applied normally.
 
-**PRD verdict:** AL-01/AL-02 support applying any transition; they do not mention downward transitions being invalid.
+**PRD verdict:** AL-01/AL-02 support applying any transition; they do not address same-state re-applications. No behavioral impact.
 
-**Todo:** Update code
-
----
-
-### GL-9 — Interrogation states exist in both `Decker` and `TurnCoordinator`; PRD specifies only `Decker`
-
-**Design says:** `GameContext` spec lists no interrogation state. `TurnCoordinator` is not mentioned in the game design.
-
-**Code does:** [Decker.kt](src/main/kotlin/com/shadowrun/matrix/decker/Decker.kt) correctly holds `interrogationStates: Map<SystemOperation, InterrogationState>` per PRD. [TurnCoordinator.kt](src/main/kotlin/com/shadowrun/matrix/server/TurnCoordinator.kt) additionally holds `interrogationStatesByDecker: MutableMap<String, Map<SystemOperation, InterrogationState>>` — a parallel server-side copy with no PRD or design backing. The two can silently diverge.
-
-**PRD verdict:** **PRD explicitly assigns interrogation states to `Decker`. The duplicate store in `TurnCoordinator` has no authoritative source, creating a correctness risk.**
-
-**Todo:** Update the code
+**Todo:** Update design to clarify that same-state re-application is a no-op by design.
 
 ---
 
@@ -618,11 +657,13 @@ SWAP_MEMORY(CONTROL, null, SIMPLE, ONGOING)
 
 ### UI-1 — `paramKind` string values contradict the TypeScript type union
 
-**Design says ([design_ui.md](design/design_ui/design_ui.md)):** TypeScript union is `'precision' | 'passcode' | 'scanner' | 'edit' | null`. MAKE_COMCALL → `'passcode'`, TAP_COMCALL → `'scanner'`, EDIT_FILE → `'edit'`.
+**Status:** 🟡 DESIGN-ONLY — PRD supports the code's identifiers.
 
-**Code does ([AvailableActionDto.kt](src/main/kotlin/com/shadowrun/matrix/server/dto/AvailableActionDto.kt)):** Emits `"hasValidPasscode"`, `"scannerDeviceRating"`, `"newContent"` — none of which are members of the TypeScript union.
+**Design says ([design_ui.md](design/design_ui/design_ui.md)):** TypeScript union is `'precision' | 'passcode' | 'scanner' | 'edit' | null`.
 
-**PRD verdict:** PRD uses the code's identifiers (`hasValidPasscode`, `scannerDeviceRating`, `newContent`). **PRD supports the code; design_ui.md and the PRD are inconsistent with each other.**
+**Code does ([AvailableActionDto.kt](src/main/kotlin/com/shadowrun/matrix/server/dto/AvailableActionDto.kt)):** Emits `"hasValidPasscode"`, `"scannerDeviceRating"`, `"newContent"`.
+
+**PRD verdict:** PRD uses the code's identifiers. **PRD supports the code; design_ui.md needs updating.**
 
 **Todo:** Update the design
 
@@ -630,7 +671,9 @@ SWAP_MEMORY(CONTROL, null, SIMPLE, ONGOING)
 
 ### UI-2 — LOCATE_FILE and LOCATE_SLAVE query input not signaled to the client
 
-**Design says ([design_ui.md](design/design_ui/design_ui.md)):** `LOCATE_FILE` and `LOCATE_SLAVE` must show an additional optional text input `SEARCH: [________]` mapped to `params.query`, in addition to the precision selector.
+**Status:** 🟡 DESIGN-ONLY — PRD supports the code.
+
+**Design says ([design_ui.md](design/design_ui/design_ui.md)):** `LOCATE_FILE` and `LOCATE_SLAVE` must show an additional optional text input `SEARCH: [________]` mapped to `params.query`.
 
 **Code does:** All three operations receive `paramKind = "precision"` only. No signal for the query text input.
 
@@ -640,125 +683,147 @@ SWAP_MEMORY(CONTROL, null, SIMPLE, ONGOING)
 
 ---
 
-### UI-3 — Missing reconnect token silently allows reconnect; protocol requires rejection
-
-**[protocol.md](design/protocol.md) says:** If the token is missing or wrong for a disconnected name, respond with `name_already_taken`.
-
-**Code does ([SessionRegistry.kt](src/main/kotlin/com/shadowrun/matrix/server/SessionRegistry.kt)):**
-```kotlin
-if (msg.reconnectToken != null && storedToken != null && msg.reconnectToken != storedToken) {
-    JoinOutcome(ErrorCode.BAD_REQUEST, false, null)
-} else { /* reconnect succeeds */ }
-```
-When `msg.reconnectToken` is `null`, the `&&` short-circuits and reconnect succeeds. A client omitting the token for a disconnected decker name can hijack that slot.
-
-**PRD verdict:** UI-03 specifies `BAD_REQUEST` on mismatch but is silent on the missing-token case. Neither PRD nor code matches the protocol.md requirement of `name_already_taken` on absence. **This is a security-relevant behavioral gap.**
-
-**Todo:** Update the code
-
-
----
-
 ### UI-4 — Wrong reconnect token returns `BAD_REQUEST`, not `name_already_taken`
+
+**Status:** 🟡 DESIGN-ONLY — PRD supports the code.
 
 **[protocol.md](design/protocol.md) says:** When the token is wrong, respond with `name_already_taken`.
 
 **Code does:** Returns `ErrorCode.BAD_REQUEST`.
 
-**PRD verdict:** UI-03 specifies `BAD_REQUEST` for a mismatch. **PRD supports the code. Protocol.md and PRD are inconsistent; the code follows the PRD.**
+**PRD verdict:** UI-03 specifies `BAD_REQUEST` for a mismatch. **PRD supports the code. Protocol.md needs updating.**
 
 **Todo:** Update the design
 
 ---
 
-### UI-5 — `staticResources` missing `defaultResource("index.html")`
+### UI-5 — `staticResources` uses `default()` (current Ktor API) instead of design's `defaultResource()`
 
-**Design says ([design_ui.md](design/design_ui/design_ui.md)):**
-```kotlin
-staticResources("/", "static") { defaultResource("index.html") }
-```
-Required for React SPA client-side routing.
+**Status:** 🟡 DESIGN-ONLY — functional intent fulfilled.
 
-**Code does ([MatrixServer.kt](src/main/kotlin/com/shadowrun/matrix/server/MatrixServer.kt)):**
-```kotlin
-staticResources("/", "static")
-```
-No `defaultResource` configured. Any path other than an exact static file match returns a 404; deep-linking and page refresh in the SPA will break.
+**Design says ([design_ui.md](design/design_ui/design_ui.md)):** `staticResources("/", "static") { defaultResource("index.html") }`
+
+**Code does ([MatrixServer.kt](src/main/kotlin/com/shadowrun/matrix/server/MatrixServer.kt)):** `staticResources("/", "static") { default("index.html") }` — uses current Ktor API name.
 
 **PRD verdict:** PRD does not address static-file serving configuration.
 
-**Todo:** Update the code
+**Todo:** Update the design to use the current Ktor API name `default()`.
 
 ---
 
 ### UI-6 — MAKE_COMCALL absent from `protocol.md` params table
 
-**[design_ui.md](design/design_ui/design_ui.md) says:** MAKE_COMCALL requires `hasValidPasscode` toggle.
+**Status:** 🟡 DESIGN-ONLY — docs gap only; code is correct.
 
-**[protocol.md](design/protocol.md) says:** The ActionCommand params table lists LOCATE_FILE/SLAVE/ACCESS_NODE, EDIT_FILE, NULL_OPERATION, TAP_COMCALL — MAKE_COMCALL is absent.
+**[protocol.md](design/protocol.md) says:** ActionCommand params table omits MAKE_COMCALL.
 
-**Code does:** Correctly handles `hasValidPasscode` for MAKE_COMCALL, consistent with design_ui.md and PRD.
+**Code does:** Correctly handles `hasValidPasscode` for MAKE_COMCALL.
 
-**PRD verdict:** PRD lists MAKE_COMCALL with `hasValidPasscode`. PRD supports the code and design_ui.md. Protocol.md has an incomplete params table; **documentation gap only, not a code error.**
+**PRD verdict:** PRD lists MAKE_COMCALL with `hasValidPasscode`. PRD supports the code; protocol.md has an incomplete params table.
 
 **Todo:** Update protocol.md
 
 ---
 
+## Remaining Issues
+
+### ✅ Previously Open — All code changes applied
+
+All 8 previously ❌ OPEN items (C-2, C-3, C-7, CP-3, MC-4, MC-7, NEW-1, OP-1) have been resolved. MC-7 was reclassified as 🟡 DESIGN-ONLY after verifying `creation.md` already uses `hosts:`.
+
+### 🟡 Design-Only — Documentation updates still required (26 items)
+
+| ID | What to update |
+|----|---------------|
+| C-1 | Design: update method signature to `securityValue: Int` |
+| C-4 | Design: add `opponentSensorRating` and `trackerMcpRating` to `TrackState` |
+| C-5 | Design: replace `utilityRating` references with `attackDicePool` / `weaponPower` |
+| C-8 | Design: fix table entry — double rating, not single |
+| C-9 | Design: note MPCP test is inlined (not delegated) |
+| CP-2 | Design: update file placement |
+| CP-4 | Design: use `<= 0` instead of `== 0` |
+| CP-5 | Design: remove default value for `costNuyen` |
+| CP-6 | Design: document `detectionFactor()` on `Cyberdeck` |
+| CP-7 | Design: document constructor capacity checks |
+| CP-8 | Design: document zero-I/O-speed guard |
+| MC-1 | Design: update `Failure.location` semantics |
+| MC-3 | Design: note `PLTG`/`LTG` are siblings; update dispatch description |
+| MC-5 | Design: remove `connectedRtgs` path (PRD supports code) |
+| MC-6 | Design: add comment referencing data-model reliance |
+| MC-8 | Design: update `security_sheaf` format to nested map |
+| MC-9 | Design: update step field names to match code |
+| OP-2 | Design + PRD: document floor-2 on sensor TN |
+| OP-3 | Design: update scanner test to one-sided; add PRD comment |
+| OP-4 | Design: note `testType = CONTROL` but unused for SWAP_MEMORY |
+| OP-5 | PRD: add `EDIT_SLAVE` to operations table |
+| OP-6 | Design: rename `forDuration()` to `totalBonusForDuration()` |
+| OP-7 | Design + PRD: document floor-2 on scramble destruct TN |
+| OP-9 | Design: use `LocatedTarget` sealed class instead of `Any` |
+| OP-10 | Design: use `securityRating.value` instead of `securityValue` |
+| GL-1 | Design: update arg type to `Int` |
+| GL-2 | Design: add third argument to `icAttackParticipant` call |
+| GL-3 | Design: add MPCP test step on attribute-zero |
+| GL-4 | Design: add `if (tallyPoints > 0)` guard |
+| GL-6 | Design: add timer advancement step to combat turn |
+| GL-8 | Design: clarify same-state skip is intentional |
+| UI-1 | Design: update `paramKind` values to match PRD/code |
+| UI-2 | Design: remove `SEARCH` query input requirement |
+| UI-4 | Protocol.md: change `name_already_taken` to `BAD_REQUEST` |
+| UI-5 | Design: use `default()` not `defaultResource()` |
+| UI-6 | Protocol.md: add MAKE_COMCALL to params table |
+
+---
+
 ## Appendix: Quick-Reference Index
 
-| ID | Area | File(s) | Summary | PRD Verdict |
-|----|------|---------|---------|-------------|
-| C-1 | Combat | CombatResolver.kt | Method signatures take `Int` not `SecurityCode` | API divergence; behavior equivalent |
-| C-2 | Combat | CombatResolver.kt, IcDamageResult | Rating `+2` boost after persona-only crash absent | Design mandates it; PRD silent on detail |
-| C-3 | Combat | CombatResolver.kt `applyIcDamage` | Extra `blackIcPin == null` guard prevents pin update from second Black IC | Design has no such guard |
-| C-4 | Combat | TrackState | Two undocumented fields | PRD silent on shape |
-| C-5 | Combat | CombatResolver.kt `resolveAttack` | Design step-text references non-existent field `utilityRating` | Code correct; design internally inconsistent |
-| C-6 | Combat | CombatResolver.kt `applyIcDamage` | Calls `applyDamage(Int)` vs. designed `applyDamage(DamageLevel)` | Design spec is authoritative |
-| C-7 | Combat | CombatResolver.kt `suppressIc` | Location check is any host, not same host as the IC | Design requires same-host check |
-| C-8 | Combat | CombatResolver.kt, design table | Table says single rating; spec and code use double | Spec (double) authoritative; table erroneous |
-| C-9 | Combat | CombatResolver.kt | MPCP test inlined instead of delegating to `resolveBlasterMpcpTest` | No behavioral difference; structural only |
-| CP-1 | Cyberdeck | DeckerOperationsExtensions.kt | Throws on deadly condition monitor instead of graceful return | CD-20 silent on deadly case |
-| CP-2 | Cyberdeck | DeckerOperationsExtensions.kt, MedicResult.kt | Wrong files per design assignment | No PRD file rule |
-| CP-3 | Cyberdeck | DeckerOperationsExtensions.kt `relocateIcon` | Custom dual-roll opposed test; bypasses SystemTestResolver | CD-16 "Control Test"; tracker roll undocumented |
-| CP-4 | Cyberdeck | DeckerOperationsExtensions.kt | Auto-unload uses `<= 0` not `== 0` | CD-22 implies `== 0` |
-| CP-5 | Cyberdeck | Cyberterminal.kt | `costNuyen` required, not optional with default 0 | CT-05 silent |
-| CP-6 | Cyberdeck | Cyberdeck.kt | Undocumented `detectionFactor()` instance method | CD-18 formula correct; structural addition |
-| CP-7 | Cyberdeck | Cyberdeck.kt init | Two extra capacity `require` checks not in design | CD-05 assigns this to loader |
-| CP-8 | Cyberdeck | DeckerMemoryExtensions.kt | Zero I/O speed treated as instant load | CD-10 silent on zero I/O speed |
-| MC-1 | Movement | MovementResult.kt | `Failure.location` is attempted destination (nullable), not previous location (non-nullable) | M-04/M-05 do not specify semantics |
-| MC-2 | Movement | DeckerNavigationExtensions.kt `logonToLtg` | Throws on `OnLTG` current location | **M-06 supports design; code blocks it** |
-| MC-3 | Movement | DeckerNavigationExtensions.kt, Grid.kt | `PLTG` not a subtype of `LTG`; dispatch architecturally impossible | **M-11 supports design intent** |
-| MC-4 | Movement | DeckerNavigationExtensions.kt `jackInToLtg` | No RTG tally propagation; helper absent | **M-09 supports design** |
-| MC-5 | Movement | DeckerNavigationExtensions.kt `logonToRtg` | Only parent RTG allowed from `OnLTG` | **M-06 supports code** |
-| MC-6 | Movement | DeckerNavigationExtensions.kt `logonToHost` | No explicit tier guard; relies on data model | M-13 supports design |
-| MC-7 | Creation | GridLoader.kt | Reads key `hosts`, not design's `host_files` | PRD supports per-host files |
-| MC-8 | Creation | HostLoader.kt | `security_sheaf` expected as map; design specifies flat list | PRD silent on format |
-| MC-9 | Creation | HostLoader.kt | All step field names differ from design spec | PRD silent on field names |
-| MC-10 | Creation | HostLoader.kt | Topology value `open-access` causes load crash | PRD silent on format |
-| MC-11 | Creation | GridLoader.kt | RTG PLTGs attached only to first LTG; comment contradicts code | **M-11/M-15 support design** |
-| OP-1 | Operations | DeckerOperationsExtensions.kt `locateDecker` | Sleaze taken as external parameter defaulting to 0 | Design is authoritative |
-| OP-2 | Operations | DeckerOperationsExtensions.kt `locateDecker` | Undocumented floor-2 on sensor TN | Neither design nor PRD specifies floor here |
-| OP-3 | Operations | DeckerOperationsExtensions.kt `tapComcall` | Scanner test is one-sided; design says opposed | Design says "Opposed"; PRD silent |
-| OP-4 | Operations | SystemOperation.kt `SWAP_MEMORY` | `CONTROL`/`ONGOING` vs. PRD `None`/`Simple` | **PRD directly contradicts code** |
-| OP-5 | Operations | SystemOperation.kt | `EDIT_SLAVE` has no PRD backing | **PRD does not list it** |
-| OP-6 | Operations | SystemTestResolver.kt | `totalBonusForDuration()` not in design | Design is authoritative |
-| OP-7 | Operations | SystemTestResolver.kt | Undocumented floor-2 on `computerSkill` TN | PRD specifies no floor |
-| OP-8 | Operations | SystemTestResolver.kt | Code behavior correct; comment and docstring contradict operations.md ordering | Code correct; comments wrong |
-| OP-9 | Operations | OperationResult.kt `LocateResult.Located` | `target: LocatedTarget` sealed class vs. design's `target: Any` | Code improves on design |
-| OP-10 | Operations | All resolver call sites | `host.securityRating.value` vs. design's `host.securityValue` | PRD: SV and Security Rating are distinct concepts |
-| GL-1 | Game Loop | IC action classes | Design shows `SecurityCode` argument; code passes `Int` | Design doc internally inconsistent |
-| GL-2 | Game Loop | IC action classes | Design shows 2-arg call; code/signature require 3 | Design is missing an argument |
-| GL-3 | Game Loop | Ripper.action() | Extra MPCP test on attribute-zero not in design | PRD silent |
-| GL-4 | Game Loop | Probe.action() | Conditional `if (tallyPoints > 0)` vs. unconditional design | **ICC-03 supports code** |
-| GL-5 | Game Loop | Game.kt `availableActions()` | Grid context missing `ANALYZE_SECURITY`, `LOCATE_IC`, `ANALYZE_IC` | PRD supports broader grid list |
-| GL-6 | Game Loop | Game.kt `runCombatTurn` | Utility upload timers advanced; not in design | Game loop spec silent |
-| GL-7 | Game Loop | Game.kt `runOutOfCombatTurn` | Defaults to 1 action when persona is null | PRD requires persona |
-| GL-8 | Game Loop | TurnCoordinator.kt `checkTriggers` | Non-escalating alert transitions silently dropped | PRD supports applying any transition |
-| GL-9 | Game Loop | Decker.kt, TurnCoordinator.kt | Interrogation states duplicated in TurnCoordinator | **PRD assigns them to Decker only** |
-| UI-1 | UI/Protocol | AvailableActionDto.kt | `paramKind` values don't match design_ui.md TypeScript union | **PRD supports code values** |
-| UI-2 | UI/Protocol | AvailableActionDto.kt | LOCATE_FILE/SLAVE query input not signaled | **PRD supports code** |
-| UI-3 | UI/Protocol | SessionRegistry.kt | Missing token silently allows reconnect; security gap | Protocol.md requires rejection; PRD silent |
-| UI-4 | UI/Protocol | SessionRegistry.kt | Wrong token returns `BAD_REQUEST` not `name_already_taken` | **PRD supports code; protocol.md inconsistent** |
-| UI-5 | UI/Protocol | MatrixServer.kt | `defaultResource("index.html")` absent; SPA deep-links will 404 | PRD silent |
-| UI-6 | UI/Protocol | protocol.md | MAKE_COMCALL absent from protocol.md params table | **PRD supports code; documentation gap only** |
+| ID | Status | Area | Summary |
+|----|--------|------|---------|
+| C-1 | 🟡 | Combat | Method signatures take `Int` not `SecurityCode` |
+| C-2 | ✅ | Combat | Rating `+2` boost after persona-only crash absent |
+| C-3 | ✅ | Combat | `blackIcPin == null` guard prevents pin update from second Black IC |
+| C-4 | 🟡 | Combat | Two undocumented `TrackState` fields |
+| C-5 | 🟡 | Combat | Design step-text references non-existent field `utilityRating` |
+| C-6 | ✅ | Combat | `applyDamage(DamageLevel)` now used correctly |
+| C-7 | ✅ | Combat | `suppressIc` checks any host, not same host |
+| C-8 | 🟡 | Combat | Design table says single rating; spec and code use double |
+| C-9 | 🟡 | Combat | MPCP test inlined instead of delegated |
+| CP-2 | 🟡 | Cyberdeck | Wrong files per design |
+| CP-3 | ✅ | Cyberdeck | `relocateIcon` bypasses SystemTestResolver |
+| CP-4 | 🟡 | Cyberdeck | Auto-unload uses `<= 0` |
+| CP-5 | 🟡 | Cyberdeck | `costNuyen` has no default |
+| CP-6 | 🟡 | Cyberdeck | Undocumented `detectionFactor()` method |
+| CP-7 | 🟡 | Cyberdeck | Extra `init` capacity checks |
+| CP-8 | 🟡 | Cyberdeck | Zero I/O speed treated as instant load |
+| MC-1 | 🟡 | Movement | `Failure.location` semantics differ |
+| MC-2 | ✅ | Movement | `logonToLtg` now handles PLTG location |
+| MC-3 | 🟡 | Movement | `PLTG`/`LTG` sibling constraint |
+| MC-4 | ✅ | Movement | No RTG tally propagation |
+| MC-5 | 🟡 | Movement | Only parent RTG allowed from `OnLTG` (PRD supports) |
+| MC-6 | 🟡 | Movement | No explicit tier guard; relies on data model |
+| MC-7 | 🟡 | Creation | GridLoader reads `hosts`, design says `host_files` |
+| MC-8 | 🟡 | Creation | `security_sheaf` format mismatch |
+| MC-9 | 🟡 | Creation | Step field names differ |
+| MC-10 | ✅ | Creation | Topology hyphen normalisation added |
+| MC-11 | ✅ | Creation | PLTGs now attached to all LTGs |
+| NEW-1 | ✅ | Operations | `analyzeIcon` pre-subtracts sensor from TN |
+| OP-1 | ✅ | Operations | `locateDecker` sleaze from external param |
+| OP-2 | 🟡 | Operations | Undocumented floor-2 on sensor TN |
+| OP-3 | 🟡 | Operations | Scanner test is one-sided |
+| OP-4 | ✅ | Operations | `SWAP_MEMORY` category now `STANDARD` |
+| OP-5 | 🟡 | Operations | `EDIT_SLAVE` has no PRD backing |
+| OP-6 | 🟡 | Operations | `totalBonusForDuration()` not in design |
+| OP-7 | 🟡 | Operations | Undocumented floor-2 on scramble destruct TN |
+| OP-8 | ✅ | Operations | Wrong comment fixed |
+| OP-9 | 🟡 | Operations | `LocatedTarget` sealed class vs design's `Any` |
+| OP-10 | 🟡 | Operations | `securityRating.value` vs design's `securityValue` |
+| GL-1 | 🟡 | Game Loop | Design shows `SecurityCode` arg; code passes `Int` |
+| GL-2 | 🟡 | Game Loop | Design shows 2-arg call; code has 3 |
+| GL-3 | 🟡 | Game Loop | Extra MPCP test in `Ripper.action()` |
+| GL-4 | 🟡 | Game Loop | `if (tallyPoints > 0)` guard (PRD supports) |
+| GL-6 | 🟡 | Game Loop | Timer advancement not in design |
+| GL-8 | 🟡 | Game Loop | Same-state alert skip (no behavioral impact) |
+| UI-1 | 🟡 | UI/Protocol | `paramKind` values differ from design union |
+| UI-2 | 🟡 | UI/Protocol | LOCATE query input not signaled (PRD supports code) |
+| UI-4 | 🟡 | UI/Protocol | `BAD_REQUEST` vs `name_already_taken` in protocol.md |
+| UI-5 | 🟡 | UI/Protocol | `default()` vs `defaultResource()` API name |
+| UI-6 | 🟡 | UI/Protocol | MAKE_COMCALL absent from protocol.md table |

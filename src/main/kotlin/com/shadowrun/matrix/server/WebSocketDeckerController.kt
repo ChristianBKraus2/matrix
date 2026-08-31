@@ -161,7 +161,7 @@ class WebSocketDeckerController(
         @Suppress("UNUSED_PARAMETER") cmd: ActionCommand,
         diceRoller: DiceRoller
     ): DispatchResult = when (action.operation) {
-        SystemOperation.RELOCATE_ICON  -> dispatchRelocateIcon(diceRoller)
+        SystemOperation.RELOCATE_ICON  -> DispatchResult(decker, false, 0, 0, "RELOCATE_ICON requires a host context")
         SystemOperation.NULL_OPERATION -> DispatchResult(decker, true, 0, 0, "Turn passed")
         else -> DispatchResult(decker, false, 0, 0, "${action.operation} not supported on grid")
     }
@@ -310,18 +310,13 @@ class WebSocketDeckerController(
         val p = cmd.params
         return when (action.operation) {
             SystemOperation.NULL_OPERATION -> decker.nullOperation(host, p?.inactivitySeconds?.coerceIn(0, 3600) ?: 0, diceRoller).toDispatch()
-            SystemOperation.RELOCATE_ICON  -> dispatchRelocateIcon(diceRoller)
+            SystemOperation.RELOCATE_ICON  -> dispatchRelocateIcon(host, diceRoller)
             else -> DispatchResult(decker, false, 0, 0, "Unsupported misc op: ${action.operation}")
         }
     }
 
-    private fun dispatchRelocateIcon(diceRoller: DiceRoller): DispatchResult {
-        val trackState = decker.trackState
-        return decker.relocateIcon(
-            opponentSensor = trackState?.opponentSensorRating ?: 0,
-            trackerMcpRating = trackState?.trackerMcpRating ?: 0,
-            diceRoller
-        ).toDispatch()
+    private fun dispatchRelocateIcon(host: Host, diceRoller: DiceRoller): DispatchResult {
+        return decker.relocateIcon(host, diceRoller).toDispatch()
     }
 
     private fun locateWithState(

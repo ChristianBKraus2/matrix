@@ -766,27 +766,30 @@ class CyberdeckAndProgramMechanicsTest {
     fun `suppressionDfPenalty equals number of suppressed IC`() {
         val ic1 = Probe(rating = 3)
         val ic2 = Killer(rating = 5)
-        val d = decker(jackedIn = true).copy(currentLocation = MatrixLocation.OnHost(suppressionTestHost()))
-        val d2 = CombatResolver.suppressIc(CombatResolver.suppressIc(d, ic1), ic2)
+        val h = suppressionTestHost()
+        val d = decker(jackedIn = true).copy(currentLocation = MatrixLocation.OnHost(h))
+        val d2 = CombatResolver.suppressIc(CombatResolver.suppressIc(d, ic1, h), ic2, h)
         assertEquals(2, d2.suppressionDfPenalty)
     }
 
     @Test
     fun `effectiveDetectionFactor decreases by 1 per suppressed IC`() {
-        val d = decker(jackedIn = true).copy(currentLocation = MatrixLocation.OnHost(suppressionTestHost()))
+        val h = suppressionTestHost()
+        val d = decker(jackedIn = true).copy(currentLocation = MatrixLocation.OnHost(h))
         val baseline = d.effectiveDetectionFactor
-        val withOne = CombatResolver.suppressIc(d, Probe(rating = 4))
+        val withOne = CombatResolver.suppressIc(d, Probe(rating = 4), h)
         assertEquals(baseline - 1, withOne.effectiveDetectionFactor)
-        val withTwo = CombatResolver.suppressIc(withOne, Killer(rating = 5))
+        val withTwo = CombatResolver.suppressIc(withOne, Killer(rating = 5), h)
         assertEquals(baseline - 2, withTwo.effectiveDetectionFactor)
     }
 
     @Test
     fun `effectiveDetectionFactor restores after unsuppress`() {
         val ic = Probe(rating = 4)
-        val d = decker(jackedIn = true).copy(currentLocation = MatrixLocation.OnHost(suppressionTestHost()))
+        val h = suppressionTestHost()
+        val d = decker(jackedIn = true).copy(currentLocation = MatrixLocation.OnHost(h))
         val baseline = d.effectiveDetectionFactor
-        val suppressed = CombatResolver.suppressIc(d, ic)
+        val suppressed = CombatResolver.suppressIc(d, ic, h)
         assertEquals(baseline - 1, suppressed.effectiveDetectionFactor)
         val released = CombatResolver.unsuppressIc(suppressed, ic) {}
         assertEquals(baseline, released.effectiveDetectionFactor)

@@ -120,7 +120,7 @@ fun Decker.analyzeIc(ic: IC, host: Host, diceRoller: DiceRoller): OperationResul
 fun Decker.analyzeIcon(icon: MatrixIcon, host: Host, diceRoller: DiceRoller): OperationResult {
     logger.info { "[$name] analyzeIcon" }
     requireJackedIn()
-    val tn = host.subsystemRatings.control - (persona?.sensor ?: 0)
+    val tn = host.subsystemRatings.control
     // Note: SystemTestResolver.resolve() applies the Analyze utility modifier via operation.utility.
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_ICON, tn, host.securityRating.value, diceRoller)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
@@ -474,8 +474,7 @@ fun Decker.resolvePointerChain(file: DataFile, diceRoller: DiceRoller): PointerC
 fun Decker.locateDecker(
     host: Host,
     targetPersona: Persona,
-    diceRoller: DiceRoller,
-    targetSleazeRating: Int = 0
+    diceRoller: DiceRoller
 ): LocateDeckerResult {
     logger.info { "[$name] locateDecker on ${host.name}" }
     requireJackedIn()
@@ -485,10 +484,10 @@ fun Decker.locateDecker(
         logger.warn { "[$name] locateDecker: Index Test failed" }
         return LocateDeckerResult(updated, outcome, located = false, targetNotified = false)
     }
-    val sensorTn = maxOf(2, targetPersona.masking + targetSleazeRating)
+    val sensorTn = maxOf(2, targetPersona.masking + targetPersona.sleazeRating)
     val sensorResult = diceRoller.roll(requireNotNull(persona) { "locateDecker: decker has no persona" }.sensor, sensorTn)
     val located = sensorResult.successes >= 1
-    logger.info { "[$name] locateDecker: sensor vs TN=$sensorTn (masking=${targetPersona.masking} sleaze=$targetSleazeRating) → ${sensorResult.successes} successes, located=$located" }
+    logger.info { "[$name] locateDecker: sensor vs TN=$sensorTn (masking=${targetPersona.masking} sleaze=${targetPersona.sleazeRating}) → ${sensorResult.successes} successes, located=$located" }
     return LocateDeckerResult(updated, outcome, located, targetNotified = located)
 }
 
@@ -543,20 +542,14 @@ fun Decker.tapComcall(host: Host, scannerDeviceRating: Int = 0, diceRoller: Dice
 // ── Relocate Icon ──────────────────────────────────────────────────────────────
 
 /** PRD: SO individual table, CD-16 */
-fun Decker.relocateIcon(opponentSensor: Int, trackerMcpRating: Int, diceRoller: DiceRoller): OperationResult {
-    logger.info { "[$name] relocateIcon: opponentSensor=$opponentSensor trackerMcp=$trackerMcpRating" }
+fun Decker.relocateIcon(host: Host, diceRoller: DiceRoller): OperationResult {
+    logger.info { "[$name] relocateIcon on ${host.name}" }
     requireJackedIn()
-    val relocate = cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.RELOCATE }
-    val relocateRating = relocate?.currentRating ?: 0
-    val deckerTn = maxOf(2, opponentSensor - relocateRating)
-    val trackerTn = maxOf(2, relocateRating)
-    val deckerResult = diceRoller.roll(computerSkill, deckerTn)
-    val trackerResult = diceRoller.roll(trackerMcpRating, trackerTn)
-    logger.info { "[$name] relocateIcon: decker ${computerSkill}d vs TN=$deckerTn → ${deckerResult.successes}; tracker ${trackerMcpRating}d vs TN=$trackerTn → ${trackerResult.successes}" }
-    val deckerWins = deckerResult.successes > trackerResult.successes
-    val syntheticOutcome = SystemTestOutcome(deckerResult.successes, trackerResult.successes, deckerWins)
-    return if (deckerWins) OperationResult.Success(this, syntheticOutcome)
-    else OperationResult.Failure(this, syntheticOutcome)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.RELOCATE_ICON,
+        host.subsystemRatings.control, host.securityRating.value, diceRoller)
+    val updated = withUpdatedTally(outcome.hostSuccesses)
+    return if (outcome.deckerWins) OperationResult.Success(updated, outcome)
+    else OperationResult.Failure(updated, outcome)
 }
 
 // ── Scramble IC destruct ───────────────────────────────────────────────────────

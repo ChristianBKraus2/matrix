@@ -72,7 +72,7 @@ object SystemTestResolver {
 
     /**
      * Resolves one step of an interrogation operation and updates the accumulated success state.
-     * [queryPrecision] modifies the base TN before utility reduction (SO-07).
+     * Utility reduction is applied first, then [queryPrecision] modifies the result (SO-07).
      * Returns the raw test outcome and the updated [InterrogationState].
      * PRD: SO-05 through SO-09
      */

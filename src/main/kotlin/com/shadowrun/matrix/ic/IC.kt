@@ -206,11 +206,17 @@ sealed class BlackIC(name: String, rating: Int, guardedNode: Node? = null) :
 class LethalBlackIC(rating: Int, guardedNode: Node? = null) :
     BlackIC("Lethal Black IC", rating, guardedNode) {
 
+    fun withRatingBonus(bonus: Int) = LethalBlackIC(rating + bonus, guardedNode)
+
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
         moveIfNeeded(target, context)?.let { return it }
         val result = CombatResolver.resolveLethalBlackIc(target, this, context.securityCode, diceRoller)
         context.updateDecker(target, result.updatedDecker)
+        if (result.personaOnlyCrashed) {
+            context.removeIc(this)
+            context.addIc(withRatingBonus(2))
+        }
         return ActionResult.IcAttack("Lethal Black IC hit ${target.name}: ${result.iconDamage}")
     }
 }

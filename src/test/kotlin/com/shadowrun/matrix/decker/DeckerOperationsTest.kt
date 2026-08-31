@@ -151,8 +151,7 @@ class DeckerOperationsTest {
 
     @Test
     fun `analyzeIcon Analyze utility reduces TN`() {
-        // Without Analyze, TN = max(2, control(8) - sensor(6)) = 2
-        // With Analyze-4, TN = max(2, 8 - 6 - 4) = 2 — floor is still 2
+        // Without Analyze, TN = max(2, control(8)) = 8; With Analyze-4, TN = max(2, 8-4) = 4
         val analyze = Utility(UtilityType.ANALYZE, rating = 4)
         val d = decker(cyberdeck = deck(activeUtilities = listOf(analyze), storedUtilities = listOf(analyze)))
             .copy(currentLocation = MatrixLocation.OnHost(host()))
@@ -162,7 +161,7 @@ class DeckerOperationsTest {
 
     @Test
     fun `analyzeIcon TN floor is 2`() {
-        // control=2, sensor=6, analyze=8 → 2-6-8 = -12 → max(2,-12) = 2 → should succeed at face=2
+        // control=2, analyze=8 → 2-8=-6 → max(2,-6) = 2 → should succeed at face=2
         val analyze = Utility(UtilityType.ANALYZE, rating = 8)
         val d = decker(cyberdeck = deck(activeUtilities = listOf(analyze), storedUtilities = listOf(analyze)))
             .copy(currentLocation = MatrixLocation.OnHost(host(control = 2)))
@@ -328,7 +327,7 @@ class DeckerOperationsTest {
         val h = host(secValue = 2, index = 2)
         val d = decker(host = h)
         val target = Persona(bod = 4, evasion = 4, masking = 2, sensor = 4)
-        val result = d.locateDecker(h, target, winRoller, targetSleazeRating = 0)
+        val result = d.locateDecker(h, target, winRoller)
         assertTrue(result.located)
         assertTrue(result.targetNotified)
     }
@@ -345,12 +344,12 @@ class DeckerOperationsTest {
 
     @Test
     fun `locateDecker returns located=false when sensor test fails after Index Test win`() {
-        // Index wins (secValue=2, index=2); but masking=8+sleaze=4 → TN=12 → sensor test fails at face=3
+        // Index wins (secValue=2, index=2); but masking=8+sleaze=4 → TN=12 → sensor test fails at face=5 < 12
         val h = host(secValue = 2, index = 2)
         val d = decker(host = h)
-        val highMaskTarget = Persona(bod = 4, evasion = 4, masking = 8, sensor = 4)
+        val highMaskTarget = Persona(bod = 4, evasion = 4, masking = 8, sensor = 4, sleazeRating = 4)
         // Use a roller: decker wins index (face=5 vs TN=2), sensor fails (face=5 < TN=12)
-        val result = d.locateDecker(h, highMaskTarget, winRoller, targetSleazeRating = 4)
+        val result = d.locateDecker(h, highMaskTarget, winRoller)
         assertFalse(result.located)
     }
 
@@ -495,37 +494,34 @@ class DeckerOperationsTest {
     // ── relocateIcon ──────────────────────────────────────────────────────────────
 
     @Test
-    fun `relocateIcon returns Success when decker outrolls tracker`() {
-        // decker computerSkill=6 dice vs TN=max(2, opponentSensor(2)-0)=2 → all succeed
-        // tracker mcpRating=2 dice vs TN=max(2,0)=2 → also succeed, but decker wins ties when more successes
-        // With face=5: decker 6 successes, tracker 2 successes → decker wins
-        val h = host()
+    fun `relocateIcon returns Success when decker wins Control Test`() {
+        // control=4 → TN=max(2,4)=4; winRoller face=5 ≥ 4 → 6 decker successes → wins
+        val h = host(secValue = 1, control = 4)
         val d = decker(host = h)
-        val result = d.relocateIcon(opponentSensor = 2, trackerMcpRating = 2, winRoller)
+        val result = d.relocateIcon(h, winRoller)
         assertIs<OperationResult.Success>(result)
     }
 
     @Test
-    fun `relocateIcon returns Failure when tracker wins`() {
-        // opponentSensor=2, trackerMcpRating=12 → tracker 12 dice at TN=2; decker face=3 at TN=2 → ties go to decker
-        // Force decker to lose: high TN for decker via large opponentSensor
-        // opponentSensor=8, relocate=0 → deckerTn=8; face=3 < 8 → 0 decker successes; tracker 12 dice → wins
+    fun `relocateIcon returns Failure when host wins Control Test`() {
+        // control=8 → TN=8; loseRoller face=3 < 8 → 0 decker successes → host wins
         val h = host()
         val d = decker(host = h)
-        val result = d.relocateIcon(opponentSensor = 8, trackerMcpRating = 12, loseRoller)
+        val result = d.relocateIcon(h, loseRoller)
         assertIs<OperationResult.Failure>(result)
     }
 
     @Test
-    fun `relocateIcon Relocate utility reduces decker TN`() {
-        // Without Relocate: deckerTn = max(2, opponentSensor(6)-0) = 6; face=5 < 6 → 0 successes
-        // With Relocate-4: deckerTn = max(2, 6-4) = 2; face=5 ≥ 2 → 6 successes → wins
+    fun `relocateIcon Relocate utility reduces Control Test TN`() {
+        // Without Relocate: TN=max(2,8)=8; winRoller face=5 < 8 → 0 successes → Failure
+        // With Relocate-4: TN=max(2,8-4)=4; face=5 ≥ 4 → 6 successes → Success
         val relocate = Utility(UtilityType.RELOCATE, rating = 4)
-        val h = host()
-        val d = decker(cyberdeck = deck(activeUtilities = listOf(relocate), storedUtilities = listOf(relocate)),
+        val h = host(secValue = 1)
+        val dWithout = decker(host = h)
+        val dWith = decker(cyberdeck = deck(activeUtilities = listOf(relocate), storedUtilities = listOf(relocate)),
             host = h)
-        val result = d.relocateIcon(opponentSensor = 6, trackerMcpRating = 2, winRoller)
-        assertIs<OperationResult.Success>(result)
+        assertIs<OperationResult.Failure>(dWithout.relocateIcon(h, winRoller))
+        assertIs<OperationResult.Success>(dWith.relocateIcon(h, winRoller))
     }
 
     // ── resolveScrambleDestructTest ───────────────────────────────────────────────

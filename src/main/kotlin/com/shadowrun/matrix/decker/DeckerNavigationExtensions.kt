@@ -49,7 +49,10 @@ fun Decker.jackInToLtg(ltg: LTG, diceRoller: DiceRoller): LogonResult {
         securityValue = ltg.securityRating.value,
         diceRoller = diceRoller,
         buildLocation = { updatedTally ->
-            MatrixLocation.OnLTG(ltg.copy(securityTally = ltg.securityTally + updatedTally))
+            val updatedRtg = ltg.parentRtg.copy(
+                securityTally = ltg.parentRtg.securityTally + updatedTally
+            )
+            MatrixLocation.OnLTG(ltg.copy(securityTally = ltg.securityTally + updatedTally, parentRtg = updatedRtg))
         }
     ).also { result ->
         when (result) {
@@ -140,7 +143,10 @@ fun Decker.logonToLtg(ltg: LTG, diceRoller: DiceRoller): LogonResult {
         securityValue = ltg.securityRating.value,
         diceRoller = diceRoller,
         buildLocation = { hostTallyDelta ->
-            MatrixLocation.OnLTG(ltg.copy(securityTally = ltg.securityTally + hostTallyDelta))
+            val updatedRtg = ltg.parentRtg.copy(
+                securityTally = ltg.parentRtg.securityTally + hostTallyDelta
+            )
+            MatrixLocation.OnLTG(ltg.copy(securityTally = ltg.securityTally + hostTallyDelta, parentRtg = updatedRtg))
         }
     ).also { result ->
         when (result) {
