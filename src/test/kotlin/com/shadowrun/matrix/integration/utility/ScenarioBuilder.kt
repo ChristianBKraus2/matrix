@@ -335,8 +335,8 @@ class ScenarioBuilder(private val matrix: Matrix) {
         context.applyDeckerOperationResult(old, result.decker)
     }
 
-    fun invokeMediac(name: String = "invokeMediac") = step(name) {
-        val result = currentDecker().invokeMediac(roller)
+    fun invokeMedic(name: String = "invokeMedic") = step(name) {
+        val result = currentDecker().invokeMedic(roller)
         assertTrue(result.boxesRepaired >= 0, "$name: boxesRepaired should be non-negative")
         updateCurrentDecker(result.updatedDecker)
     }

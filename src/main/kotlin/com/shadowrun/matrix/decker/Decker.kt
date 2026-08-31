@@ -8,6 +8,7 @@ import com.shadowrun.matrix.network.Jackpoint
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.operations.AvailableAction
 import com.shadowrun.matrix.operations.InterrogationState
+import com.shadowrun.matrix.operations.MatrixIcon
 import com.shadowrun.matrix.operations.MatrixObject
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.programs.UtilityType
@@ -40,7 +41,8 @@ data class Decker(
     val trackState: TrackState? = null,
     val suppressedIc: List<IcSuppressionState> = emptyList(),
     val runDownloadedFiles: List<DataFile> = emptyList(),
-    val interrogationStates: Map<SystemOperation, InterrogationState> = emptyMap()
+    val interrogationStates: Map<SystemOperation, InterrogationState> = emptyMap(),
+    val detectedIcons: Set<MatrixIcon> = emptySet()
 ) : ActiveIcon {
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = ActionResult.DeckerAction
 
@@ -156,7 +158,6 @@ data class Decker(
 
     private fun MutableList<AvailableAction>.addGridSystemActions() {
         add(AvailableAction.Operation(SystemOperation.NULL_OPERATION))
-        add(AvailableAction.Operation(SystemOperation.RELOCATE_ICON))
         add(AvailableAction.Operation(SystemOperation.LOCATE_ACCESS_NODE))
         add(AvailableAction.Operation(SystemOperation.ANALYZE_SECURITY))
         add(AvailableAction.Operation(SystemOperation.LOCATE_IC))

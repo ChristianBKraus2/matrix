@@ -837,7 +837,7 @@ class CyberdeckAndProgramMechanicsTest {
         assertIs<SensorTestResult.Undetected>(result)
     }
 
-    // ── invokeMediac (CD-26 / G-15) ───────────────────────────────────────────────
+    // ── invokeMedic (CD-26 / G-15) ────────────────────────────────────────────────
 
     private fun fixedRoller(face: Int) = DiceRoller(object : Random() {
         override fun nextBits(bitCount: Int) = 0
@@ -864,26 +864,26 @@ class CyberdeckAndProgramMechanicsTest {
     }
 
     @Test
-    fun `invokeMediac TN is 4 for 1-3 filled boxes`() {
+    fun `invokeMedic TN is 4 for 1-3 filled boxes`() {
         // 3 boxes filled → TN 4; medic rating=4 dice all succeed (face=5 ≥ TN 4)
         val d = deckerWithMedic(medicRating = 4, damage = 3)
-        val result = d.invokeMediac(fixedRoller(5))
+        val result = d.invokeMedic(fixedRoller(5))
         assertEquals(3, result.boxesRepaired)           // all 3 boxes repaired
         assertEquals(0, result.updatedDecker.persona!!.conditionMonitor.damage)
         assertEquals(3, result.medicRating)             // decremented from 4 to 3
     }
 
     @Test
-    fun `invokeMediac TN is 5 for 4-6 filled boxes`() {
+    fun `invokeMedic TN is 5 for 4-6 filled boxes`() {
         // 5 boxes → TN 5; face=4 → fails TN 5 → 0 successes → 0 repaired
         val d = deckerWithMedic(medicRating = 4, damage = 5)
-        val result = d.invokeMediac(fixedRoller(4))
+        val result = d.invokeMedic(fixedRoller(4))
         assertEquals(0, result.boxesRepaired)
         assertEquals(5, result.updatedDecker.persona!!.conditionMonitor.damage)
     }
 
     @Test
-    fun `invokeMediac TN is 6 for 7-9 filled boxes`() {
+    fun `invokeMedic TN is 6 for 7-9 filled boxes`() {
         // 9 boxes → TN 6; roll exploding 6s: face=6 then face=1 → total=7 ≥ TN 6 → success
         // 4 medic dice each need [6,1] to explode past TN 6 → 4 successes, repair 4 of 9 boxes
         val d = deckerWithMedic(medicRating = 4, damage = 9)
@@ -892,24 +892,24 @@ class CyberdeckAndProgramMechanicsTest {
             override fun nextBits(bitCount: Int) = 0
             override fun nextInt(from: Int, until: Int) = values.removeFirst().coerceIn(from, until - 1)
         })
-        val result = d.invokeMediac(roller)
+        val result = d.invokeMedic(roller)
         assertEquals(4, result.boxesRepaired)
         assertEquals(5, result.updatedDecker.persona!!.conditionMonitor.damage)
     }
 
     @Test
-    fun `invokeMediac repairs at most as many boxes as are filled`() {
+    fun `invokeMedic repairs at most as many boxes as are filled`() {
         // 1 box filled, TN 4; 4 successes → repair capped at 1
         val d = deckerWithMedic(medicRating = 4, damage = 1)
-        val result = d.invokeMediac(fixedRoller(5))
+        val result = d.invokeMedic(fixedRoller(5))
         assertEquals(1, result.boxesRepaired)
         assertEquals(0, result.updatedDecker.persona!!.conditionMonitor.damage)
     }
 
     @Test
-    fun `invokeMediac decrements medic currentRating by 1`() {
+    fun `invokeMedic decrements medic currentRating by 1`() {
         val d = deckerWithMedic(medicRating = 5, damage = 2)
-        val result = d.invokeMediac(fixedRoller(5))
+        val result = d.invokeMedic(fixedRoller(5))
         assertEquals(4, result.medicRating)
         val activeRating = result.updatedDecker.cyberdeck.activeUtilities
             .first { it.type == UtilityType.MEDIC }.currentRating
@@ -917,25 +917,25 @@ class CyberdeckAndProgramMechanicsTest {
     }
 
     @Test
-    fun `invokeMediac at rating 1 auto-unloads medic from active and stored`() {
+    fun `invokeMedic at rating 1 auto-unloads medic from active and stored`() {
         val d = deckerWithMedic(medicRating = 1, damage = 2)
-        val result = d.invokeMediac(fixedRoller(1))  // 0 repairs, but still decrements
+        val result = d.invokeMedic(fixedRoller(1))  // 0 repairs, but still decrements
         assertEquals(0, result.medicRating)
         assertFalse(result.updatedDecker.cyberdeck.activeUtilities.any { it.type == UtilityType.MEDIC })
         assertFalse(result.updatedDecker.cyberdeck.storedUtilities.any { it.type == UtilityType.MEDIC })
     }
 
     @Test
-    fun `invokeMediac returns no-op result when persona CM is at 10 boxes`() {
+    fun `invokeMedic returns no-op result when persona CM is at 10 boxes`() {
         val d = deckerWithMedic(medicRating = 4, damage = 10)
-        val result = d.invokeMediac(fixedRoller(5))
+        val result = d.invokeMedic(fixedRoller(5))
         assertEquals(0, result.boxesRepaired)
         assertEquals(4, result.medicRating)
         assertEquals(d, result.updatedDecker)
     }
 
     @Test
-    fun `invokeMediac throws when Medic is not loaded`() {
+    fun `invokeMedic throws when Medic is not loaded`() {
         val d = Decker(
             name = "NoDrug", intelligence = 6, body = 4, willpower = 5, reaction = 5,
             computerSkill = 6, cyberdeck = deck(),
@@ -943,19 +943,19 @@ class CyberdeckAndProgramMechanicsTest {
                 conditionMonitor = ConditionMonitor(damage = 3))
         )
         assertFailsWith<IllegalStateException> {
-            d.invokeMediac(fixedRoller(5))
+            d.invokeMedic(fixedRoller(5))
         }
     }
 
     @Test
-    fun `invokeMediac throws when not jacked in`() {
+    fun `invokeMedic throws when not jacked in`() {
         val medic = Utility(UtilityType.MEDIC, rating = 4)
         val d = Decker(
             name = "Offline", intelligence = 6, body = 4, willpower = 5, reaction = 5,
             computerSkill = 6, cyberdeck = deck(activeUtilities = listOf(medic), storedUtilities = listOf(medic))
         )
         assertFailsWith<IllegalStateException> {
-            d.invokeMediac(fixedRoller(5))
+            d.invokeMedic(fixedRoller(5))
         }
     }
 

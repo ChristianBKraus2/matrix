@@ -207,10 +207,10 @@ class CombatTest : IntegrationTestBase() {
         }
     }
 
-    // --- Group: invokeMediac ---
+    // --- Group: invokeMedic ---
 
     @Test
-    fun `invokeMediac repairs icon damage after combat`() {
+    fun `invokeMedic repairs icon damage after combat`() {
         val icon = scenario(securityCode = SecurityCode.ORANGE) {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
@@ -224,7 +224,7 @@ class CombatTest : IntegrationTestBase() {
 
         // Equip Medic and invoke — hitRoller (face 5) beats Medic TN 4 → repairs boxes
         icon.equipUtility(Utility(UtilityType.MEDIC, rating = 6))
-        val medicResult = icon.currentDecker().invokeMediac(hitRoller())
+        val medicResult = icon.currentDecker().invokeMedic(hitRoller())
         assertTrue(medicResult.boxesRepaired > 0, "Medic should repair at least one box")
         assertEquals(3 - medicResult.boxesRepaired, medicResult.updatedDecker.persona!!.conditionMonitor.damage)
     }

@@ -227,12 +227,12 @@ fun Decker.gracefulLogoff(diceRoller: DiceRoller): LogoffResult {
     if (trackPenalty > 0) logger.info { "[$name] gracefulLogoff: Track penalty +$trackPenalty applied to TN" }
     val outcome = SystemTestResolver.resolve(this, SystemOperation.GRACEFUL_LOGOFF, effectiveTn, securityValue, diceRoller)
     return if (outcome.deckerWins) {
-        LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null, interrogationStates = emptyMap())).also {
+        LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null, interrogationStates = emptyMap(), detectedIcons = emptySet())).also {
             logger.info { "[$name] gracefulLogoff succeeded: traces cleared, no dump shock" }
         }
     } else {
         val shock = !cyberdeck.immuneToDumpShock
-        LogoffResult.JackOut(copy(persona = null, currentLocation = null, interrogationStates = emptyMap()), dumpShock = shock).also {
+        LogoffResult.JackOut(copy(persona = null, currentLocation = null, interrogationStates = emptyMap(), detectedIcons = emptySet()), dumpShock = shock).also {
             logger.warn { "[$name] gracefulLogoff failed: falling back to jack-out (dumpShock=$shock)" }
         }
     }
@@ -244,7 +244,7 @@ fun Decker.jackOut(): LogoffResult {
     requireJackedIn()
     check(!isPinnedByBlackIc) { "Cannot jack out while pinned by Black IC" }
     val shock = !cyberdeck.immuneToDumpShock
-    return LogoffResult.JackOut(copy(persona = null, currentLocation = null, interrogationStates = emptyMap()), dumpShock = shock).also {
+    return LogoffResult.JackOut(copy(persona = null, currentLocation = null, interrogationStates = emptyMap(), detectedIcons = emptySet()), dumpShock = shock).also {
         logger.info { "[$name] jackOut complete: dumpShock=$shock" }
     }
 }
@@ -286,7 +286,7 @@ private fun Decker.performLogon(
         LogonResult.Success(copy(persona = newPersona, currentLocation = newLocation), newLocation,
             deckerSuccesses = outcome.deckerSuccesses, hostSuccesses = outcome.hostSuccesses)
     } else {
-        LogonResult.Failure(this, newLocation,
+        LogonResult.Failure(withDestinationTallyEmbedded(newLocation), newLocation,
             deckerSuccesses = outcome.deckerSuccesses, hostSuccesses = outcome.hostSuccesses)
     }
 }
@@ -297,4 +297,43 @@ private fun Decker.accessRatingAndSecurityValue(): Pair<Int, Int> = when (val lo
     is MatrixLocation.OnPLTG -> Pair(loc.pltg.subsystemRatings.access, loc.pltg.securityRating.value)
     is MatrixLocation.OnHost -> Pair(loc.host.subsystemRatings.access, loc.host.securityRating.value)
     null -> throw IllegalStateException("Decker is not jacked in")
+}
+
+/**
+ * On a failed logon, propagates the destination's updated security tally back through the decker's
+ * current-location network graph so callers using [LogonResult.Failure.decker] see the tally change.
+ * PRD: M-04, M-05 — tally increments regardless of contest outcome.
+ * Returns [this] unchanged if no structural link exists (e.g. jack-in failure with null currentLocation).
+ */
+private fun Decker.withDestinationTallyEmbedded(destination: MatrixLocation): Decker {
+    val cur = currentLocation ?: return this
+    return when {
+        destination is MatrixLocation.OnLTG && cur is MatrixLocation.OnRTG -> {
+            val updated = cur.rtg.ltgs.map { if (it.name == destination.ltg.name) destination.ltg else it }
+            copy(currentLocation = MatrixLocation.OnRTG(cur.rtg.copy(ltgs = updated)))
+        }
+        destination is MatrixLocation.OnRTG && cur is MatrixLocation.OnLTG ->
+            copy(currentLocation = MatrixLocation.OnLTG(cur.ltg.copy(parentRtg = destination.rtg)))
+        destination is MatrixLocation.OnRTG && cur is MatrixLocation.OnRTG -> {
+            val updated = cur.rtg.connectedRtgs.map { if (it.name == destination.rtg.name) destination.rtg else it }
+            copy(currentLocation = MatrixLocation.OnRTG(cur.rtg.copy(connectedRtgs = updated)))
+        }
+        destination is MatrixLocation.OnPLTG && cur is MatrixLocation.OnLTG -> {
+            val updated = cur.ltg.pltgs.map { if (it.name == destination.pltg.name) destination.pltg else it }
+            copy(currentLocation = MatrixLocation.OnLTG(cur.ltg.copy(pltgs = updated)))
+        }
+        destination is MatrixLocation.OnHost && cur is MatrixLocation.OnLTG -> {
+            val updated = cur.ltg.hosts.map { if (it.name == destination.host.name) destination.host else it }
+            copy(currentLocation = MatrixLocation.OnLTG(cur.ltg.copy(hosts = updated)))
+        }
+        destination is MatrixLocation.OnHost && cur is MatrixLocation.OnPLTG -> {
+            val updated = cur.pltg.hosts.map { if (it.name == destination.host.name) destination.host else it }
+            copy(currentLocation = MatrixLocation.OnPLTG(cur.pltg.copy(hosts = updated)))
+        }
+        destination is MatrixLocation.OnHost && cur is MatrixLocation.OnHost -> {
+            val updated = cur.host.connectedHosts.map { if (it.name == destination.host.name) destination.host else it }
+            copy(currentLocation = MatrixLocation.OnHost(cur.host.copy(connectedHosts = updated)))
+        }
+        else -> this
+    }
 }

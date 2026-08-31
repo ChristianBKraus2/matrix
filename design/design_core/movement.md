@@ -220,6 +220,7 @@ Dedicated method for navigating to a PLTG. Because `PLTG` and `LTG` are sibling 
 **Preconditions:**
 - `currentLocation is OnLTG` and `pltg` is attached to that LTG, **or**
 - `currentLocation is OnPLTG` (PLTG-to-PLTG hop)
+- Any other location (including `OnHost`) is not a valid origin — callers must first logoff to the grid. The implementation throws `IllegalStateException` for these cases.
 
 **Logic:**
 1. If current location is `OnLTG`, inherit the LTG's **parent RTG's** `securityTally` as the starting tally for the PLTG (M-11: tally carry-over comes from the RTG, not the LTG itself).

@@ -91,7 +91,7 @@ object CombatResolver {
         val persona = requireNotNull(decker.persona) { "applyIcDamage: decker has no active persona" }
         val newCm = persona.conditionMonitor.applyDamage(attack.stagedDamageLevel)
         var updatedDecker = decker.copy(persona = persona.copy(conditionMonitor = newCm))
-        updatedDecker = degradeArmor(updatedDecker) // CD-19
+        updatedDecker = degradeArmor(updatedDecker, damageBledThrough = attack.power > 0) // CD-19
 
         var dumpShockTriggered = false
         var simsense: SimsenseOverloadResult? = null
@@ -276,7 +276,7 @@ object CombatResolver {
             physicalConditionMonitor = newPhysicalCm,
             blackIcPin = decker.blackIcPin ?: BlackIcPinState(ic)
         )
-        updatedDecker = degradeArmor(updatedDecker) // CD-19
+        updatedDecker = degradeArmor(updatedDecker, damageBledThrough = power > armorRating) // CD-19
 
         val dumpShockTriggered = newCm.isCrashed || newPhysicalCm.isCrashed
 
@@ -336,7 +336,7 @@ object CombatResolver {
             mentalConditionMonitor = newMentalCm,
             blackIcPin = decker.blackIcPin ?: BlackIcPinState(ic)
         )
-        updatedDecker = degradeArmor(updatedDecker) // CD-19
+        updatedDecker = degradeArmor(updatedDecker, damageBledThrough = power > armorRating) // CD-19
 
         val dumpShockTriggered = newCm.isCrashed || newMentalCm.isCrashed
 
@@ -377,7 +377,7 @@ object CombatResolver {
             persona = persona.copy(conditionMonitor = newCm),
             physicalConditionMonitor = newPhysicalCm
         )
-        updatedDecker = degradeArmor(updatedDecker) // CD-19
+        updatedDecker = degradeArmor(updatedDecker, damageBledThrough = attack.power > 0) // CD-19
         val dumpShockTriggered = newCm.isCrashed || newPhysicalCm.isCrashed
         return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered)
     }
@@ -397,7 +397,7 @@ object CombatResolver {
             persona = persona.copy(conditionMonitor = newCm),
             mentalConditionMonitor = newMentalCm
         )
-        updatedDecker = degradeArmor(updatedDecker) // CD-19
+        updatedDecker = degradeArmor(updatedDecker, damageBledThrough = attack.power > 0) // CD-19
         val dumpShockTriggered = newCm.isCrashed || newMentalCm.isCrashed
         return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered)
     }
@@ -532,7 +532,8 @@ object CombatResolver {
         }
     }
 
-    private fun degradeArmor(decker: Decker): Decker {
+    private fun degradeArmor(decker: Decker, damageBledThrough: Boolean): Decker {
+        if (!damageBledThrough) return decker
         val armorIdx = decker.cyberdeck.activeUtilities.indexOfFirst { it.type == UtilityType.ARMOR }
         if (armorIdx == -1) return decker
         val armorUtil = decker.cyberdeck.activeUtilities[armorIdx]

@@ -471,15 +471,15 @@ fun Decker.nullOperation(host: Host, inactivitySeconds: Int, diceRoller: DiceRol
 // ── Medic Utility ──────────────────────────────────────────────────────────────
 
 /** PRD: CD-26 / G-15 */
-fun Decker.invokeMediac(diceRoller: DiceRoller): MedicResult {
-    check(persona != null) { "invokeMediac requires a jacked-in persona" }
+fun Decker.invokeMedic(diceRoller: DiceRoller): MedicResult {
+    check(persona != null) { "invokeMedic requires a jacked-in persona" }
     val p = persona
     val medic = checkNotNull(cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.MEDIC }) {
         "Medic utility is not loaded"
     }
     val filled = p.conditionMonitor.damage
     if (filled >= 10) {
-        logger.warn { "[$name] invokeMediac: CM at Deadly — cannot repair" }
+        logger.warn { "[$name] invokeMedic: CM at Deadly — cannot repair" }
         return MedicResult(this, 0, medic.currentRating)
     }
     val tn = when {
@@ -497,16 +497,17 @@ fun Decker.invokeMediac(diceRoller: DiceRoller): MedicResult {
     } else {
         cyberdeck.activeUtilities.map { if (it.type == UtilityType.MEDIC) Utility(it.type, it.rating, currentRating = newMedicRating) else it }
     }
+    // storedUtilities is immutable at runtime (CD-21): only remove the stored entry when depleted (CD-22)
     val newStored = if (newMedicRating <= 0) {
         cyberdeck.storedUtilities.filterNot { it.type == UtilityType.MEDIC }
     } else {
-        cyberdeck.storedUtilities.map { if (it.type == UtilityType.MEDIC) Utility(it.type, it.rating, currentRating = newMedicRating) else it }
+        cyberdeck.storedUtilities
     }
     val updatedDecker = copy(
         persona = p.copy(conditionMonitor = newCm),
         cyberdeck = cyberdeck.copy(activeUtilities = newActive, storedUtilities = newStored)
     )
-    logger.info { "[$name] invokeMediac: filled=$filled TN=$tn successes=$successes repaired=$repaired newMedicRating=$newMedicRating" }
+    logger.info { "[$name] invokeMedic: filled=$filled TN=$tn successes=$successes repaired=$repaired newMedicRating=$newMedicRating" }
     return MedicResult(updatedDecker, repaired, newMedicRating)
 }
 

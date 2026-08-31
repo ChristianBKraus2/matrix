@@ -166,7 +166,7 @@ class DeckerVisibilityTest {
 
         val ops = actions.filterIsInstance<AvailableAction.Operation>().map { it.operation }
         assertTrue(SystemOperation.NULL_OPERATION in ops)
-        assertTrue(SystemOperation.RELOCATE_ICON in ops)
+        assertTrue(SystemOperation.RELOCATE_ICON !in ops)
         assertTrue(SystemOperation.LOCATE_ACCESS_NODE in ops)
     }
 
@@ -183,7 +183,7 @@ class DeckerVisibilityTest {
 
         val ops = actions.filterIsInstance<AvailableAction.Operation>().map { it.operation }
         assertTrue(SystemOperation.NULL_OPERATION in ops)
-        assertTrue(SystemOperation.RELOCATE_ICON in ops)
+        assertTrue(SystemOperation.RELOCATE_ICON !in ops)
     }
 
     @Test
@@ -196,7 +196,7 @@ class DeckerVisibilityTest {
 
         val ops = actions.filterIsInstance<AvailableAction.Operation>().map { it.operation }
         assertTrue(SystemOperation.NULL_OPERATION in ops)
-        assertTrue(SystemOperation.RELOCATE_ICON in ops)
+        assertTrue(SystemOperation.RELOCATE_ICON !in ops)
     }
 
     @Test

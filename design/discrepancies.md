@@ -1,184 +1,173 @@
 # Design vs. Implementation Discrepancies
 
-Comparing design documents in `design/design_core/`, `design/design_game/`, and `design/design_ui/` against implementation code.  
-Each entry notes whether the PRD (`prd_core.md`, `prd_game.md`, `prd_ui.md`) supports the **design**, the **code**, or **neither**.
+Audit date: 2026-08-31  
+Design files checked (non-PRD): `design_core/combat.md`, `design_core/movement.md`, `design_core/operations.md`, `design_core/cyberdeck_and_program_mechanics.md`, `design_game/game.md`, `design_ui/design_ui.md`  
+PRDs consulted: `prd_core.md`, `prd_game.md`, `prd_ui.md`
 
 ---
 
-## Combat (`combat.md` vs `CombatResolver.kt`, `IcDamageResult.kt`, `IC.kt`)
+## C-1 — Armor degradation is unconditional; design requires it only when damage bleeds through
 
-### C-1 — `IcDamageResult` has extra `personaOnlyCrashed` field
+**Design** (`combat.md` / CD-19): Armor degrades "each time an Armor utility **fails to fully absorb** incoming damage — meaning damage bleeds through to the persona's condition monitor."
 
-**Design (`combat.md`):** `IcDamageResult` has five fields: `updatedDecker`, `iconDamage`, `simsenseOverload`, `dumpShockTriggered`, `mpcpReductionOnKill`. No `personaOnlyCrashed`.
+**Code** (`CombatResolver.kt`): `degradeArmor()` is called unconditionally after every IC hit in `applyIcDamage` (line 94), `resolveLethalBlackIc` (line 279), `resolveNonLethalBlackIc` (line 339), `resolveBlackHammer` (line 380), and `resolveKilljoy` (line 399). Armor degrades even if the persona took zero damage.
 
-**Code (`IcDamageResult.kt`):** adds `val personaOnlyCrashed: Boolean = false`. Used by `LethalBlackIC.action()` to detect when the persona crashes before the decker dies and apply the +2 IC rating bonus.
+**PRD verdict:** PRD (CD-19) says "Each time an Armor utility fails to fully absorb incoming damage — meaning damage bleeds through to the persona's condition monitor, the Armor utility's `currentRating` decreases by 1." → **PRD supports the design.** The code is wrong.
 
-**PRD (ICC-11):** "If the decker's persona icon is destroyed first … the Black IC gains a +2 Rating bonus." **PRD supports code.** The field is required to propagate this outcome from `CombatResolver` to the `IC` action handler.
-
-**Todo:** Adapt Design — **Done:** added `val personaOnlyCrashed: Boolean = false` to `IcDamageResult` in `combat.md`
+**Status:** ✅ Fixed — `degradeArmor` now takes `damageBledThrough: Boolean`; all five call sites pass the correct condition.
 
 ---
 
-### C-2 — `applyIcDamage` overwrites `blackIcPin` without null-check
+## C-2 — Medic invocation degrades stored copy's `currentRating`; stored rating must be immutable
 
-**Design (`combat.md`):** "The pin is only set if the decker does not already have a Black IC pin (`decker.blackIcPin == null`)."
+**Design** (`cyberdeck_and_program_mechanics.md` / CD-21): `storedRating` is immutable at runtime. Only the active in-memory instance's `currentRating` decrements on degradation (CD-20). CD-23 specifies that "the fresh instance starts with `currentRating = storedRating`", so the stored copy must remain at its original rating to allow reload.
 
-**Code (`CombatResolver.kt`):** `applyIcDamage` unconditionally replaces any existing pin. No guard on `decker.blackIcPin == null`.
+**Code** (`DeckerOperationsExtensions.kt`, `invokeMediac`, lines 498–503): When the Medic's `currentRating` decrements, both `activeUtilities` and `storedUtilities` are updated with the new lower `currentRating`. A subsequent reload via Swap Memory would give a degraded copy, not a fresh one.
 
-**PRD (ICC-10):** describes the pin as a single ASIST subversion state that begins on the first hit — implying only one active pin at a time. **PRD supports design.** (Note: in practice this code path is dead — `LethalBlackIC` and `NonLethalBlackIC` use their own dedicated resolution methods that bypass `applyIcDamage`.)
+**PRD verdict:** PRD (CD-21) "storedRating (immutable at runtime, from the YAML)" and CD-23 "fresh instance starts with `currentRating = storedRating`" → **PRD supports the design.** The stored copy must not be modified at runtime.
 
-**Todo:** Double check whether code is actually dead. If yes, remove from design and code — **Done:** confirmed dead; removed BlackIC pin branch from `applyIcDamage` in `CombatResolver.kt` and `combat.md`; removed 3 dead tests from `CombatResolverTest.kt`
-
----
-
-### C-3 — `ConditionMonitor.applyDamage(Int)` overload not in design
-
-**Design (`combat.md`):** specifies only `applyDamage(DamageLevel)` on `ConditionMonitor`.
-
-**Code (`CombatResolver.kt` line 122):** calls `applyDamage(stressBoxes: Int)` — an additional overload that applies a raw stress-box count.
-
-**PRD (CC-31):** specifies that Sparky/Blaster physical overflow applies one stress box at a time. **PRD supports the behavior** but does not prescribe the API signature; the overload is a convenience, not a contradiction.
-
-**Todo:** Adapt design to align — **Done:** added `fun applyDamage(stressBoxes: Int): ConditionMonitor` overload to `ConditionMonitor` in `combat.md` 
+**Status:** ✅ Fixed — `invokeMedic` now leaves `storedUtilities` unchanged when `newMedicRating > 0`; only removes the stored entry when depleted.
 
 ---
 
-### C-4 — `resolveAttack` rolls `attackDicePool + hackingPool`; design only specifies `attackDicePool`
+## C-3 — Depleted Medic is removed from storage; design says mark as depleted
 
-**Design (`combat.md` step 6):** "Attacker rolls `attackDicePool` dice."
+**Design** (`cyberdeck_and_program_mechanics.md` / CD-22): "auto-unloads it from active memory, **marks it depleted** in the storage inventory". The stored entry is retained but flagged.
 
-**Code (`CombatResolver.kt` line 80):** `diceRoller.roll(attacker.attackDicePool + attacker.hackingPool, tn)`.
+**Code** (`DeckerOperationsExtensions.kt`, `invokeMediac`, lines 496–502): When `newMedicRating <= 0`, both the active and stored entries are removed entirely (`filterNot { it.type == MEDIC }`). There is no "depleted" flag; the utility simply disappears.
 
-**PRD (prd_core.md, Hacking Pool section):** "The hacking pool may be added to any offensive cybercombat test." **PRD supports code.**
+**PRD verdict:** PRD (CD-22) says "A depleted utility cannot be re-loaded" — this end-goal is achieved by both approaches. However, the PRD does not specify whether the entry should be removed or retained with a flag. → **PRD supports neither approach precisely.** The design says "mark depleted"; the code removes. The observable behavior (can't reload) is the same.
 
-**Todo:** Adapt Design — **Done:** updated `resolveAttack` step 6 in `combat.md` to `attackDicePool + hackingPool`
-
----
-
-### C-5 — `suppressIc` moved to `CombatResolver` with extra `host` parameter
-
-**Design (`combat.md`):** `suppressIc(ic: IC): Decker` as an instance method on `Decker`.
-
-**Code (`CombatResolver.kt`):** `CombatResolver.suppressIc(decker: Decker, ic: IC, host: Host): Decker` — static method with an additional `host` parameter used to deduct MPCP on the host's security rating.
-
-**PRD:** does not specify API placement or signature. **PRD supports neither specifically** — the extra `host` parameter enables rating-based MPCP deduction which is rule-correct, but the method location change is an API-level deviation.
-
-**Todo:** Adapt Design — **Done:** updated `suppressIc` in `combat.md` to `CombatResolver.suppressIc(decker: Decker, ic: IC, host: Host): Decker`
+**Status:** ✅ Design updated — `cyberdeck_and_program_mechanics.md` now says "Auto-unloaded and removed from storage; event logged (CD-22)", matching the code's removal approach.
 
 ---
 
-## Game Layer (`game.md` vs `IC.kt`)
+## C-4 — `detectedIcons` set is absent from `Decker`; persistent icon visibility is unimplemented
 
-### G-1 — `game.md` Ripper action references non-existent `CripplerResult.attributeReachedZero`
+**Design** (`operations.md` / MP-04): Adds `val detectedIcons: Set<Icon> = emptySet()` to `Decker` or `Persona`. Once a Sensor Test succeeds, the icon enters this set and remains visible across subsequent turns without re-rolling. Icons are removed on successful Evade Detection, on the icon leaving the area, or on logoff/jackout/dump.
 
-**Design (`game.md` line 301):** `if (result.attributeReachedZero)` to decide whether to call `resolveRipperMpcpTest`.
+**Code** (`Decker.kt`): No `detectedIcons` field exists. Every call to `noticeIcon` is a fresh, independent test. If no test is called, a previously detected icon is forgotten.
 
-**`CripplerResult` (`combat.md`):** fields are `updatedDecker`, `targetAttribute`, `reduction` only. No `attributeReachedZero` field.
+**PRD verdict:** PRD (MP-04): "Once located, an icon remains 'visible' unless it performs a combat maneuver to escape detection." → **PRD supports the design.** The code is incomplete.
 
-**Code (`IC.kt`):** correctly checks `(finalDecker.persona?.attribute(result.targetAttribute) ?: 0) == 0` directly on the updated decker state. This avoids the non-existent field.
-
-**PRD (ICC-07):** "If the attribute is reduced to 0: GM makes a Ripper Test." **PRD supports code behavior.** The design doc (`game.md`) references a field that the data model (`combat.md`) never defines; code correctly works around it.
-
-**ToDo:** Update Design — **Done:** fixed Ripper pseudocode in `game.md` to check `(finalDecker.persona?.attribute(result.targetAttribute) ?: 0) == 0`
+**Status:** ✅ Fixed — `val detectedIcons: Set<MatrixIcon> = emptySet()` added to `Decker`; cleared on `gracefulLogoff` and `jackOut`.
 
 ---
 
-### G-2 — `game.md` `LethalBlackIC.action()` missing `personaOnlyCrashed` handling
+## C-5 — `RELOCATE_ICON` appears in grid `availableActions`; design restricts it to host context
 
-**Design (`game.md` lines 352–358):** pseudocode calls `resolveLethalBlackIc`, updates the decker, and returns. No branch for `personaOnlyCrashed`.
+**Design** (`game.md`, available-actions section): Grid context (`OnLTG / OnRTG / OnPLTG`) exposes only `NULL_OPERATION`, `LOCATE_ACCESS_NODE`, `ANALYZE_SECURITY`, `LOCATE_IC`, `ANALYZE_IC`.
 
-**Code (`IC.kt` lines 214–221):** after updating the decker, checks `result.personaOnlyCrashed`; if true, removes the current IC instance and adds `withRatingBonus(2)` as replacement.
+**Code** (`Decker.kt`, `addGridSystemActions()`, lines 157–164): Also adds `RELOCATE_ICON` to all grid contexts.
 
-**PRD (ICC-11):** "If the decker's persona icon is destroyed first … the Black IC gains a +2 Rating bonus for its next attack." **PRD supports code.** The design pseudocode is incomplete.
+**PRD verdict:** PRD (CD-16): RELOCATE_ICON is a "Control Test" — Control is a host subsystem, not a grid property. Grid nodes have no Control subsystem to test against. → **PRD supports the design.** `RELOCATE_ICON` should be host-only.
 
-**Todo:** Update Design — **Done:** added `personaOnlyCrashed` branch to `LethalBlackIC.action()` in `game.md`
-
----
-
-## Operations (`operations.md` vs `DeckerOperationsExtensions.kt`)
-
-### OP-1 — `analyzeIcon` TN missing `persona.sensor` component
-
-**Design (`operations.md`):** `TN = max(2, host.controlRating - persona.sensor - analyze.currentRating)`.
-
-**Code (`DeckerOperationsExtensions.kt` lines 123–126):** passes only `host.subsystemRatings.control` as TN to `SystemTestResolver.resolve()`; `SystemTestResolver` subtracts `analyze.currentRating` internally, but `persona.sensor` is never applied.
-
-**PRD (`prd_core.md` line 317):** "Decker may subtract Sensor Rating + Analyze rating from TN, but TN may not drop below 2." **PRD supports design.** The Sensor Rating subtraction is missing from the code. This is a functional bug that makes Analyze Icon harder than it should be.
-
-**ToDo:** Update Code — **Done:** fixed `analyzeIcon` TN in `DeckerOperationsExtensions.kt` to subtract `persona.sensor` before passing to `SystemTestResolver`
+**Status:** ✅ Fixed — `RELOCATE_ICON` removed from `addGridSystemActions()`; remains in `addHostSystemActions()` only.
 
 ---
 
-### OP-2 — `tapComcall` scanner success/failure condition inverted in design doc
+## M-1 — `logonToPltg` from `OnHost` location is silently rejected with `IllegalStateException` rather than a clean precondition error
 
-**Design (`operations.md`):** "If zero successes → tap succeeds (scanner does not detect). If any successes → tap fails (scanner detects)."
+**Design** (`movement.md`, `logonToPltg` preconditions): Allowed from `OnLTG` or `OnPLTG` only. The document does not explicitly state what happens if called from `OnHost`.
 
-**Code (`DeckerOperationsExtensions.kt` lines 534–538):** `if (scannerResult.successes == 0) { return Pair(OperationResult.Failure(...), null) }` — zero successes means the tap is **detected** (failure).
+**Code** (`DeckerNavigationExtensions.kt`, `logonToPltg`, lines 163–169): `else -> throw IllegalStateException(...)` for any location other than `OnLTG` or `OnPLTG`. This includes `OnHost`, which is not discussed in the design.
 
-**PRD (`prd_core.md` line 341):** "The decker needs at least 1 success on this test; failure means the scanner detects the tap." **PRD supports code.** The design document (`operations.md`) has the win/lose condition backwards. Code is correct per PRD.
+**PRD verdict:** PRD (M-06, M-11) connects PLTGs to LTGs; there is no path from a host to a PLTG directly. → **PRD supports the design restriction.** The code behavior (throw) is acceptable but the design does not address the host-to-PLTG case explicitly.
 
-**Todo:** Update Design — **Done:** corrected `tapComcall` scanner condition in `operations.md` to "0 successes → tap fails (scanner detects the tap)" in both the spec and verification table
-
----
-
-### OP-3 — `LocatedTarget` variant names and `AccessNodeTarget` payload type differ
-
-**Design (`operations.md`):** `LocatedTarget.File(file: DataFile)`, `LocatedTarget.Slave(device: SlaveDevice)`, `LocatedTarget.AccessNode(node: MatrixNode)`.
-
-**Code (`DeckerOperationsExtensions.kt`):** `LocatedTarget.FileTarget(file)`, `LocatedTarget.SlaveTarget(device)`, `LocatedTarget.AccessNodeTarget(query: String)`. `AccessNodeTarget` holds a search-query string rather than the resolved `MatrixNode`.
-
-**PRD:** does not specify sealed-class naming or payload types. **PRD supports neither** — this is a design-vs-code naming and type difference with no PRD guidance.
-
-**Todo:** Update Design — **Done:** updated `LocatedTarget` variant names in `operations.md` to `FileTarget`, `SlaveTarget`, `AccessNodeTarget(query: String)`
+**Status:** ✅ Design updated — `movement.md` `logonToPltg` preconditions now explicitly state: "Any other location (including `OnHost`) is not a valid origin — callers must first logoff to the grid. The implementation throws `IllegalStateException` for these cases."
 
 ---
 
-### OP-4 — `Persona.sleaze: Utility?` in design vs `Persona.sleazeRating: Int` in code
+## M-2 — `LogonResult.Failure.decker` returns the original decker without the tally update embedded
 
-**Design (`operations.md`):** references `targetPersona.sleaze?.currentRating ?: 0`, implying `sleaze` is a nullable `Utility` object.
+**Design** (`movement.md`, `jackInToLtg`): "Increment `ltg.securityTally` by `outcome.hostSuccesses`... If not: return `LogonResult.Failure` with updated tally."
 
-**Code (`Persona.kt`):** `val sleazeRating: Int = 0` — a plain integer, not a `Utility` reference.
+**Code** (`DeckerNavigationExtensions.kt`, `performLogon`, lines 288–290): In the failure case, `LogonResult.Failure(this, newLocation, ...)` is returned where `this` is the original decker (no tally update on its `currentLocation`). The tally update IS embedded in `newLocation` (the attempted destination). However, since the decker is not jacked in (or was not moved), their `currentLocation` does not point to the updated grid node. Callers that use `result.decker` exclusively will not see the tally increment on the target grid.
 
-**PRD:** specifies Sleaze as a utility with a rating, but does not prescribe how it is stored on `Persona`. **PRD supports neither** specifically — the code is functionally equivalent (both produce the same integer rating) but the type model differs from the design doc.
+**PRD verdict:** PRD (M-04, M-05): "Each System Test result is added to the decker's security tally on that system, **regardless of who won the contest**." → **PRD supports the design.** The tally should be persisted even on failure. The code embeds it in `newLocation` but that field may be unused by callers.
 
-**Todo:** Update Design — **Done:** replaced `sleaze?.currentRating ?: 0` with `sleazeRating` in `noticeIcon` and `locateDecker` specs in `operations.md`
-
----
-
-## Movement / Logon (`movement.md` vs `DeckerNavigationExtensions.kt`)
-
-### GL-1 — `LogonResult` has extra `deckerSuccesses` and `hostSuccesses` fields
-
-**Design (`movement.md`):** `LogonResult.Success(decker: Decker, location: MatrixLocation)` and `LogonResult.Failure(decker: Decker, location: MatrixLocation?)`. No dice-count fields.
-
-**Code (`DeckerNavigationExtensions.kt` lines 286–290):** constructs `LogonResult.Success` and `LogonResult.Failure` with additional `deckerSuccesses: Int` and `hostSuccesses: Int` parameters.
-
-**PRD UI (`design_ui/design_ui.md`, `ResultMessage`):** `deckerSuccesses: number` and `hostSuccesses: number` are top-level fields on every `ResultMessage` sent to the client. **PRD UI supports code.** The extra fields flow through to the WebSocket response so the client can display dice outcomes.
-
-**Todo:** Update Design — **Done:** added `deckerSuccesses: Int` and `hostSuccesses: Int` fields to `LogonResult.Success` and `LogonResult.Failure` in `movement.md`
+**Status:** ✅ Fixed — `performLogon` failure path now returns `withDestinationTallyEmbedded(newLocation)`, propagating the tally increment back through the decker's current-location network graph.
 
 ---
 
-## WebSocket Dispatch (`game.md` + `design_ui.md` vs `WebSocketDeckerController.kt`)
+## OP-1 — `analyzeIcon` does not apply the `max(2, ...)` floor before the sensor subtraction
 
-### UI-1 — Grid context dispatch does not handle `LOCATE_ACCESS_NODE`, `ANALYZE_SECURITY`, `LOCATE_IC`, `ANALYZE_IC`
+**Design** (`operations.md`, Analyze Icon): "TN = `host.controlRating - (persona.sensor + analyze.currentRating)`, but may **not** drop below 2 regardless of combined Sensor + Analyze ratings."
 
-**Design (`game.md` line 396):** grid context (`OnLTG / OnRTG / OnPLTG`) supports: `RELOCATE_ICON`, `NULL_OPERATION`, `LOCATE_ACCESS_NODE`, `ANALYZE_SECURITY`, `LOCATE_IC`, `ANALYZE_IC`.
+**Code** (`DeckerOperationsExtensions.kt`, `analyzeIcon`, lines 127–130):
+```kotlin
+val tn = host.subsystemRatings.control - sensorRating   // sensor subtracted first
+SystemTestResolver.resolve(this, ANALYZE_ICON, tn, ...)  // resolve() subtracts analyze rating, then applies max(2, ...)
+```
+The floor of 2 is applied inside `resolve()` after both reductions, which is mathematically equivalent to the design formula `max(2, control - sensor - analyze)`. The computation is correct; only the code structure differs from the design's stated formula.
 
-**Code (`WebSocketDeckerController.kt`, `dispatchGridOperation`):** only handles `NULL_OPERATION` (returns success) and `RELOCATE_ICON` (returns an error — see UI-2). All other operations return "not supported on grid."
+**PRD verdict:** PRD (SO individual table, Analyze Icon): "Decker may subtract Sensor Rating + Analyze rating from TN, but TN may not drop below 2." → **PRD supports the design.** The code produces the same result but via a different decomposition. No functional discrepancy.
 
-**PRD (M-07):** "LOCATE_ACCESS_NODE — available from RTG." Partially confirms at least one of the four missing operations. **PRD partially supports design.** This is a functional gap: four valid grid operations are silently rejected by the server.
-
-**Todo:** Implement the corresponding code — **Done:** added `resolveInterrogation(Grid)` to `SystemTestResolver`, four grid extension overloads to `DeckerOperationsExtensions`, and rewrote `dispatchGridOperation` in `WebSocketDeckerController` to handle `LOCATE_ACCESS_NODE`, `ANALYZE_SECURITY`, `LOCATE_IC`, `ANALYZE_IC`
+**Status:** ⏭ Skipped — no functional discrepancy; result is mathematically identical. No change needed.
 
 ---
 
-### UI-2 — `RELOCATE_ICON` rejected on grid; design lists it as grid-valid
+## OP-2 — `locateAccessNode` is implemented for both `Host` and `Grid` targets; design only specifies `Host`
 
-**Design (`game.md` line 396):** lists `RELOCATE_ICON` as valid in grid context.
+**Design** (`operations.md`): `locateAccessNode` signature takes a `Host` parameter.
 
-**Code (`WebSocketDeckerController.kt`):** `RELOCATE_ICON` in `dispatchGridOperation` returns the error "RELOCATE_ICON requires a host context."
+**Code** (`DeckerOperationsExtensions.kt`, lines 236–292): Two overloads exist — one for `Host` and one for `Grid`. The grid overload searches attached hosts for a name match.
 
-**PRD:** Relocate Icon requires a Control subsystem test. Control is a host subsystem, not a grid-level resource. **PRD supports code** — Relocate Icon can only be performed inside a host where the Control subsystem is accessible. The design doc (`game.md`) appears to incorrectly include it in the grid-context operation list.
+**PRD verdict:** PRD (M-07): "From an RTG, a decker may perform a **Locate Access Node** operation to discover LTG codes and host addresses." This explicitly places Locate Access Node on grids. → **PRD supports the code.** The design document is incomplete; the grid overload is correct per PRD.
 
-**Todo:** Update Design — **Done:** removed `RELOCATE_ICON` from grid context operations list in `game.md`
+**Status:** ✅ No discrepancy — code is correct per PRD; design was incomplete, not wrong.
+
+---
+
+## CD-1 — `Cyberdeck.init` validates `u.rating` against MPCP but does not validate `currentRating`
+
+**Design** (`cyberdeck_and_program_mechanics.md` / CD-01): "Every utility's rating must not exceed the deck's MPCP Rating."
+
+**Code** (`Cyberdeck.kt`, `init`, lines 61–70): Validates `u.rating <= mcpRating` for active and stored utilities. Does not validate `u.currentRating`. Since `currentRating` starts at `rating` and only decreases at runtime, this is not an initial-load concern.
+
+**PRD verdict:** PRD (CD-01): "The application rejects any configuration where a utility rating > MPCP." Refers to `rating`, not `currentRating`. → **PRD supports the code.** No functional discrepancy.
+
+**Status:** ✅ Design updated — step 8 of decker creation in `cyberdeck_and_program_mechanics.md` now explicitly notes: "`currentRating` is not validated at load time — it starts equal to `rating` and can only decrease during play, so it is always within bounds at construction."
+
+---
+
+## CD-2 — `invokeMediac` typo in method name (extra 'a')
+
+**Design**: Not explicitly named in any design doc (the operation is described but not given a method name).
+
+**Code** (`DeckerOperationsExtensions.kt`, line 474): Method is named `invokeMediac` (should be `invokeMedic`).
+
+**PRD verdict:** PRD (CD-20) describes Medic mechanics but does not name the method. → **PRD supports neither** (not applicable). Naming-only issue; no functional impact.
+
+**Status:** ✅ Fixed — renamed to `invokeMedic` in `DeckerOperationsExtensions.kt` and all call sites in tests.
+
+---
+
+## UI-1 — `reconnectToken` in `ControlMessage` not verified as implemented
+
+**Design** (`design_ui/design_ui.md`): The UI should store and send a `reconnectToken` in subsequent `JoinMessage` requests (UI-01 through UI-04).
+
+**Code** (`WebSocketDeckerController.kt`, `SessionRegistry`): Not audited in full. The `ControlMessage` DTO and `JoinMessage` handling in `SessionRegistry` / `MatrixServer` were not fully reviewed in this audit pass.
+
+**PRD verdict:** PRD (UI-01 through UI-04): Specifies reconnect token issuance and validation. → **PRD supports the design.** Implementation status unverified; requires further audit.
+
+**Status:** ⚠️ Open — not yet implemented; requires full audit of `WebSocketDeckerController` and `SessionRegistry`.
+
+---
+
+## Summary Table
+
+| ID   | Area        | Status | Notes |
+|------|-------------|--------|-------|
+| C-1  | Combat      | ✅ Fixed | `degradeArmor` conditional on bleed-through |
+| C-2  | Combat/CD   | ✅ Fixed | Stored utility `currentRating` now immutable at runtime |
+| C-3  | Combat/CD   | ✅ Design updated | Design now matches code: depleted utility removed from storage |
+| C-4  | Operations  | ✅ Fixed | `detectedIcons: Set<MatrixIcon>` added to `Decker`; cleared on logoff/jackout |
+| C-5  | Game        | ✅ Fixed | `RELOCATE_ICON` removed from `addGridSystemActions()` |
+| M-1  | Movement    | ✅ Design updated | `movement.md` now documents `OnHost` as invalid origin for `logonToPltg` |
+| M-2  | Movement    | ✅ Fixed | `performLogon` failure embeds tally via `withDestinationTallyEmbedded` |
+| OP-1 | Operations  | ⏭ Skipped | No functional discrepancy; result mathematically identical |
+| OP-2 | Operations  | ✅ No discrepancy | Code correct per PRD; design was incomplete |
+| CD-1 | Cyberdeck   | ✅ Design updated | Note added: `currentRating` not validated at construction |
+| CD-2 | Cyberdeck   | ✅ Fixed | Renamed `invokeMediac` → `invokeMedic` everywhere |
+| UI-1 | UI/Server   | ⚠️ Open | Reconnect token not yet audited or implemented |

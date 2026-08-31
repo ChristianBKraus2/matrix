@@ -471,7 +471,7 @@ Replaces the 7-step sequence in `creation.md`:
 5. Instantiate the `Cyberdeck` with hardware values.
 6. Instantiate the four `PersonaPrograms`; validate ratings ≤ MPCP and sum ≤ MPCP × 3.
 7. Validate Response Increase ≤ min(3, floor(MPCP ÷ 4)).
-8. Instantiate each `Utility` with `rating`, `currentRating = rating`, `sourceCode` flag; validate `rating ≤ MPCP` (CD-01); calculate Mp sizes; validate total ≤ Storage Memory.
+8. Instantiate each `Utility` with `rating`, `currentRating = rating`, `sourceCode` flag; validate `rating ≤ MPCP` (CD-01); calculate Mp sizes; validate total ≤ Storage Memory. Note: `currentRating` is not validated at load time — it starts equal to `rating` and can only decrease during play, so it is always within bounds at construction.
 9. Partition utilities by `active` flag: `active: true` → `activeUtilities` (turnsRemaining = 0, fully uploaded); others → `storedUtilities`. Validate total active Mp ≤ Active Memory.
 10. Derive and attach the `Persona`: Bod/Evasion/Masking/Sensor from persona programs; Reaction = base + Response Increase × 2; Hacking Pool and Detection Factor computed lazily.
 
@@ -618,7 +618,7 @@ When `destination` is `OfflineStorage`, the download does not consume `storedUti
 | Sleaze unloaded mid-run; test resolved | Detection Factor = ⌈6÷2⌉ = 3 (CD-18) |
 | Sleaze in pending-upload state during test | Detection Factor uses Masking only (CD-12) |
 | Armor-5 takes bleed-through damage | `armor.currentRating` decrements to 4 (CD-19) |
-| Armor `currentRating` reaches 0 | Auto-unloaded, marked depleted, event logged (CD-22) |
+| Armor `currentRating` reaches 0 | Auto-unloaded and removed from storage; event logged (CD-22) |
 | Medic invoked (success or failure) | `medic.currentRating` decrements by 1 (CD-20) |
 | Medic invoked on icon with 5 boxes filled | TN = 5; each success repairs 1 box; rating decrements whether test passes or fails |
 | Hacking Pool on Attack Test | Pool dice added to `attacker.hackingPool`; excluded on body/willpower resist vs. black IC |
