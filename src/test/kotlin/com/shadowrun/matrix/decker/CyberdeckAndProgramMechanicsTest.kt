@@ -558,8 +558,8 @@ class CyberdeckAndProgramMechanicsTest {
     // ── SystemOperation count updated ────────────────────────────────────────────
 
     @Test
-    fun `SystemOperation has 27 entries`() {
-        assertEquals(27, SystemOperation.entries.size)
+    fun `SystemOperation has 28 entries`() {
+        assertEquals(28, SystemOperation.entries.size)
     }
 
     // ── freeActiveMemoryMp / usedActiveMemoryMp ────────────────────────────────────

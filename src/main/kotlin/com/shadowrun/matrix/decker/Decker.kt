@@ -39,6 +39,7 @@ data class Decker(
     val currentLocation: MatrixLocation? = null,
     val blackIcPin: BlackIcPinState? = null,
     val trackState: TrackState? = null,
+    val meatworldComm: Boolean = false,
     val suppressedIc: List<IcSuppressionState> = emptyList(),
     val runDownloadedFiles: List<DataFile> = emptyList(),
     val interrogationStates: Map<SystemOperation, InterrogationState> = emptyMap(),
@@ -47,7 +48,7 @@ data class Decker(
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = ActionResult.DeckerAction
 
     override fun initiative(context: GameContext, diceRoller: DiceRoller): CombatInitiative =
-        CombatResolver.rollDeckerInitiative(this, meatworldComm = false, diceRoller)
+        CombatResolver.rollDeckerInitiative(this, meatworldComm = meatworldComm, diceRoller)
 
     val hackingPool: Int get() = (intelligence + cyberdeck.mcpRating) / 3
     val isPinnedByBlackIc: Boolean get() = blackIcPin != null
@@ -178,6 +179,9 @@ data class Decker(
         add(AvailableAction.Operation(SystemOperation.UPLOAD_DATA))
         add(AvailableAction.Operation(SystemOperation.MAKE_COMCALL))
         add(AvailableAction.Operation(SystemOperation.TAP_COMCALL))
+        if (cyberdeck.activeUtilities.any { it.type == UtilityType.MEDIC }) {
+            add(AvailableAction.Operation(SystemOperation.INVOKE_MEDIC))
+        }
         host.nodes.forEach {
             add(AvailableAction.Operation(SystemOperation.ANALYZE_SUBSYSTEM, MatrixObject.HostSubsystem(it)))
         }

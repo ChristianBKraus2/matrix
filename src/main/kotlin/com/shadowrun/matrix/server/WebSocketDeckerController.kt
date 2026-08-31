@@ -1,8 +1,7 @@
 package com.shadowrun.matrix.server
 
 import com.shadowrun.matrix.common.SubsystemType
-import com.shadowrun.matrix.decker.*
-import com.shadowrun.matrix.game.ActionResult
+import com.shadowrun.matrix.decker.*import com.shadowrun.matrix.game.ActionResult
 import com.shadowrun.matrix.game.GameContext
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CancellationException
@@ -216,7 +215,8 @@ class WebSocketDeckerController(
         SystemOperation.MAKE_COMCALL,
         SystemOperation.TAP_COMCALL         -> dispatchCommsOp(action, cmd, host, diceRoller)
         SystemOperation.NULL_OPERATION,
-        SystemOperation.RELOCATE_ICON       -> dispatchMiscOp(action, cmd, host, diceRoller)
+        SystemOperation.RELOCATE_ICON,
+        SystemOperation.INVOKE_MEDIC       -> dispatchMiscOp(action, cmd, host, diceRoller)
         else -> DispatchResult(decker, false, 0, 0, "Unsupported: ${action.operation}")
     }
 
@@ -294,7 +294,13 @@ class WebSocketDeckerController(
             SystemOperation.DECRYPT_FILE -> {
                 val file = (action.target as? MatrixObject.File)?.file
                     ?: return DispatchResult(decker, false, 0, 0, "DECRYPT_FILE requires a File target")
-                decker.decryptFile(file, host, diceRoller).toDispatch()
+                val (opResult, scramble) = decker.decryptFile(file, host, diceRoller)
+                val extra = when {
+                    scramble == null -> ""
+                    scramble.dataDestroyed -> "Scramble IC (rating ${scramble.icRating}) destroyed the file"
+                    else -> "Scramble IC (rating ${scramble.icRating}) failed to destruct"
+                }
+                opResult.toDispatch(extra)
             }
             SystemOperation.DECRYPT_SLAVE -> decker.decryptSlave(host, diceRoller).toDispatch()
             else -> DispatchResult(decker, false, 0, 0, "Unsupported data op: ${action.operation}")
@@ -334,6 +340,7 @@ class WebSocketDeckerController(
         return when (action.operation) {
             SystemOperation.NULL_OPERATION -> decker.nullOperation(host, p?.inactivitySeconds?.coerceIn(0, 3600) ?: 0, diceRoller).toDispatch()
             SystemOperation.RELOCATE_ICON  -> dispatchRelocateIcon(host, diceRoller)
+            SystemOperation.INVOKE_MEDIC   -> decker.invokeMedic(diceRoller).toDispatch()
             else -> DispatchResult(decker, false, 0, 0, "Unsupported misc op: ${action.operation}")
         }
     }
@@ -407,4 +414,9 @@ class WebSocketDeckerController(
         is LocateResult.Located  -> "located!"
         LocateResult.NotFound    -> "not found"
     }
+
+    private fun MedicResult.toDispatch() = DispatchResult(
+        updatedDecker, true, 0, 0,
+        "Medic repaired $boxesRepaired box(es); remaining rating: $medicRating"
+    )
 }

@@ -90,7 +90,7 @@ fun Decker.jackInToHost(host: Host, diceRoller: DiceRoller): LogonResult {
         }
         val startNode = host.nodes.first { it.subsystemType == startSubsystem }
         val updatedDecker = result.decker.copy(persona = result.decker.persona!!.copy(currentNode = startNode))
-        LogonResult.Success(updatedDecker, result.location)
+        LogonResult.Success(updatedDecker, result.location, result.deckerSuccesses, result.hostSuccesses)
     } else {
         logger.warn { "[$name] jackInToHost failed: remaining at ${(result as LogonResult.Failure).location.label()}" }
         result

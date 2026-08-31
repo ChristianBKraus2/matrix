@@ -346,7 +346,7 @@ val hackingPool: Int
 **File:** `src/main/kotlin/com/shadowrun/matrix/decker/DeckerOperationsExtensions.kt`
 
 ```kotlin
-fun invokeMediac(diceRoller: DiceRoller): MedicResult
+fun invokeMedic(diceRoller: DiceRoller): MedicResult
 ```
 
 **File:** `src/main/kotlin/com/shadowrun/matrix/decker/MedicResult.kt`

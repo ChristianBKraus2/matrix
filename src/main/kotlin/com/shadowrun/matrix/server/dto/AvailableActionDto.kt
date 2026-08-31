@@ -74,6 +74,7 @@ fun AvailableAction.toDto(index: Int): AvailableActionDto = when (this) {
             SystemOperation.MAKE_COMCALL       -> "hasValidPasscode"
             SystemOperation.TAP_COMCALL        -> "scannerDeviceRating"
             SystemOperation.EDIT_FILE          -> "newContent"
+            SystemOperation.NULL_OPERATION     -> "inactivitySeconds"
             else                               -> null
         })
 }

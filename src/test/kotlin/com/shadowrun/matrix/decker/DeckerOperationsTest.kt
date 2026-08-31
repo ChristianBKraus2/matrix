@@ -215,7 +215,7 @@ class DeckerOperationsTest {
         val h = host(secValue = 2, files = 2)
         val d = decker(host = h)
         val file = DataFile("target.dat")
-        val result = d.decryptFile(file, h, winRoller)
+        val (result, _) = d.decryptFile(file, h, winRoller)
         assertIs<OperationResult.Success>(result)
     }
 
@@ -224,7 +224,7 @@ class DeckerOperationsTest {
         val h = host(secValue = 8, files = 12)
         val d = decker(host = h)
         val file = DataFile("target.dat")
-        val result = d.decryptFile(file, h, loseRoller)
+        val (result, _) = d.decryptFile(file, h, loseRoller)
         assertIs<OperationResult.Failure>(result)
     }
 

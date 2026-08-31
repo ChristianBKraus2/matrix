@@ -28,7 +28,7 @@ class SystemOperationTest {
     }
 
     @Test
-    fun `all 27 operations are defined`() {
-        assertEquals(27, SystemOperation.entries.size)
+    fun `all 28 operations are defined`() {
+        assertEquals(28, SystemOperation.entries.size)
     }
 }

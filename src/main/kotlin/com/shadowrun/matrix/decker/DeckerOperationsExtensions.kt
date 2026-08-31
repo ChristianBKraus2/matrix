@@ -163,12 +163,28 @@ fun Decker.decryptAccess(host: Host, diceRoller: DiceRoller): OperationResult {
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
 }
 
-fun Decker.decryptFile(file: DataFile, host: Host, diceRoller: DiceRoller): OperationResult {
+fun Decker.decryptFile(file: DataFile, host: Host, diceRoller: DiceRoller): Pair<OperationResult, ScrambleDestructResult?> {
     logger.info { "[$name] decryptFile → ${file.name}" }
     requireJackedIn()
     val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_FILE, host.subsystemRatings.files, host.securityRating.value, diceRoller)
-    val updated = withUpdatedTally(outcome.hostSuccesses)
-    return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
+    var updated = withUpdatedTally(outcome.hostSuccesses)
+    val scramble: ScrambleDestructResult? = if (!outcome.deckerWins) {
+        host.icPrograms.filterIsInstance<Scramble>()
+            .firstOrNull { it.guardedNode == null || it.guardedNode.subsystemType == SubsystemType.FILES }
+            ?.let { ic ->
+                val result = updated.resolveScrambleDestructTest(ic, file, diceRoller)
+                if (result.dataDestroyed) updated = updated.withFileRemovedFromHost(file)
+                result
+            }
+    } else null
+    val opResult = if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
+    return Pair(opResult, scramble)
+}
+
+private fun Decker.withFileRemovedFromHost(file: DataFile): Decker {
+    val loc = currentLocation as? MatrixLocation.OnHost ?: return this
+    val updatedHost = loc.host.copy(dataFiles = loc.host.dataFiles - file)
+    return copy(currentLocation = MatrixLocation.OnHost(updatedHost))
 }
 
 fun Decker.decryptSlave(host: Host, diceRoller: DiceRoller): OperationResult {

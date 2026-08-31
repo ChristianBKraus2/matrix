@@ -1,5 +1,6 @@
 package com.shadowrun.matrix.operations
 
+import com.shadowrun.matrix.decker.DownloadDestination
 import com.shadowrun.matrix.network.DataFile
 
 /**
@@ -13,5 +14,6 @@ data class DownloadHandle(
     val totalMp: Int,
     val ioSpeedMpPerTurn: Int,
     val turnsRemaining: Int,
-    val active: Boolean = true
+    val active: Boolean = true,
+    val destination: DownloadDestination = DownloadDestination.StorageMemory
 )
