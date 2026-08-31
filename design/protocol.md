@@ -160,7 +160,7 @@ The `decker` object within `StateMessage` has the following key fields:
 |---|---|---|
 | `name` | string | Decker name |
 | `location` | string | Human-readable location string (e.g. `"Host: Mitsuhama Pagoda"`) |
-| `locationIndex` | int? | Index into `visibleObjects` identifying the current location object; null if not jacked in or object not visible |
+| `locationIndex` | int? | Index into `visibleObjects` identifying the current location object; null if not jacked in or object not visible. **Stub:** currently always 0 when jacked in; proper lookup by object identity is deferred. |
 | `isPinnedByBlackIc` | bool | True if a Black IC pin is active |
 | `mcpRating` | int | Current MPCP rating |
 | `hackingPool` | int | Current hacking pool |
@@ -205,7 +205,7 @@ Sealed by `"kind"` field:
 | `LocalGrid` | `name`, `parentRtgName`, `hostCount` |
 | `PrivateGrid` | `name`, `owner`, `parentLtgName` |
 | `HostNode` | `name`, `topologyType`, `securityCode`, `securityTally` |
-| `HostSubsystem` | `subsystemType`, `description` |
+| `HostSubsystem` | `subsystemType`, `description` | Rating intentionally omitted — revealed only after a successful `ANALYZE_HOST` or `ANALYZE_SUBSYSTEM` operation. |
 | `IcProgram` | `name`, `rating`, `behavior` |
 | `File` | `name`, `isScrambleProtected`, `sizeMp` |
 | `Device` | `name`, `systemAddress` |

@@ -414,7 +414,7 @@ classDiagram
         class LethalBlackIC
         class NonLethalBlackIC
         class ConditionMonitor {
-            +Boxes int
+            +damage int
         }
     }
 

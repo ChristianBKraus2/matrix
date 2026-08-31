@@ -130,11 +130,16 @@ fun Decker.logonToRtg(rtg: RTG, diceRoller: DiceRoller): LogonResult {
 fun Decker.logonToLtg(ltg: LTG, diceRoller: DiceRoller): LogonResult {
     logger.info { "[$name] logonToLtg → ${ltg.name} (from ${currentLocation.label()})" }
     requireJackedIn()
-    when (val loc = currentLocation) {
-        is MatrixLocation.OnRTG  -> require(loc.rtg.ltgs.contains(ltg)) {
-            "Target LTG is not attached to the current RTG"
+    // M-09: the RTG and all its LTGs share one tally. When moving from the RTG to a child LTG,
+    // seed the new LTG's tally from the RTG's accumulated value so the single tally is preserved.
+    val baseTally = when (val loc = currentLocation) {
+        is MatrixLocation.OnRTG  -> {
+            require(loc.rtg.ltgs.contains(ltg)) {
+                "Target LTG is not attached to the current RTG"
+            }
+            loc.rtg.securityTally
         }
-        is MatrixLocation.OnPLTG -> Unit // PLTG supports all LTG operations (M-08)
+        is MatrixLocation.OnPLTG -> ltg.securityTally // PLTG supports all LTG operations (M-08)
         else -> throw IllegalStateException("Cannot logon to LTG from $currentLocation")
     }
     return performLogon(
@@ -143,10 +148,9 @@ fun Decker.logonToLtg(ltg: LTG, diceRoller: DiceRoller): LogonResult {
         securityValue = ltg.securityRating.value,
         diceRoller = diceRoller,
         buildLocation = { hostTallyDelta ->
-            val updatedRtg = ltg.parentRtg.copy(
-                securityTally = ltg.parentRtg.securityTally + hostTallyDelta
-            )
-            MatrixLocation.OnLTG(ltg.copy(securityTally = ltg.securityTally + hostTallyDelta, parentRtg = updatedRtg))
+            val newTally = baseTally + hostTallyDelta
+            val updatedRtg = ltg.parentRtg.copy(securityTally = newTally)
+            MatrixLocation.OnLTG(ltg.copy(securityTally = newTally, parentRtg = updatedRtg))
         }
     ).also { result ->
         when (result) {
@@ -227,12 +231,12 @@ fun Decker.gracefulLogoff(diceRoller: DiceRoller): LogoffResult {
     if (trackPenalty > 0) logger.info { "[$name] gracefulLogoff: Track penalty +$trackPenalty applied to TN" }
     val outcome = SystemTestResolver.resolve(this, SystemOperation.GRACEFUL_LOGOFF, effectiveTn, securityValue, diceRoller)
     return if (outcome.deckerWins) {
-        LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null, interrogationStates = emptyMap(), detectedIcons = emptySet())).also {
+        LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet())).also {
             logger.info { "[$name] gracefulLogoff succeeded: traces cleared, no dump shock" }
         }
     } else {
         val shock = !cyberdeck.immuneToDumpShock
-        LogoffResult.JackOut(copy(persona = null, currentLocation = null, interrogationStates = emptyMap(), detectedIcons = emptySet()), dumpShock = shock).also {
+        LogoffResult.JackOut(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet()), dumpShock = shock).also {
             logger.warn { "[$name] gracefulLogoff failed: falling back to jack-out (dumpShock=$shock)" }
         }
     }
@@ -244,7 +248,7 @@ fun Decker.jackOut(): LogoffResult {
     requireJackedIn()
     check(!isPinnedByBlackIc) { "Cannot jack out while pinned by Black IC" }
     val shock = !cyberdeck.immuneToDumpShock
-    return LogoffResult.JackOut(copy(persona = null, currentLocation = null, interrogationStates = emptyMap(), detectedIcons = emptySet()), dumpShock = shock).also {
+    return LogoffResult.JackOut(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet()), dumpShock = shock).also {
         logger.info { "[$name] jackOut complete: dumpShock=$shock" }
     }
 }
@@ -310,7 +314,8 @@ private fun Decker.withDestinationTallyEmbedded(destination: MatrixLocation): De
     return when {
         destination is MatrixLocation.OnLTG && cur is MatrixLocation.OnRTG -> {
             val updated = cur.rtg.ltgs.map { if (it.name == destination.ltg.name) destination.ltg else it }
-            copy(currentLocation = MatrixLocation.OnRTG(cur.rtg.copy(ltgs = updated)))
+            // M-09: RTG and all its LTGs share one tally; keep the RTG tally in sync with the LTG's new value.
+            copy(currentLocation = MatrixLocation.OnRTG(cur.rtg.copy(ltgs = updated, securityTally = destination.ltg.securityTally)))
         }
         destination is MatrixLocation.OnRTG && cur is MatrixLocation.OnLTG ->
             copy(currentLocation = MatrixLocation.OnLTG(cur.ltg.copy(parentRtg = destination.rtg)))

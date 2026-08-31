@@ -85,7 +85,11 @@ object SystemTestResolver {
         queryPrecision: QueryPrecision,
         diceRoller: DiceRoller
     ): Pair<SystemTestOutcome, InterrogationState> {
-        val baseSubsystemRating = host.subsystemRatings.get(operation.testType!!)
+        val baseSubsystemRating = host.subsystemRatings.get(
+            requireNotNull(operation.testType) {
+                "${operation.name} has a dynamic test type — pass an explicit subsystem rating instead of using resolveInterrogation"
+            }
+        )
         // Reduce TN by utility rating first, then apply query-precision modifier; clamp to ≥ 2 at each step
         val utilityRating = if (operation.utility != null)
             decker.cyberdeck.activeUtilities
@@ -121,7 +125,11 @@ object SystemTestResolver {
     ): Pair<SystemTestOutcome, InterrogationState> =
         resolveInterrogationCore(
             decker, operation,
-            baseSubsystemRating = grid.subsystemRatings.get(operation.testType!!),
+            baseSubsystemRating = grid.subsystemRatings.get(
+                requireNotNull(operation.testType) {
+                    "${operation.name} has a dynamic test type — pass an explicit subsystem rating instead of using resolveInterrogation"
+                }
+            ),
             securityValue = grid.securityRating.value,
             state, queryPrecision, diceRoller
         )
@@ -164,6 +172,6 @@ object SystemTestResolver {
      * Cyberterminal users have all utility ratings reduced by 1 (CT-03), floored at 0.
      */
     internal fun effectiveRating(utility: Utility, deck: Cyberdeck): Int =
-        if (deck.immuneToDumpShock) maxOf(0, utility.currentRating - 1)
+        if (deck.isCyberterminal) maxOf(0, utility.currentRating - 1)
         else utility.currentRating
 }

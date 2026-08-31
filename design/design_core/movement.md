@@ -223,7 +223,9 @@ Dedicated method for navigating to a PLTG. Because `PLTG` and `LTG` are sibling 
 - Any other location (including `OnHost`) is not a valid origin — callers must first logoff to the grid. The implementation throws `IllegalStateException` for these cases.
 
 **Logic:**
-1. If current location is `OnLTG`, inherit the LTG's **parent RTG's** `securityTally` as the starting tally for the PLTG (M-11: tally carry-over comes from the RTG, not the LTG itself).
+1. Determine `inheritedTally`:
+   - If current location is `OnLTG`: inherit the LTG's **parent RTG's** `securityTally` (M-11: tally carry-over comes from the RTG, not the LTG itself).
+   - If current location is `OnPLTG` (PLTG-to-PLTG hop): `inheritedTally = 0`. No tally is carried from the source PLTG — each PLTG maintains an independent tally.
 2. Run `SystemTestResolver.resolve(decker, LOGON_TO_LTG, pltg.subsystemRatings.access, pltg.securityRating.value, diceRoller)`.
 3. Build updated PLTG: `securityTally = inheritedTally + outcome.hostSuccesses`.
 4. If `outcome.deckerWins`: `currentLocation = OnPLTG(updatedPltg)` → `LogonResult.Success`.
@@ -294,6 +296,7 @@ Dump shock damage (Power = host Security Value, damage level from Security Code)
 | Switch to sibling LTG (same RTG) | RTG tally unchanged; LTG shares RTG tally |
 | Move to different RTG | New RTG tally starts at 0 |
 | Enter PLTG from public grid | PLTG tally starts at current RTG tally value |
+| PLTG-to-PLTG hop | New PLTG tally starts at 0 — no carry-over from source PLTG |
 | Logon to Host | Add `hostSuccesses` to host tally (separate from grid tally) |
 | Graceful Logoff (success) | System tally cleared (caller responsibility) |
 | New decker logs on while host is mid-reset | Tally starts at the current reduced value at time of intrusion (not at 0) |
@@ -353,6 +356,7 @@ The `logonToHost` method enforces topology by validating that `host` appears in 
 | `logonToRtg` to different RTG | New RTG, prior tally not carried |
 | `logonToLtg` same-RTG sibling | RTG tally unchanged |
 | `logonToPltg` called directly from OnLTG | PLTG tally initialized from RTG tally |
+| `logonToPltg` called from OnPLTG (PLTG-to-PLTG hop) | New PLTG tally starts at 0 |
 | `logonToHost` from second-tier to sibling second-tier | Precondition violation returned |
 | `gracefulLogoff` success | `GracefulSuccess`, `currentLocation = null`, no dump shock |
 | `gracefulLogoff` with Track rating 4 active | Effective TN = `accessRating + 4`; standard test otherwise (CC-33) |

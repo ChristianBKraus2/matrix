@@ -14,6 +14,8 @@ On startup the application reads `grid.yaml` and instantiates the full grid hier
 4. For each LTG, instantiate its Hosts with their own System Ratings.
 5. For each RTG (or LTG), instantiate any PLTGs and connect them.
 
+**RTG-level PLTG replication:** PLTGs declared under an RTG in `grid.yaml` (rather than under a specific LTG) are replicated to **all** child LTGs of that RTG at load time. This means every LTG belonging to the RTG exposes those PLTGs as reachable destinations. PLTGs declared directly under an LTG are attached only to that LTG and are not propagated upward.
+
 ---
 
 ## Rating Format

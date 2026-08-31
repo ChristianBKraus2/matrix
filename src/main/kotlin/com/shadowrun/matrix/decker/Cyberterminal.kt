@@ -44,6 +44,7 @@ fun Cyberterminal(
         activeUtilities = activeUtilities,
         storedUtilities = storedUtilities,
         accessories = accessories,
+        isCyberterminal = true,
         immuneToDumpShock = true
     )
 }

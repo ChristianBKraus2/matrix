@@ -417,15 +417,15 @@ sealed class HostInfoItem {
 
 **PRD:** SO individual table  
 **Action:** Free  
-**Note:** TN = `host.controlRating - (persona.sensor + analyze.currentRating)`, but may **not** drop below 2 regardless of combined Sensor + Analyze ratings (not the standard floor; this is a special per-rule minimum).
+**Note:** Both `persona.sensor` and the active Analyze utility rating reduce the TN in sequence, each with the standard floor of 2. The sensor reduction is applied by the caller before invoking `SystemTestResolver.resolve`; the Analyze reduction is then applied inside `resolve` as with every other operation. The two-step application is mathematically equivalent to a single combined subtraction.
 
 ```kotlin
 fun analyzeIcon(icon: Icon, host: Host, diceRoller: DiceRoller): OperationResult
 ```
 
 **Algorithm:**
-1. Effective TN = `max(2, host.controlRating - persona.sensor - (analyze?.currentRating ?: 0))`.
-2. Resolve System Test with this TN.
+1. Sensor-reduced TN = `max(2, host.controlRating - persona.sensor)`.
+2. Pass this TN to `SystemTestResolver.resolve(this, ANALYZE_ICON, sensorReducedTn, ...)`, which further reduces TN by the active Analyze utility rating (floor 2).
 3. On success: return icon's general type (IC / Persona / Application / etc.).
 
 ---
@@ -479,14 +479,21 @@ fun locateAccessNode(
 ): Pair<OperationResult, LocateResult>
 ```
 
+**Location thresholds (PRD SO individual table):**
+
+| Operation | Accumulated successes to locate |
+|---|---|
+| Locate File | ≥ 5 |
+| Locate Access Node | ≥ 5 |
+| Locate Slave | ≥ **3** |
+
 **Algorithm:**
 1. If no existing `InterrogationState` for this operation, create one with the provided `query`. If `query` is blank on a first call, the server rejects with `bad_request`.
 2. Call `SystemTestResolver.resolveInterrogation(...)` → `(outcome, newState)`.
-3. If `newState.accumulatedSuccesses >= 5`: file is located → `OperationResult.Success`.
-4. If `newState.accumulatedSuccesses >= 3` and file does not exist on this host: reveal "not found".
+   - Net successes per turn = `deckerSuccesses − hostSuccesses`. A negative net contributes **0** — accumulated successes never decrease (SO-06).
+3. If `newState.accumulatedSuccesses >= threshold` (see table above): target located → `OperationResult.Success`.
+4. If `newState.accumulatedSuccesses >= 3` and target does not exist on this host: reveal "not found".
 5. Otherwise: `OperationResult.Failure` (still searching; caller updates `state`).
-
-`Locate Slave` requires only **3** accumulated successes (not 5) to locate a slave (PRD SO individual table).
 
 ---
 
