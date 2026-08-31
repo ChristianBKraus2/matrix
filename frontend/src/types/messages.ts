@@ -11,6 +11,8 @@ export interface ActionParams {
   precision?: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'
   query?: string
   inactivitySeconds?: number
+  hasValidPasscode?: boolean
+  scannerDeviceRating?: number
 }
 
 export interface ActionCommand {
@@ -27,7 +29,6 @@ export interface ControlMessage {
   type: 'control'
   role: Role
   deckerName?: string
-  reconnect?: boolean
   reconnectToken?: string
 }
 
@@ -89,7 +90,7 @@ export type AvailableActionDto =
   | { kind: 'LogonToHost'; index: number; actionType: ActionType; hostName: string }
   | { kind: 'GracefulLogoff'; index: number; actionType: ActionType }
   | { kind: 'JackOut'; index: number; actionType: ActionType }
-  | { kind: 'Operation'; index: number; actionType: ActionType; operation: SystemOperation; targetKind: string | null; targetName: string | null }
+  | { kind: 'Operation'; index: number; actionType: ActionType; operation: SystemOperation; paramKind: string | null; targetKind: string | null; targetName: string | null }
 
 export interface StateMessage {
   type: 'state'

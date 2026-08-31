@@ -85,7 +85,7 @@ object SystemTestResolver {
         queryPrecision: QueryPrecision,
         diceRoller: DiceRoller
     ): Pair<SystemTestOutcome, InterrogationState> {
-        val baseSubsystemRating = host.subsystemRatings.get(operation.testType)
+        val baseSubsystemRating = host.subsystemRatings.get(operation.testType!!)
         // Reduce TN by utility rating first, then apply query-precision modifier; clamp to ≥ 2 at each step
         val utilityRating = if (operation.utility != null)
             decker.cyberdeck.activeUtilities
@@ -121,7 +121,7 @@ object SystemTestResolver {
     ): Pair<SystemTestOutcome, InterrogationState> =
         resolveInterrogationCore(
             decker, operation,
-            baseSubsystemRating = grid.subsystemRatings.get(operation.testType),
+            baseSubsystemRating = grid.subsystemRatings.get(operation.testType!!),
             securityValue = grid.securityRating.value,
             state, queryPrecision, diceRoller
         )

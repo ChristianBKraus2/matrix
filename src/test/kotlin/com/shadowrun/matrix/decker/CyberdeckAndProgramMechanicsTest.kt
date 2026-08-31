@@ -558,8 +558,8 @@ class CyberdeckAndProgramMechanicsTest {
     // ── SystemOperation count updated ────────────────────────────────────────────
 
     @Test
-    fun `SystemOperation has 29 entries after adding LOGON_TO_PLTG`() {
-        assertEquals(29, SystemOperation.entries.size)
+    fun `SystemOperation has 27 entries`() {
+        assertEquals(27, SystemOperation.entries.size)
     }
 
     // ── freeActiveMemoryMp / usedActiveMemoryMp ────────────────────────────────────

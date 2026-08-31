@@ -593,7 +593,7 @@ Hitchers are purely informational for the current scope (no game-mechanical effe
 sealed class DownloadDestination {
     object ActiveMemory : DownloadDestination()
     object StorageMemory : DownloadDestination()
-    data class OfflineStorage(val accessory: Accessory.OfflineStorage) : DownloadDestination()
+    data class OfflineStorage(val accessory: Accessory) : DownloadDestination()
 }
 ```
 

@@ -6,7 +6,6 @@ import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.programs.UtilityType
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 class SystemOperationTest {
 
@@ -29,12 +28,7 @@ class SystemOperationTest {
     }
 
     @Test
-    fun `SWAP_MEMORY has no associated utility`() {
-        assertNull(SystemOperation.SWAP_MEMORY.utility)
-    }
-
-    @Test
-    fun `all 29 operations are defined`() {
-        assertEquals(29, SystemOperation.entries.size)
+    fun `all 27 operations are defined`() {
+        assertEquals(27, SystemOperation.entries.size)
     }
 }

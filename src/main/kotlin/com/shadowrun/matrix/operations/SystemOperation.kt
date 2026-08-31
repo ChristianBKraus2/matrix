@@ -18,7 +18,7 @@ import com.shadowrun.matrix.common.SubsystemType.SLAVE
 import com.shadowrun.matrix.programs.UtilityType
 
 enum class SystemOperation(
-    val testType: SubsystemType,
+    val testType: SubsystemType?,
     val utility: UtilityType?,
     val actionType: ActionType,
     val category: OperationCategory
@@ -27,7 +27,7 @@ enum class SystemOperation(
     ANALYZE_IC(CONTROL, UtilityType.ANALYZE, FREE, STANDARD),
     ANALYZE_ICON(CONTROL, UtilityType.ANALYZE, FREE, STANDARD),
     ANALYZE_SECURITY(CONTROL, UtilityType.ANALYZE, SIMPLE, STANDARD),
-    ANALYZE_SUBSYSTEM(CONTROL, UtilityType.ANALYZE, SIMPLE, STANDARD),
+    ANALYZE_SUBSYSTEM(null, UtilityType.ANALYZE, SIMPLE, STANDARD),
     CONTROL_SLAVE(SLAVE, UtilityType.SPOOF, COMPLEX, MONITORED),
     DECRYPT_ACCESS(ACCESS, UtilityType.DECRYPT, SIMPLE, STANDARD),
     DECRYPT_FILE(FILES, UtilityType.DECRYPT, SIMPLE, STANDARD),
@@ -43,12 +43,10 @@ enum class SystemOperation(
     LOCATE_SLAVE(INDEX, UtilityType.BROWSE, COMPLEX, INTERROGATION),
     LOGON_TO_HOST(ACCESS, UtilityType.DECEPTION, COMPLEX, STANDARD),
     LOGON_TO_LTG(ACCESS, UtilityType.DECEPTION, COMPLEX, STANDARD),
-    LOGON_TO_PLTG(ACCESS, UtilityType.DECEPTION, COMPLEX, STANDARD),
     LOGON_TO_RTG(ACCESS, UtilityType.DECEPTION, COMPLEX, STANDARD),
     MAKE_COMCALL(FILES, UtilityType.COMMLINK, COMPLEX, MONITORED),
     MONITOR_SLAVE(SLAVE, UtilityType.SPOOF, SIMPLE, MONITORED),
     NULL_OPERATION(CONTROL, UtilityType.DECEPTION, COMPLEX, STANDARD),
-    SWAP_MEMORY(CONTROL, null, SIMPLE, STANDARD),
     RELOCATE_ICON(CONTROL, UtilityType.RELOCATE, SIMPLE, STANDARD),
     TAP_COMCALL(FILES, UtilityType.COMMLINK, COMPLEX, MONITORED),
     UPLOAD_DATA(FILES, UtilityType.READ_WRITE, SIMPLE, ONGOING)

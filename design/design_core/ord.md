@@ -4,7 +4,7 @@
 
 **Matrix** — root of the game engine; the world telecommunications network experienced as graphical virtual reality via ASIST/DNI.
 
-**Grid** (abstract base; subtypes: RTG, LTG, PLTG, Host)
+**Grid** (abstract base; subtypes: RTG, LTG, PLTG)
 
 - Security Code: Blue | Green | Orange | Red
 - Security Value: integer (4–12+)
@@ -50,13 +50,12 @@
 **RemoteDevice** — a slave-controlled physical device connected to a host's Slave subsystem.
 
 - Name
-- DeviceType: Camera | Door | Elevator | FactorySystem | MedicalScanner | Other
-- SystemAddress within the Slave subsystem
+- SystemAddress: string — unique identifier within the Slave subsystem
+- (Device kind labels such as Camera, Door, Elevator, MedicalScanner are free-form strings, not a typed enum)
 
-**DataFile** — stored data on a host; may be encoded, scramble-protected, or a pointer to data on another host.
+**DataFile** — stored data on a host; may be scramble-protected or a pointer to data on another host.
 
 - Name
-- IsEncoded: bool — file is encrypted; decker must succeed at Decrypt File before downloading or editing
 - ScrambleProtected: bool — file is guarded by a Scramble IC program
 - IsPointer: bool — file contains only a reference to data stored on another host
 - PointerTargetHost: Host? — the host where the actual data resides (non-null when IsPointer = true)
@@ -64,7 +63,7 @@
 
 ### Implementation Notes
 
-**Equality semantics:** RTG, LTG, PLTG, Host, and DataFile are Kotlin data classes whose generated equals/hashCode/toString have been overridden to prevent unbounded recursion over the graph structure. Equality is based on the name field alone for RTG, LTG, PLTG, and Host. For DataFile, equality is based on name, isScrambleProtected, and sizeMp (the pointerToHost back-reference is excluded). The copy() method is unaffected and continues to work normally.
+**Equality semantics:** RTG, LTG, PLTG, Host, and DataFile are Kotlin data classes whose generated equals/hashCode/toString have been overridden to prevent unbounded recursion over the graph structure. Equality is based on the name field alone for RTG, LTG, PLTG, and Host. For DataFile, equality is based on name, isScrambleProtected, and sizeMp (pointerToHost and pointerTargetFile are excluded to prevent recursive equality). The copy() method is unaffected and continues to work normally.
 
 ---
 
@@ -93,7 +92,7 @@
 - Detection Factor = (Masking + Sleaze) ÷ 2 rounded up; or Masking ÷ 2 if no Sleaze running
 - Cost (nuyen)
 
-**Cyberterminal ("Tortoise")** — limited cyberdeck variant for non-combat use.
+**Cyberterminal ("Tortoise")** — limited cyberdeck configured for non-combat use; not a Cyberdeck subclass. Constructed via a factory function that returns a `Cyberdeck` with constrained parameters (`Cyberdeck` is a `data class` and therefore final in Kotlin).
 
 - Max MPCP 4; no Response Increase available
 - All programs run at –1 Rating
@@ -135,10 +134,9 @@
 
 ## IC (Intrusion Countermeasures)
 
-**IC** (abstract base)
+**IC** (abstract base) — color is expressed by the sealed class hierarchy (WhiteIC / GrayIC / BlackIC), not as an explicit field.
 
 - Rating
-- Color: White | Gray | Black
 - Behavior: Proactive | Reactive
 - Initiative = NxD6 + IC Rating (N = 1/2/3/4 for Blue/Green/Orange/Red hosts)
 
@@ -153,8 +151,6 @@
 **Probe** (extends WhiteIC) — reactive, non-combat; tests for illegal icons and raises the security tally when it detects an intruder.
 
 **Scramble** (extends WhiteIC) — reactive, placement IC; encrypts and guards a protected resource; destroys guarded data rather than allowing unauthorized access.
-
-- ProtectionScope: SAN | DataFile | DataStore | FilesSubsystem | RemoteDevice | SlaveSubsystem | AccessEntry
 
 **TarBaby** (extends WhiteIC) — reactive; pre-programmed against one utility category; locks the targeted utility, preventing the decker from using it until the IC is defeated.
 
@@ -194,7 +190,7 @@
 - Action type: Free | Simple | Complex
 - Category: Standard | Interrogation | Ongoing | Monitored
 
-Named operations (~25 total): Analyze Host, Analyze IC, Analyze Icon, Analyze Security, Analyze Subsystem, Control Slave, Decrypt Access, Decrypt File, Decrypt Slave, Download Data, Edit File, Edit Slave, Graceful Logoff, Locate Access Node, Locate Decker, Locate File, Locate IC, Locate Slave, Logon to Host, Logon to LTG, Logon to RTG, Make Comcall, Monitor Slave, Null Operation, Swap Memory, Tap Comcall, Upload Data.
+Named operations (27 total): Analyze Host, Analyze IC, Analyze Icon, Analyze Security, Analyze Subsystem, Control Slave, Decrypt Access, Decrypt File, Decrypt Slave, Download Data, Edit File, Edit Slave, Graceful Logoff, Locate Access Node, Locate Decker, Locate File, Locate IC, Locate Slave, Logon to Host, Logon to LTG, Logon to RTG, Make Comcall, Monitor Slave, Null Operation, Relocate Icon, Tap Comcall, Upload Data.
 
 ---
 
@@ -358,6 +354,15 @@ classDiagram
 
     namespace HostNodes {
         class Host {
+            +SecurityCode
+            +SecurityValue int
+            +AccessRating int
+            +ControlRating int
+            +IndexRating int
+            +FilesRating int
+            +SlaveRating int
+            +SecurityTally int
+            +AlertStatus
             +IntrusionDifficulty
             +TopologyType
         }
@@ -367,7 +372,6 @@ classDiagram
         }
         class DataFile {
             +Name string
-            +IsEncoded bool
             +ScrambleProtected bool
             +IsPointer bool
             +PointerTargetHost Host
@@ -375,8 +379,7 @@ classDiagram
         }
         class RemoteDevice {
             +Name string
-            +DeviceType
-            +SystemAddress
+            +SystemAddress string
         }
         class Jackpoint {
             +Type
@@ -386,7 +389,6 @@ classDiagram
     namespace ICGroup {
         class IC {
             +Rating int
-            +Color
             +Behavior
         }
         class WhiteIC
@@ -397,9 +399,7 @@ classDiagram
         }
         class Killer
         class Probe
-        class Scramble {
-            +ProtectionScope
-        }
+        class Scramble
         class TarBaby {
             +TargetCategory
         }
@@ -469,7 +469,6 @@ classDiagram
     Grid <|-- RTG
     Grid <|-- LTG
     Grid <|-- PLTG
-    Grid <|-- Host
     Program <|-- PersonaProgram
     Program <|-- Utility
     IC <|-- WhiteIC
@@ -486,7 +485,7 @@ classDiagram
     GrayIC <|-- TarPit
     BlackIC <|-- LethalBlackIC
     BlackIC <|-- NonLethalBlackIC
-    Cyberdeck <|-- Cyberterminal
+    Cyberterminal ..> Cyberdeck : factory
 
     %% Network
     Matrix "1" --> "*" RTG
@@ -555,7 +554,6 @@ flowchart TD
 
     subgraph HOST["Host / Nodes / LTG-entry"]
         PLTG -->|"1..*"| Host
-        Host -.->|"extends"| Grid
         Host -->|"1"| SecuritySheaf2[SecuritySheaf]
         SecuritySheaf2 -->|"1..*"| TriggerStep2[TriggerStep]
         TriggerStep2 -->|"activates"| IC2[IC]
@@ -603,7 +601,7 @@ flowchart TD
         Cyberdeck -->|"4"| PersonaProgram
         Cyberdeck -->|"0..*"| Utility
         Cyberdeck -->|"0..*"| Accessory
-        Cyberterminal -.->|"extends"| Cyberdeck
+        Cyberterminal -.->|"factory"| Cyberdeck
         PersonaProgram -.->|"extends"| Program
         Utility -.->|"extends"| Program
         Persona -->|"1"| ConditionMonitorPersona[ConditionMonitor]

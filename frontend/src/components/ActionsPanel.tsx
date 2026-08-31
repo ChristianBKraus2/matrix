@@ -36,6 +36,7 @@ function needsQuery(op: string | null) {
 function needsScanner(op: string | null)    { return op === 'TAP_COMCALL' }
 function needsEdit(op: string | null)       { return op === 'EDIT_FILE' }
 function needsInactivity(op: string | null) { return op === 'NULL_OPERATION' }
+function needsPasscode(op: string | null)   { return op === 'MAKE_COMCALL' }
 
 interface CardState {
   precision: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'
@@ -43,16 +44,19 @@ interface CardState {
   scannerDeviceRating: number
   newContent: string
   inactivitySeconds: number
+  hasValidPasscode: boolean
 }
 
 function defaultCardState(): CardState {
-  return { precision: 'NORMAL', query: '', scannerDeviceRating: 0, newContent: '', inactivitySeconds: 0 }
+  return { precision: 'NORMAL', query: '', scannerDeviceRating: 0, newContent: '', inactivitySeconds: 0, hasValidPasscode: false }
 }
 
 function buildParams(op: string | null, cs: CardState): ActionParams | undefined {
   if (needsPrecision(op)) return { precision: cs.precision, query: cs.query }
   if (needsEdit(op))      return { newContent: cs.newContent === '' ? null : cs.newContent }
   if (needsInactivity(op)) return { inactivitySeconds: cs.inactivitySeconds }
+  if (needsScanner(op))   return { scannerDeviceRating: cs.scannerDeviceRating }
+  if (needsPasscode(op))  return { hasValidPasscode: cs.hasValidPasscode }
   return undefined
 }
 
@@ -179,6 +183,18 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                       value={cs.inactivitySeconds}
                       onChange={e => patchState(action.index, { inactivitySeconds: Math.min(3600, Math.max(0, Number(e.target.value) || 0)) })}
                     />
+                  </div>
+                )}
+
+                {needsPasscode(op) && (
+                  <div className="action-control" onClick={e => e.stopPropagation()}>
+                    <div className="ctrl-label">VALID PASSCODE</div>
+                    <button
+                      className={`toggle-btn ${cs.hasValidPasscode ? 'active' : ''}`}
+                      onClick={() => patchState(action.index, { hasValidPasscode: !cs.hasValidPasscode })}
+                    >
+                      {cs.hasValidPasscode ? 'YES' : 'NO'}
+                    </button>
                   </div>
                 )}
               </div>

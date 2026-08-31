@@ -80,14 +80,6 @@ function JoinScreen({
 export default function App() {
   const ws = useWebSocket()
   const isRegistered = ws.role === 'registered_decker' || ws.role === 'active_controller'
-  const [showReconnected, setShowReconnected] = useState(false)
-
-  useEffect(() => {
-    if (!ws.reconnected) return
-    setShowReconnected(true)
-    const t = setTimeout(() => setShowReconnected(false), 4000)
-    return () => clearTimeout(t)
-  }, [ws.reconnected])
 
   if (!isRegistered) {
     return (
@@ -109,9 +101,6 @@ export default function App() {
 
   return (
     <div className="game-grid">
-      {showReconnected && (
-        <div className="reconnect-banner">SESSION RESTORED — reconnected to active game</div>
-      )}
       <LocationPanel gameState={gameState} />
       <DeckerPanel decker={gameState.decker} />
       <NarrativePanel events={events} isActiveTurn={role === 'active_controller'} />

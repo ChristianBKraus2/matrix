@@ -248,10 +248,9 @@ class DeckerVisibilityTest {
     }
 
     @Test
-    fun `availableActions on Host never includes LOCATE_DECKER or SWAP_MEMORY`() {
+    fun `availableActions on Host never includes LOCATE_DECKER`() {
         val d = decker(MatrixLocation.OnHost(host))
         val ops = d.availableActions().filterIsInstance<AvailableAction.Operation>().map { it.operation }
         assertFalse(SystemOperation.LOCATE_DECKER in ops, "LOCATE_DECKER must not appear in availableActions")
-        assertFalse(SystemOperation.SWAP_MEMORY in ops, "SWAP_MEMORY must not appear in availableActions")
     }
 }
