@@ -180,7 +180,8 @@ data class IcDamageResult(
     val iconDamage: AttackResult,
     val simsenseOverload: SimsenseOverloadResult?,
     val dumpShockTriggered: Boolean,
-    val mpcpReductionOnKill: Int = 0
+    val mpcpReductionOnKill: Int = 0,
+    val personaOnlyCrashed: Boolean = false
 )
 ```
 
@@ -332,6 +333,10 @@ fun applyDamage(damage: DamageLevel): ConditionMonitor = copy(
     filledBoxes = minOf(10, filledBoxes + damage.boxes)
 )
 
+fun applyDamage(stressBoxes: Int): ConditionMonitor = copy(
+    filledBoxes = minOf(10, filledBoxes + stressBoxes)
+)
+
 val isCrashed: Boolean get() = filledBoxes >= 10
 ```
 
@@ -423,7 +428,7 @@ PRD: CC-20–CC-26.
 3. `tn -= attacker.modifiers.positionAttackTnBonus` — from own prior Position Attack (CC-19).
 4. `power = attacker.weaponPower + attacker.modifiers.positionAttackPowerBonus`
 5. `effectivePower = max(0, power - defender.armorCurrentRating)`
-6. Roll `attacker.attackDicePool` dice vs. `max(2, tn)` → `attackerSuccesses`.
+6. Roll `attacker.attackDicePool + attacker.hackingPool` dice vs. `max(2, tn)` → `attackerSuccesses`.
 7. If `attackerSuccesses == 0` → return `AttackResult.Miss`.
 8. Roll `defender.bod` dice vs. `effectivePower` → `defenderSuccesses`.
 9. `net = attackerSuccesses - defenderSuccesses`
@@ -457,8 +462,7 @@ PRD: CC-27, CC-28, ICC-10.
    - Else if `attack.stagedDamageLevel == DEADLY` → `simsenseOverload = null`; set `dumpShockTriggered = true` (auto-crash, no test).
    - Else → `overloadTn = when (attack.stagedDamageLevel) { LIGHT → 2; MODERATE → 3; SERIOUS → 5; else → error }`. Roll `decker.willpower` dice vs. `overloadTn`. If `successes == 0`: apply 1 Stun box to Mental Condition Monitor; `stressBoxesApplied = 1`.
 3. If `conditionMonitor.isCrashed` → `dumpShockTriggered = true`.
-4. If `ic is BlackIC && attack.attackerSuccesses > 0 && decker.blackIcPin == null` → set `decker.blackIcPin = BlackIcPinState(ic as BlackIC)`. The pin is only set when the decker is not already pinned — a decker already pinned by one Black IC is not re-pinned by a second hit from a different Black IC.
-5. Return `IcDamageResult(updatedDecker, attack, simsenseOverload, dumpShockTriggered)`.
+4. Return `IcDamageResult(updatedDecker, attack, simsenseOverload, dumpShockTriggered)`.
 
 ---
 
@@ -492,9 +496,9 @@ On success, the caller resolves one final IC attack (`resolveAttack`) before com
 
 ### IC Suppression
 
-#### `suppressIc(ic: IC): Decker`
+#### `CombatResolver.suppressIc(decker: Decker, ic: IC, host: Host): Decker`
 
-PRD: CC-21, CC-22. Called on the decker at the moment an IC is crashed and the decker declares suppression.
+PRD: CC-21, CC-22. Called at the moment an IC is crashed and the decker declares suppression. The `host` parameter is used for rating-based MPCP deduction.
 
 1. Append `IcSuppressionState(ic, ic.rating)` to `decker.suppressedIc`.
 2. Do **not** add `ic.rating` to the security tally (suppression prevents this).

@@ -65,9 +65,9 @@ data class AnalyzeHostResult(
 
 ```kotlin
 sealed class LocatedTarget {
-    data class File(val file: DataFile) : LocatedTarget()
-    data class Slave(val device: RemoteDevice) : LocatedTarget()
-    data class AccessNode(val node: MatrixNode) : LocatedTarget()
+    data class FileTarget(val file: DataFile) : LocatedTarget()
+    data class SlaveTarget(val device: RemoteDevice) : LocatedTarget()
+    data class AccessNodeTarget(val query: String) : LocatedTarget()
 }
 ```
 
@@ -314,7 +314,7 @@ sealed class SensorTestResult {
 
 **Algorithm** (PRD: MP-01–MP-03):
 1. Determine TN:
-   - If `icon` is a `Persona` (another decker): TN = `icon.masking + icon.sleaze?.currentRating ?: 0`
+   - If `icon` is a `Persona` (another decker): TN = `icon.masking + icon.sleazeRating`
    - If `icon` is IC or another program: TN = `icon.rating`
 2. Roll `persona.sensor` dice (no utility modifier; MP-01). Count successes ≥ TN → `successes`.
 3. Return:
@@ -515,7 +515,7 @@ data class LocateDeckerResult(
 **Algorithm:**
 1. Resolve Index Test: `SystemTestResolver.resolve(this, LOCATE_DECKER, host.indexRating, host.securityRating.value, diceRoller)`.
 2. If Index Test fails: return `LocateDeckerResult(decker, outcome, located = false, targetNotified = false)`.
-3. On success, resolve open-ended Sensor Test: roll `persona!!.sensor` dice vs. TN = `max(2, targetPersona.masking + (targetPersona.sleaze?.currentRating ?: 0))` (`sensorTn = max(2, masking + sleazeRating)`). If Sensor Test achieves ≥ 1 success: decker is located.
+3. On success, resolve open-ended Sensor Test: roll `persona!!.sensor` dice vs. TN = `max(2, targetPersona.masking + targetPersona.sleazeRating)` (`sensorTn = max(2, masking + sleazeRating)`). If Sensor Test achieves ≥ 1 success: decker is located.
 4. If located: `targetNotified = true` — the game engine must fire a notification event to the target decker (MP-10). The target does not learn *who* performed the operation.
 5. Return `LocateDeckerResult(updatedDecker, outcome, located, targetNotified)`.
 
@@ -620,7 +620,7 @@ Uses `SystemTestResolver.resolveNullOperation(...)` which applies the inactivity
 ### Make Comcall / Tap Comcall
 
 Both are monitored operations. Their multi-step resolution (Index Test to find commcode, Control Test to trace, Files Test to tap) uses standard `SystemTestResolver.resolve()` calls sequenced by the caller. **Tap Comcall — dataline scanner mechanics (PRD: Tap Comcall):**
-If the target phone has one or more dataline scanners, the decker makes a Computer Skill test (not opposed — the scanner does not roll). When multiple scanners are present, use only the **highest** Device Rating (not the sum). The Commlink utility reduces the decker's TN on this test (floor 2). If zero successes → tap succeeds (scanner does not detect the tap). If any successes → tap fails (scanner detects the tap). These scanner tests do **not** affect the decker's RTG security tally — they are resolved entirely outside the normal security-tally system.
+If the target phone has one or more dataline scanners, the decker makes a Computer Skill test (not opposed — the scanner does not roll). When multiple scanners are present, use only the **highest** Device Rating (not the sum). The Commlink utility reduces the decker's TN on this test (floor 2). If zero successes → tap fails (scanner detects the tap). If any successes → tap succeeds (scanner does not detect the tap). These scanner tests do **not** affect the decker's RTG security tally — they are resolved entirely outside the normal security-tally system.
 
 The encrypt/decrypt sub-test in `Tap Comcall` is an opposed `Computer Skill vs. Device Rating` test with the Decrypt utility reducing the decker's TN. Each failed attempt adds +2 to the TN for subsequent tries. These sub-tests also do **not** affect the decker's RTG security tally.
 
@@ -807,7 +807,7 @@ Each 3-second game turn the decker may perform `actionsPerTurn` actions. Free Ac
 | Tally crosses Active Alert step with `securityDeckerCount = 2` | `alertStatus = ACTIVE_ALERT`; 2 NPC decker personas spawned on host (AL-02) |
 | Tally drops below Passive Alert step after transition | Ratings remain at +2; effect is permanent for the session (AL-01) |
 | Tap Comcall with 3 scanners (ratings 4, 6, 7) | Only rating 7 used for the scanner test |
-| Decker rolls 0 successes on scanner test | Tap succeeds (scanner does not detect the tap); scanner test does not increment RTG tally |
+| Decker rolls 0 successes on scanner test | Tap fails (scanner detects the tap); tap aborted |
 | `tapComcall` decrypt fails twice | TN +4 cumulative on third attempt |
 | Tap Comcall: commcode already tapped | No new Index Test; trace/tap steps still required for new call on same commcode |
 | Make Comcall: licensed decker with valid passcode | All System Tests skipped; proceed directly to call |

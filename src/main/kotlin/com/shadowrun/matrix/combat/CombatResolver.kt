@@ -99,9 +99,6 @@ object CombatResolver {
         when {
             ic is BlackIC -> {
                 // No simsense overload for Black IC (CC-28)
-                if (attack.attackerSuccesses > 0) {
-                    updatedDecker = updatedDecker.copy(blackIcPin = BlackIcPinState(ic))
-                }
             }
             attack.stagedDamageLevel == DamageLevel.DEADLY -> {
                 // Auto-crash on Deadly; no Willpower test

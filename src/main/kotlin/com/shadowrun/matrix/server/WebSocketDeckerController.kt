@@ -7,7 +7,10 @@ import com.shadowrun.matrix.game.GameContext
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CancellationException
 import com.shadowrun.matrix.network.Host
+import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.MatrixLocation
+import com.shadowrun.matrix.network.PLTG
+import com.shadowrun.matrix.network.RTG
 import com.shadowrun.matrix.operations.AnalyzeHostResult
 import com.shadowrun.matrix.operations.AnalyzeSecurityResult
 import com.shadowrun.matrix.operations.AvailableAction
@@ -158,12 +161,32 @@ class WebSocketDeckerController(
 
     private fun dispatchGridOperation(
         action: AvailableAction.Operation,
-        @Suppress("UNUSED_PARAMETER") cmd: ActionCommand,
+        cmd: ActionCommand,
         diceRoller: DiceRoller
-    ): DispatchResult = when (action.operation) {
-        SystemOperation.RELOCATE_ICON  -> DispatchResult(decker, false, 0, 0, "RELOCATE_ICON requires a host context")
-        SystemOperation.NULL_OPERATION -> DispatchResult(decker, true, 0, 0, "Turn passed")
-        else -> DispatchResult(decker, false, 0, 0, "${action.operation} not supported on grid")
+    ): DispatchResult {
+        val grid = when (val loc = decker.currentLocation) {
+            is MatrixLocation.OnLTG  -> loc.ltg
+            is MatrixLocation.OnRTG  -> loc.rtg
+            is MatrixLocation.OnPLTG -> loc.pltg
+            else -> return DispatchResult(decker, false, 0, 0, "Not on a grid node")
+        }
+        val p = cmd.params
+        return when (action.operation) {
+            SystemOperation.NULL_OPERATION -> DispatchResult(decker, true, 0, 0, "Turn passed")
+            SystemOperation.RELOCATE_ICON  -> DispatchResult(decker, false, 0, 0, "RELOCATE_ICON requires a host context")
+            SystemOperation.LOCATE_ACCESS_NODE -> {
+                val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateAccessNode(grid, q, prec, diceRoller) }
+                opResult.toDispatch(locateResult.label())
+            }
+            SystemOperation.ANALYZE_SECURITY -> decker.analyzeSecurity(grid, diceRoller).toDispatch()
+            SystemOperation.LOCATE_IC        -> decker.locateIc(grid, diceRoller).toDispatch()
+            SystemOperation.ANALYZE_IC -> {
+                val ic = (action.target as? MatrixObject.IcProgram)?.ic
+                    ?: return DispatchResult(decker, false, 0, 0, "ANALYZE_IC requires an IcProgram target")
+                decker.analyzeIc(ic, grid, diceRoller).toDispatch()
+            }
+            else -> DispatchResult(decker, false, 0, 0, "${action.operation} not supported on grid")
+        }
     }
 
     private fun dispatchHostOperation(

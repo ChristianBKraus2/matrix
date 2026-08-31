@@ -482,43 +482,6 @@ class CombatResolverTest {
         assertTrue(result.dumpShockTriggered)
     }
 
-    // ── applyIcDamage – Black IC pin ──────────────────────────────────────────────
-
-    @Test
-    fun `applyIcDamage Black IC sets blackIcPin and no simsenseOverload`() {
-        val roller = allFaces(5)
-        val d = decker()
-        val ic = LethalBlackIC(rating = 8)
-        val attack = AttackResult.Hit(2, DamageLevel.MODERATE, DamageLevel.MODERATE, 8)
-        val result = CombatResolver.applyIcDamage(d, attack, ic, roller)
-        assertNull(result.simsenseOverload)
-        assertNotNull(result.updatedDecker.blackIcPin)
-        assertEquals(ic, result.updatedDecker.blackIcPin!!.pinningIc)
-        assertTrue(result.updatedDecker.isPinnedByBlackIc)
-    }
-
-    @Test
-    fun `applyIcDamage Black IC with 0 successes does not set pin`() {
-        val roller = allFaces(5)
-        val d = decker()
-        val ic = LethalBlackIC(rating = 8)
-        val attack = AttackResult.Hit(0, DamageLevel.MODERATE, DamageLevel.MODERATE, 8)
-        val result = CombatResolver.applyIcDamage(d, attack, ic, roller)
-        assertNull(result.updatedDecker.blackIcPin)
-    }
-
-    @Test
-    fun `applyIcDamage Black IC overwrites existing pin on second hit`() {
-        val roller = allFaces(5)
-        val existingIc = LethalBlackIC(rating = 6)
-        val newIc = LethalBlackIC(rating = 8)
-        val existingPin = BlackIcPinState(existingIc)
-        val d = decker().copy(blackIcPin = existingPin)
-        val attack = AttackResult.Hit(2, DamageLevel.MODERATE, DamageLevel.MODERATE, 8)
-        val result = CombatResolver.applyIcDamage(d, attack, newIc, roller)
-        assertEquals(newIc, result.updatedDecker.blackIcPin!!.pinningIc)
-    }
-
     // ── resolveDumpShock ──────────────────────────────────────────────────────────
 
     @Test

@@ -36,13 +36,17 @@ sealed class LogonResult {
     /** Decker succeeded the System Test and is now at the new location. */
     data class Success(
         val decker: Decker,
-        val location: MatrixLocation
+        val location: MatrixLocation,
+        val deckerSuccesses: Int,
+        val hostSuccesses: Int
     ) : LogonResult()
 
     /** Decker failed the System Test; still at previous location. */
     data class Failure(
         val decker: Decker,
-        val location: MatrixLocation?  // attempted destination (null if not applicable)
+        val location: MatrixLocation?,  // attempted destination (null if not applicable)
+        val deckerSuccesses: Int,
+        val hostSuccesses: Int
     ) : LogonResult()
 }
 ```

@@ -4,8 +4,12 @@ import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.ic.IC
 import com.shadowrun.matrix.ic.Scramble
 import com.shadowrun.matrix.network.DataFile
+import com.shadowrun.matrix.network.Grid
 import com.shadowrun.matrix.network.Host
+import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.MatrixLocation
+import com.shadowrun.matrix.network.PLTG
+import com.shadowrun.matrix.network.RTG
 import com.shadowrun.matrix.network.RemoteDevice
 import com.shadowrun.matrix.operations.AnalyzeHostResult
 import com.shadowrun.matrix.operations.AnalyzeSecurityResult
@@ -120,8 +124,8 @@ fun Decker.analyzeIc(ic: IC, host: Host, diceRoller: DiceRoller): OperationResul
 fun Decker.analyzeIcon(icon: MatrixIcon, host: Host, diceRoller: DiceRoller): OperationResult {
     logger.info { "[$name] analyzeIcon" }
     requireJackedIn()
-    val tn = host.subsystemRatings.control
-    // Note: SystemTestResolver.resolve() applies the Analyze utility modifier via operation.utility.
+    val sensorRating = persona?.sensor ?: 0
+    val tn = host.subsystemRatings.control - sensorRating
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_ICON, tn, host.securityRating.value, diceRoller)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome)
@@ -257,7 +261,64 @@ fun Decker.locateAccessNode(host: Host, query: String = "", precision: QueryPrec
     return Pair(opResult, locateResult)
 }
 
-// ── File operations ────────────────────────────────────────────────────────────
+fun Decker.locateAccessNode(grid: Grid, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
+    val existingState = interrogationStates[SystemOperation.LOCATE_ACCESS_NODE]
+    require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
+    val state = existingState ?: InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, query)
+    logger.info { "[$name] locateAccessNode on ${grid.name} (accumulated=${state.accumulatedSuccesses})" }
+    requireJackedIn()
+    val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_ACCESS_NODE, grid, state, precision, diceRoller)
+    val accessibleHosts = when (grid) {
+        is LTG  -> grid.hosts
+        is RTG  -> grid.ltgs.flatMap { it.hosts }
+        is PLTG -> grid.hosts
+    }
+    val nodeExists = accessibleHosts.any { it.name.contains(state.query, ignoreCase = true) }
+    val locateResult = when {
+        newState.accumulatedSuccesses >= 5 -> {
+            if (nodeExists) LocateResult.Located(LocatedTarget.AccessNodeTarget(state.query), newState.accumulatedSuccesses)
+            else LocateResult.NotFound
+        }
+        newState.accumulatedSuccesses >= 3 && !nodeExists -> LocateResult.NotFound
+        else -> LocateResult.Ongoing(newState.accumulatedSuccesses)
+    }
+    val newStates = when (locateResult) {
+        is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_ACCESS_NODE to newState)
+        else -> interrogationStates - SystemOperation.LOCATE_ACCESS_NODE
+    }
+    val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
+    val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)
+    return Pair(opResult, locateResult)
+}
+
+fun Decker.analyzeIc(ic: IC, grid: Grid, diceRoller: DiceRoller): OperationResult {
+    logger.info { "[$name] analyzeIc on ${grid.name}: IC=${ic.name} rating=${ic.rating}" }
+    requireJackedIn()
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_IC, grid.subsystemRatings.control, grid.securityRating.value, diceRoller)
+    val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
+    return if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome)
+    else OperationResult.Failure(updatedDecker, outcome)
+}
+
+fun Decker.analyzeSecurity(grid: Grid, diceRoller: DiceRoller): AnalyzeSecurityResult {
+    logger.info { "[$name] analyzeSecurity → ${grid.name}" }
+    requireJackedIn()
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_SECURITY, grid.subsystemRatings.control, grid.securityRating.value, diceRoller)
+    val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
+    val newTally = tallyFor(grid) + outcome.hostSuccesses
+    return AnalyzeSecurityResult(updatedDecker, outcome, grid.securityRating, newTally, grid.alertStatus).also {
+        logger.info { "[$name] analyzeSecurity: tally=$newTally alert=${grid.alertStatus}" }
+    }
+}
+
+fun Decker.locateIc(grid: Grid, diceRoller: DiceRoller): OperationResult {
+    logger.info { "[$name] locateIc on ${grid.name}" }
+    requireJackedIn()
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.LOCATE_IC, grid.subsystemRatings.index, grid.securityRating.value, diceRoller)
+    val updated = withUpdatedTally(outcome.hostSuccesses)
+    return if (outcome.deckerWins) OperationResult.Success(updated, outcome)
+    else OperationResult.Failure(updated, outcome)
+}
 
 /** PRD: SO-10 through SO-12 */
 fun Decker.downloadData(file: DataFile, host: Host, diceRoller: DiceRoller): Pair<OperationResult, DownloadHandle?> {
@@ -575,3 +636,10 @@ fun Decker.bufferMessage(text: String, recipient: LinkedObserver): BufferedMessa
 
 private fun Decker.tallyFor(host: Host): Int =
     (currentLocation as? MatrixLocation.OnHost)?.takeIf { it.host == host }?.host?.securityTally ?: 0
+
+private fun Decker.tallyFor(grid: Grid): Int = when (val loc = currentLocation) {
+    is MatrixLocation.OnLTG  -> if (loc.ltg === grid) loc.ltg.securityTally else 0
+    is MatrixLocation.OnRTG  -> if (loc.rtg === grid) loc.rtg.securityTally else 0
+    is MatrixLocation.OnPLTG -> if (loc.pltg === grid) loc.pltg.securityTally else 0
+    else -> 0
+}

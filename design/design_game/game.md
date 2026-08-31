@@ -298,9 +298,9 @@ override suspend fun action(context: GameContext, diceRoller: DiceRoller): Actio
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
     val result = CombatResolver.resolveRipper(target, this, context.host.securityRating.value, diceRoller)
-    val finalDecker = if (result.attributeReachedZero)
-        CombatResolver.resolveRipperMpcpTest(result.updatedDecker, this, diceRoller)
-    else result.updatedDecker
+    var finalDecker = result.updatedDecker
+    if ((finalDecker.persona?.attribute(result.targetAttribute) ?: 0) == 0)
+        finalDecker = CombatResolver.resolveRipperMpcpTest(finalDecker, this, diceRoller)
     context.updateDecker(target, finalDecker)
     return ActionResult.IcAttack("Ripper reduced ${target.name} ${result.targetAttribute} by ${result.reduction}")
 }
@@ -354,6 +354,10 @@ override suspend fun action(context: GameContext, diceRoller: DiceRoller): Actio
     moveIfNeeded(target, context)?.let { return it }
     val result = CombatResolver.resolveLethalBlackIc(target, this, context.securityCode, diceRoller)
     context.updateDecker(target, result.updatedDecker)
+    if (result.personaOnlyCrashed) {
+        context.removeIc(this)
+        context.addIc(withRatingBonus(2))
+    }
     return ActionResult.IcAttack("Lethal Black IC hit ${target.name}: ${result.iconDamage}")
 }
 ```
@@ -393,7 +397,7 @@ This extension lives in `src/main/kotlin/com/shadowrun/matrix/game/DeckerExtensi
 `Decker.availableActions()` must filter the returned list by the decker's current location context. Two operation sets apply:
 
 - **Host context** (`currentLocation is MatrixLocation.OnHost`): full system operation table — `ANALYZE_HOST`, `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_IC`, `ANALYZE_IC`, `DOWNLOAD_DATA`, `EDIT_FILE`, `CONTROL_SLAVE`, `DECRYPT_*`, etc.
-- **Grid context** (`currentLocation is OnLTG / OnRTG / OnPLTG`): only the subset valid on a grid — `RELOCATE_ICON`, `NULL_OPERATION`, `LOCATE_ACCESS_NODE` (M-07: available from RTG), `ANALYZE_SECURITY`, `LOCATE_IC`, `ANALYZE_IC`.
+- **Grid context** (`currentLocation is OnLTG / OnRTG / OnPLTG`): only the subset valid on a grid — `NULL_OPERATION`, `LOCATE_ACCESS_NODE` (M-07: available from RTG), `ANALYZE_SECURITY`, `LOCATE_IC`, `ANALYZE_IC`.
 
 Operations requiring host context must not appear in `availableActions` when the decker is on a grid node. The filter is applied inside `Decker.availableActions()`, not at the server dispatch point — offering an action and returning a failure is confusing to the player.
 

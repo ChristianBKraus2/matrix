@@ -2,6 +2,7 @@ package com.shadowrun.matrix.operations
 
 import com.shadowrun.matrix.decker.Cyberdeck
 import com.shadowrun.matrix.decker.Decker
+import com.shadowrun.matrix.network.Grid
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.programs.Utility
 import com.shadowrun.matrix.utility.DiceRoller
@@ -99,6 +100,54 @@ object SystemTestResolver {
 
         val hostResult = diceRoller.roll(host.securityRating.value, decker.effectiveDetectionFactor)
         logger.info { "[${decker.name}] Host Security Test: ${host.securityRating.value} dice vs DF=${decker.effectiveDetectionFactor} → ${hostResult.successes} successes" }
+
+        val outcome = SystemTestOutcome(
+            deckerSuccesses = deckerResult.successes,
+            hostSuccesses = hostResult.successes,
+            deckerWins = deckerResult.successes >= hostResult.successes
+        )
+        val newState = state.copy(accumulatedSuccesses = state.accumulatedSuccesses + maxOf(0, deckerResult.successes - hostResult.successes))
+        logger.info { "[${decker.name}] Interrogation accumulated successes: ${newState.accumulatedSuccesses}" }
+        return Pair(outcome, newState)
+    }
+
+    fun resolveInterrogation(
+        decker: Decker,
+        operation: SystemOperation,
+        grid: Grid,
+        state: InterrogationState,
+        queryPrecision: QueryPrecision,
+        diceRoller: DiceRoller
+    ): Pair<SystemTestOutcome, InterrogationState> =
+        resolveInterrogationCore(
+            decker, operation,
+            baseSubsystemRating = grid.subsystemRatings.get(operation.testType),
+            securityValue = grid.securityRating.value,
+            state, queryPrecision, diceRoller
+        )
+
+    private fun resolveInterrogationCore(
+        decker: Decker,
+        operation: SystemOperation,
+        baseSubsystemRating: Int,
+        securityValue: Int,
+        state: InterrogationState,
+        queryPrecision: QueryPrecision,
+        diceRoller: DiceRoller
+    ): Pair<SystemTestOutcome, InterrogationState> {
+        val utilityRating = if (operation.utility != null)
+            decker.cyberdeck.activeUtilities
+                .firstOrNull { it.type == operation.utility }
+                ?.let { effectiveRating(it, decker.cyberdeck) } ?: 0
+        else 0
+        val clampedBase = maxOf(2, baseSubsystemRating - utilityRating)
+        val adjustedTn = maxOf(2, clampedBase + queryPrecision.modifier)
+
+        val deckerResult = diceRoller.roll(decker.computerSkill, adjustedTn)
+        logger.info { "[${decker.name}] Interrogation ${operation.name}: TN=$adjustedTn (base=$baseSubsystemRating precision=${queryPrecision.modifier} utility=$utilityRating) → ${deckerResult.successes} successes" }
+
+        val hostResult = diceRoller.roll(securityValue, decker.effectiveDetectionFactor)
+        logger.info { "[${decker.name}] Host Security Test: $securityValue dice vs DF=${decker.effectiveDetectionFactor} → ${hostResult.successes} successes" }
 
         val outcome = SystemTestOutcome(
             deckerSuccesses = deckerResult.successes,
