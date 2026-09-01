@@ -1,5 +1,7 @@
 package com.shadowrun.matrix.decker
 
+import com.shadowrun.matrix.operations.DownloadHandle
+import com.shadowrun.matrix.operations.UploadHandle
 import com.shadowrun.matrix.programs.Utility
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.math.ceil
@@ -79,5 +81,25 @@ fun Decker.advanceCombatTurn(): Decker {
         val remaining = it.locationCycleTurnsRemaining - 1
         if (remaining <= 0) null else it.copy(locationCycleTurnsRemaining = remaining)
     }
-    return copy(cyberdeck = updatedDeck, trackState = newTrackState)
+
+    // PRD SO-10/SO-12: advance in-progress data transfers
+    val decrementedDownloads = activeDownloads.map { it.copy(turnsRemaining = it.turnsRemaining - 1) }
+    val completedDownloads = decrementedDownloads.filter { it.turnsRemaining <= 0 }
+    val ongoingDownloads = decrementedDownloads.filter { it.turnsRemaining > 0 }
+
+    val decrementedUploads = activeUploads.map { it.copy(turnsRemaining = it.turnsRemaining - 1) }
+    val completedUploads = decrementedUploads.filter { it.turnsRemaining <= 0 }
+    val ongoingUploads = decrementedUploads.filter { it.turnsRemaining > 0 }
+
+    completedDownloads.forEach { logger.info { "[$name] advanceCombatTurn: download of '${it.file.name}' complete" } }
+    completedUploads.forEach { logger.info { "[$name] advanceCombatTurn: upload (${it.totalMp} Mp to host) complete" } }
+
+    var result = copy(
+        cyberdeck = updatedDeck,
+        trackState = newTrackState,
+        activeDownloads = ongoingDownloads,
+        activeUploads = ongoingUploads
+    )
+    completedDownloads.forEach { handle -> result = result.recordCompletedDownload(handle.file) }
+    return result
 }

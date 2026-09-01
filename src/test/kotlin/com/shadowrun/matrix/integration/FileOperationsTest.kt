@@ -99,6 +99,34 @@ class FileOperationsTest : IntegrationTestBase() {
         assertTrue(handle == null, "No DownloadHandle should be returned on failure")
     }
 
+    @Test
+    fun `downloadData completes and adds file to runDownloadedFiles after required combat turns`() {
+        val icon = scenario {
+            jackInToLtg("UCAS/UCAS-SEA")
+            logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
+        }
+        val host = host(icon)
+        val file = host.dataFiles.first()
+
+        val (opResult, handle) = icon.currentDecker().downloadData(file, host, winRoller())
+        assertIs<OperationResult.Success>(opResult, "downloadData should succeed with winRoller")
+        assertNotNull(handle, "Should receive a DownloadHandle on success")
+
+        var d = opResult.decker.copy(activeDownloads = listOf(handle))
+
+        repeat(handle.turnsRemaining - 1) {
+            d = d.advanceCombatTurn()
+            assertTrue(d.activeDownloads.isNotEmpty(), "Download should still be in-progress before final turn")
+            assertTrue(d.runDownloadedFiles.none { it.name == file.name },
+                "File should not appear in runDownloadedFiles before transfer completes")
+        }
+
+        d = d.advanceCombatTurn()
+        assertTrue(d.runDownloadedFiles.any { it.name == file.name },
+            "File should appear in runDownloadedFiles after all turns complete")
+        assertTrue(d.activeDownloads.isEmpty(), "activeDownloads should be empty after completion")
+    }
+
     // ── editFile ──────────────────────────────────────────────────────────────
 
     @Test

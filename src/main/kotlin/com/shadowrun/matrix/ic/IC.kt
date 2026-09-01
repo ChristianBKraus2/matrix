@@ -7,6 +7,7 @@ import com.shadowrun.matrix.common.IcBehavior
 import com.shadowrun.matrix.common.PersonaAttributeType
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.common.UtilityCategory
+import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.decker.Decker
 import com.shadowrun.matrix.game.ActionResult
 import com.shadowrun.matrix.game.ActiveIcon
@@ -111,7 +112,10 @@ class TarBaby(rating: Int, val targetCategory: UtilityCategory = UtilityCategory
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
         moveIfNeeded(target, context)?.let { return it }
-        val utility = target.cyberdeck.activeUtilities.firstOrNull { it.type.category == targetCategory }
+        // ICC-05: passive utilities (Armor, Sleaze) are not valid targets
+        val passiveTypes = setOf(UtilityType.ARMOR, UtilityType.SLEAZE)
+        val utility = target.cyberdeck.activeUtilities
+            .firstOrNull { it.type.category == targetCategory && it.type !in passiveTypes }
             ?: return ActionResult.IcAttack("TarBaby: no $targetCategory utility to trap on ${target.name}")
         val result = CombatResolver.resolveTarBaby(target, this, utility, diceRoller)
         context.updateDecker(target, result.updatedDecker)
@@ -186,7 +190,10 @@ class TarPit(rating: Int, val targetCategory: UtilityCategory = UtilityCategory.
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
         moveIfNeeded(target, context)?.let { return it }
-        val utility = target.cyberdeck.activeUtilities.firstOrNull { it.type.category == targetCategory }
+        // ICC-05/ICC-09: passive utilities (Armor, Sleaze) are not valid targets
+        val passiveTypes = setOf(UtilityType.ARMOR, UtilityType.SLEAZE)
+        val utility = target.cyberdeck.activeUtilities
+            .firstOrNull { it.type.category == targetCategory && it.type !in passiveTypes }
             ?: return ActionResult.IcAttack("TarPit: no $targetCategory utility to trap on ${target.name}")
         val result = CombatResolver.resolveTarPit(target, this, utility, diceRoller)
         if (result.bothCrashed) {
@@ -224,11 +231,17 @@ class LethalBlackIC(rating: Int, guardedNode: Node? = null) :
 class NonLethalBlackIC(rating: Int, guardedNode: Node? = null) :
     BlackIC("Non-Lethal Black IC", rating, guardedNode) {
 
+    fun withRatingBonus(bonus: Int) = NonLethalBlackIC(rating + bonus, guardedNode)
+
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
         moveIfNeeded(target, context)?.let { return it }
         val result = CombatResolver.resolveNonLethalBlackIc(target, this, context.securityCode, diceRoller)
         context.updateDecker(target, result.updatedDecker)
+        if (result.personaOnlyCrashed) {
+            context.removeIc(this)
+            context.addIc(withRatingBonus(2))
+        }
         return ActionResult.IcAttack("Non-Lethal Black IC hit ${target.name}: ${result.iconDamage}")
     }
 }

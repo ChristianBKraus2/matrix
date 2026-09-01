@@ -7,10 +7,12 @@ import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.Jackpoint
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.operations.AvailableAction
+import com.shadowrun.matrix.operations.DownloadHandle
 import com.shadowrun.matrix.operations.InterrogationState
 import com.shadowrun.matrix.operations.Icon
 import com.shadowrun.matrix.operations.MatrixObject
 import com.shadowrun.matrix.operations.SystemOperation
+import com.shadowrun.matrix.operations.UploadHandle
 import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.utility.DiceRoller
 import com.shadowrun.matrix.combat.BlackIcPinState
@@ -42,6 +44,8 @@ data class Decker(
     val meatworldComm: Boolean = false,
     val suppressedIc: List<IcSuppressionState> = emptyList(),
     val runDownloadedFiles: List<DataFile> = emptyList(),
+    val activeDownloads: List<DownloadHandle> = emptyList(),
+    val activeUploads: List<UploadHandle> = emptyList(),
     val interrogationStates: Map<SystemOperation, InterrogationState> = emptyMap(),
     val detectedIcons: Set<Icon> = emptySet()
 ) : ActiveIcon {

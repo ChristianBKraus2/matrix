@@ -379,11 +379,17 @@ override suspend fun action(context: GameContext, diceRoller: DiceRoller): Actio
 
 **`NonLethalBlackIC`**
 ```kotlin
+fun withRatingBonus(bonus: Int) = NonLethalBlackIC(rating + bonus, guardedNode)
+
 override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
     val target = findTarget(context) ?: return ActionResult.NoTarget
     moveIfNeeded(target, context)?.let { return it }
     val result = CombatResolver.resolveNonLethalBlackIc(target, this, context.securityCode, diceRoller)
     context.updateDecker(target, result.updatedDecker)
+    if (result.personaOnlyCrashed) {
+        context.removeIc(this)
+        context.addIc(withRatingBonus(2))
+    }
     return ActionResult.IcAttack("Non-Lethal Black IC hit ${target.name}: ${result.iconDamage}")
 }
 ```
@@ -395,12 +401,18 @@ override suspend fun action(context: GameContext, diceRoller: DiceRoller): Actio
 `Decker.asDefenderParticipant()` — convenience extension used by IC subclasses to build a `DefenderParticipant`:
 
 ```kotlin
-fun Decker.asDefenderParticipant(): DefenderParticipant = DefenderParticipant(
-    bod = persona!!.bod,
-    armorCurrentRating = 0,
-    personaStatus = persona.status,
-    securityCode = (currentLocation as MatrixLocation.OnHost).host.securityRating.code
-)
+fun Decker.asDefenderParticipant(): DefenderParticipant {
+    val p = requireNotNull(persona) { "asDefenderParticipant: decker has no persona" }
+    val loc = requireNotNull(currentLocation as? MatrixLocation.OnHost) { "asDefenderParticipant: decker not OnHost" }
+    val armorRating = cyberdeck.activeUtilities
+        .firstOrNull { it.type == UtilityType.ARMOR }?.currentRating ?: 0
+    return DefenderParticipant(
+        bod = p.bod,
+        armorCurrentRating = armorRating,
+        personaStatus = p.status,
+        securityCode = loc.host.securityRating.code
+    )
+}
 ```
 
 This extension lives in `src/main/kotlin/com/shadowrun/matrix/game/DeckerExtensions.kt`.

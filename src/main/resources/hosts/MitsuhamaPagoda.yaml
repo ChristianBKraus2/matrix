@@ -18,8 +18,6 @@ nodes:
     description: Employee and resource directory
   - type: FILES
     description: Corporate document archive
-  - type: FILES
-    description: Research and development archive
   - type: SLAVE
     description: Physical security and sensor network
 

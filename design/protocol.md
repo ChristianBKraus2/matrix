@@ -186,7 +186,7 @@ Sealed by `"kind"` field (not `"type"`):
 | `LogonToHost` | `hostName` |
 | `GracefulLogoff` | — |
 | `JackOut` | — |
-| `Operation` | `operation` (SystemOperation), `targetKind`, `targetName`, `paramKind` (`"precision"` / `"hasValidPasscode"` / `"scannerDeviceRating"` / `"newContent"` / null) |
+| `Operation` | `operation` (SystemOperation), `targetKind`, `targetName`, `paramKind` (`"precision"` / `"hasValidPasscode"` / `"scannerDeviceRating"` / `"newContent"` / `"dataSize"` / null) |
 
 **Deferred operations** — never appear in `availableActions`:
 

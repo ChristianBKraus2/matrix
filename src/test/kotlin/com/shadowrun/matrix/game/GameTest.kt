@@ -402,14 +402,14 @@ class GameTest {
         val node = accessNode()
         val ic = TarBaby(rating = 5, targetCategory = com.shadowrun.matrix.common.UtilityCategory.DEFENSIVE, guardedNode = node)
         val operational = Utility(UtilityType.ANALYZE, rating = 3)
-        val defensive = Utility(UtilityType.ARMOR, rating = 3)
+        val defensive = Utility(UtilityType.CLOAK, rating = 3)
         val decker = intrudingDecker(node = node, activeUtilities = listOf(operational, defensive))
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
         val dice = DiceRoller(stubRandom(*IntArray(100) { 5 }))
         ic.blockingAction(ctx, dice)
-        // ARMOR (DEFENSIVE) should have been targeted — ANALYZE (OPERATIONAL) remains
+        // CLOAK (DEFENSIVE, non-passive) should have been targeted — ANALYZE (OPERATIONAL) remains
         assertTrue(ctx.deckers[0].cyberdeck.activeUtilities.any { it.type == UtilityType.ANALYZE })
-        assertTrue(ctx.deckers[0].cyberdeck.activeUtilities.none { it.type == UtilityType.ARMOR })
+        assertTrue(ctx.deckers[0].cyberdeck.activeUtilities.none { it.type == UtilityType.CLOAK })
     }
 
     // ── Blaster ───────────────────────────────────────────────────────────────────

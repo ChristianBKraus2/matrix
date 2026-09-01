@@ -68,6 +68,7 @@ export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null)
   const pendingNameRef = useRef<string | null>(null)
   const reconnectTokenRef = useRef<string | null>(null)
+  const registeredNameRef = useRef<string | null>(null)
   const isMountedRef = useRef(true)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectDelay = useRef(3000)
@@ -91,14 +92,18 @@ export function useWebSocket() {
           case 'control':
             dispatch({ type: 'CONTROL', msg })
             if (msg.reconnectToken) reconnectTokenRef.current = msg.reconnectToken
-            if (msg.role === 'observer' && pendingNameRef.current) {
-              const join: JoinMessage = {
-                type: 'join',
-                deckerName: pendingNameRef.current,
-                ...(reconnectTokenRef.current ? { reconnectToken: reconnectTokenRef.current } : {}),
+            if (msg.deckerName) registeredNameRef.current = msg.deckerName
+            if (msg.role === 'observer') {
+              const nameToSend = pendingNameRef.current ?? registeredNameRef.current
+              if (nameToSend) {
+                const join: JoinMessage = {
+                  type: 'join',
+                  deckerName: nameToSend,
+                  ...(reconnectTokenRef.current ? { reconnectToken: reconnectTokenRef.current } : {}),
+                }
+                pendingNameRef.current = null
+                ws.send(JSON.stringify(join))
               }
-              pendingNameRef.current = null
-              ws.send(JSON.stringify(join))
             }
             break
           case 'state':

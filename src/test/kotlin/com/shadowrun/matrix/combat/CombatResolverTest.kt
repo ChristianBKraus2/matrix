@@ -832,7 +832,7 @@ class CombatResolverTest {
 
     @Test
     fun `resolveLethalBlackIc MPCP death blow reduces mcpRating on kill`() {
-        // Persona CM = 8 → MODERATE (3 boxes) crashes it → kill fires
+        // Physical CM = 8 → MODERATE (3 boxes) crashes it → kill fires
         // MPCP shot: ic.rating*2=12 dice vs TN hardening(0)+mcpRating(6)=6 → 4 hits via [6,1]×4 → reduction=2
         // Programs rating=1 each; after reduction: sum=4 ≤ 4*3=12, each=1 ≤ 4 ✓
         val lowPrograms = listOf(
@@ -841,8 +841,7 @@ class CombatResolverTest {
             PersonaProgram(PersonaAttributeType.MASKING, 1),
             PersonaProgram(PersonaAttributeType.SENSORS, 1)
         )
-        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6,
-            conditionMonitor = ConditionMonitor(damage = 8))
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
         val roller = DiceRoller(stubRandom(
             *IntArray(10) { 1 },                         // iconDef(6) + body(4) — all fail
             6, 1, 6, 1, 6, 1, 6, 1,                     // 4 of 12 MPCP dice hit via [6,1] pairs
@@ -854,7 +853,8 @@ class CombatResolverTest {
                 activeMemoryMp = 2000, storageMemoryMp = 5000, ioSpeedMpPerTurn = 500, costNuyen = 0,
                 personaPrograms = lowPrograms
             ),
-            persona = persona
+            persona = persona,
+            physicalCm = ConditionMonitor(damage = 8)
         )
         val ic = LethalBlackIC(rating = 6)
         val result = CombatResolver.resolveLethalBlackIc(d, ic, SecurityCode.BLUE, roller)
@@ -865,11 +865,9 @@ class CombatResolverTest {
 
     @Test
     fun `resolveLethalBlackIc MPCP floors at 0`() {
-        // Persona CM = 8 → kill fires; MPCP shot has many successes; mcpRating=2 → floors at 0
-        // No persona programs so that copy(mcpRating=0) doesn't violate sum ≤ 0*3=0
+        // Physical CM = 8 → MODERATE (3 boxes) crashes it → kill fires
         // ic.rating=6 → MPCP dice=12, TN=max(2, 0+2)=2; face=5 hits TN 2 without exploding → 12 successes → reduction=6 → max(0,2-6)=0
-        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6,
-            conditionMonitor = ConditionMonitor(damage = 8))
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
         val roller = DiceRoller(stubRandom(
             *IntArray(10) { 1 },    // iconDef(6) + body(4) — all fail
             *IntArray(12) { 5 }     // all 12 MPCP dice succeed at TN 2 (no exploding)
@@ -880,7 +878,8 @@ class CombatResolverTest {
                 activeMemoryMp = 2000, storageMemoryMp = 5000, ioSpeedMpPerTurn = 500, costNuyen = 0,
                 personaPrograms = emptyList()
             ),
-            persona = persona
+            persona = persona,
+            physicalCm = ConditionMonitor(damage = 8)
         )
         val ic = LethalBlackIC(rating = 6)
         val result = CombatResolver.resolveLethalBlackIc(d, ic, SecurityCode.BLUE, roller)
@@ -896,6 +895,30 @@ class CombatResolverTest {
         val d = decker(cyberdeck = deck(hardening = 8)).copy(blackIcPin = BlackIcPinState(existingIc))
         val result = CombatResolver.resolveLethalBlackIc(d, newIc, SecurityCode.BLUE, roller)
         assertEquals(existingIc, result.updatedDecker.blackIcPin!!.pinningIc)
+    }
+
+    @Test
+    fun `resolveLethalBlackIc degrades Armor utility when power exceeds armor rating (CD-19)`() {
+        // power=6, armorRating=3 → bleed-through → ARMOR currentRating decreases by 1
+        val armor = Utility(UtilityType.ARMOR, rating = 3)
+        val d = decker(cyberdeck = deck(hardening = 0, activeUtilities = listOf(armor)))
+        val ic = LethalBlackIC(rating = 6)
+        val result = CombatResolver.resolveLethalBlackIc(d, ic, SecurityCode.BLUE, allFaces(1, 20))
+        val updatedArmor = result.updatedDecker.cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.ARMOR }
+        assertNotNull(updatedArmor, "ARMOR utility should still be present after degradation")
+        assertEquals(2, updatedArmor.currentRating, "ARMOR should degrade by 1 when power > armorRating")
+    }
+
+    @Test
+    fun `resolveLethalBlackIc does not degrade Armor utility when power does not exceed armor rating (CD-19)`() {
+        // power=6, armorRating=8 → no bleed-through → ARMOR currentRating unchanged
+        val armor = Utility(UtilityType.ARMOR, rating = 8)
+        val d = decker(cyberdeck = deck(hardening = 0, activeUtilities = listOf(armor)))
+        val ic = LethalBlackIC(rating = 6)
+        val result = CombatResolver.resolveLethalBlackIc(d, ic, SecurityCode.BLUE, allFaces(1, 20))
+        val updatedArmor = result.updatedDecker.cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.ARMOR }
+        assertNotNull(updatedArmor)
+        assertEquals(8, updatedArmor.currentRating, "ARMOR should NOT degrade when power ≤ armorRating")
     }
 
     // ── resolveNonLethalBlackIc ───────────────────────────────────────────────────

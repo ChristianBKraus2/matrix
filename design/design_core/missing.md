@@ -4,61 +4,27 @@ Rules present in `extraction/extracted_text.txt` that are not reflected in any d
 
 ---
 
-## 1. Host Rating Random Generation Table (rules p. 205)
+## 1. Host Rating Random Generation Table (rules p. 205) ✓ resolved
 
-The table for randomly generating System Ratings from Intrusion Difficulty is absent from all design docs. No design document describes how to produce ratings procedurally.
-
-| Intrusion Difficulty | Security Value | Subsystem Ratings |
-|---|---|---|
-| Easy | 1D3 + 3 | 1D3 + 7 |
-| Average | 1D3 + 6 | 2D3 + 9 |
-| Hard | 2D3 + 6 | 1D6 + 12 |
-
-**Where it belongs:** `creation.md` (host YAML or GM tooling section).
+**Fix:** Documented in `creation.md` (Host Rating Random Generation section).
 
 ---
 
-## 2. Trigger Step Random Generation (rules p. 211)
+## 2. Trigger Step Random Generation (rules p. 211) ✓ resolved
 
-The procedure for randomly generating trigger step intervals is absent.
-
-- Roll 1D6 ÷ 2, then add a modifier by Security Code:
-  - Blue: +4 (final range 5–7 per step)
-  - Green: +3 (range 4–6)
-  - Orange: +2 (range 3–5)
-  - Red: +1 (range 2–4)
-- Each roll result is added cumulatively to the previous trigger step.
-- For tighter security, use the lowest value in the range; for looser, use the highest.
-
-**Where it belongs:** `creation.md` (security sheaf generation section).
+**Fix:** Documented in `creation.md` (Security Sheaf Random Generation section).
 
 ---
 
-## 3. Host/Grid Reset Mechanics (rules p. 212)
+## 3. Host/Grid Reset Mechanics (rules p. 212) ✓ resolved
 
-No design document implements the reset timing rules.
-
-- **Blue** systems reset completely in 2D6 minutes; security tally drops to 0.
-- **Green/Orange/Red** begin to reset after 3D6 minutes, *provided no alert was triggered*.
-- If a passive or active alert was triggered on Green/Orange/Red:
-  - Roll 1D6 every **5 minutes** (Green) / **10 minutes** (Orange) / **15 minutes** (Red).
-  - Reduce the security tally by the roll result.
-  - Any IC still running when the decker logged off remains active until the tally drops below the trigger step that activated it.
-- If a new decker logs on illegally before the reset finishes, that decker's tally begins at the current reduced value (not 0).
-
-`movement.md` notes the last bullet in its security tally summary table but provides no implementation design for the timed reset process itself.
-
-**Where it belongs:** New section in `operations.md` or `creation.md`.
+**Fix:** Documented in `movement.md` (System Reset Mechanics section).
 
 ---
 
-## 4. LTG Failed-Logon Tally Memory (rules p. 218)
+## 4. LTG Failed-Logon Tally Memory (rules p. 218) ✓ resolved
 
-The rules state: *"public LTGs 'remember' unauthorized access attempts for 1D3 × 5 minutes"* and that switching to a different jackpoint before the next logon attempt forces the grid to start a new security tally for the decker.
-
-No design document models this timer or the jackpoint-switch tally reset.
-
-**Where it belongs:** `movement.md` (Logon to LTG section).
+**Fix:** Documented in `movement.md` (`logonToLtg` method, LTG failed-logon tally memory window paragraph).
 
 ---
 

@@ -274,7 +274,10 @@ class WebSocketDeckerController(
                     ?: return DispatchResult(decker, false, 0, 0, "DOWNLOAD_DATA requires a File target")
                 val (opResult, handle) = decker.downloadData(file, host, diceRoller)
                 val extra = handle?.let { "${it.turnsRemaining} turn(s) at ${it.ioSpeedMpPerTurn} Mp/turn" } ?: ""
-                opResult.toDispatch(extra)
+                val dispatch = opResult.toDispatch(extra)
+                if (handle != null && dispatch.success)
+                    dispatch.copy(decker = dispatch.decker.copy(activeDownloads = dispatch.decker.activeDownloads + handle))
+                else dispatch
             }
             SystemOperation.EDIT_FILE -> {
                 val file = (action.target as? MatrixObject.File)?.file
@@ -287,8 +290,11 @@ class WebSocketDeckerController(
             }
             SystemOperation.UPLOAD_DATA    -> {
                 val dataSizeMp = p?.dataSize ?: 100
-                val (result, _) = decker.uploadData(host, dataSizeMp, diceRoller)
-                result.toDispatch()
+                val (result, handle) = decker.uploadData(host, dataSizeMp, diceRoller)
+                val dispatch = result.toDispatch()
+                if (handle != null && dispatch.success)
+                    dispatch.copy(decker = dispatch.decker.copy(activeUploads = dispatch.decker.activeUploads + handle))
+                else dispatch
             }
             SystemOperation.DECRYPT_ACCESS -> decker.decryptAccess(host, diceRoller).toDispatch()
             SystemOperation.DECRYPT_FILE -> {

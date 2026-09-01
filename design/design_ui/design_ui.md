@@ -238,7 +238,7 @@ export type AvailableActionDto =
   | { kind: 'LogonToHost';   index: number; actionType: ActionType; hostName: string }
   | { kind: 'GracefulLogoff';index: number; actionType: ActionType }
   | { kind: 'JackOut';       index: number; actionType: ActionType }
-  | { kind: 'Operation';     index: number; actionType: ActionType; operation: string; targetKind: string | null; targetName: string | null; paramKind: "precision" | "hasValidPasscode" | "scannerDeviceRating" | "newContent" | null };
+  | { kind: 'Operation';     index: number; actionType: ActionType; operation: string; targetKind: string | null; targetName: string | null; paramKind: "precision" | "hasValidPasscode" | "scannerDeviceRating" | "newContent" | "dataSize" | null };
 
 export interface StateMessage {
   type: 'state';
@@ -391,6 +391,7 @@ The `paramKind` field on `Operation` actions declares which inline control (if a
 | `"hasValidPasscode"` | Checkbox / toggle |
 | `"scannerDeviceRating"` | Numeric stepper |
 | `"newContent"` | Text area |
+| `"dataSize"` | Numeric stepper (Mp) |
 | `null` | *(no inline control)* |
 
 Full inline control specs per operation:

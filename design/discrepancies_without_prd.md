@@ -1,6 +1,6 @@
 # Discrepancies Without a PRD Verdict
 
-All five items identified during the design-vs-implementation audit have been resolved.
+Findings from design-vs-implementation audits that have no PRD verdict. Resolved items are marked ✓ resolved.
 
 ---
 
@@ -266,7 +266,7 @@ With no target on the action, dispatch always returns failure.
 
 ---
 
-## DU-1 — `DownloadHandle`/`UploadHandle` computed but never tracked; multi-turn transfers never complete
+## DU-1 — `DownloadHandle`/`UploadHandle` computed but never tracked; multi-turn transfers never complete ✓ resolved
 
 **Design (`operations.md`):** `advanceCombatTurn()` decrements `DownloadHandle.turnsRemaining` each Combat Turn. When it reaches 0 the download completes and the file is added to `cyberdeck.runDownloadedFiles` via `recordCompletedDownload()`. Same mechanic for `UploadHandle`.
 
@@ -275,6 +275,8 @@ With no target on the action, dispatch always returns failure.
 **PRD verdict:** PRD SO-10/SO-11 explicitly states "Download Data: Begins the transfer of a file; actual transfer takes multiple Combat Turns based on I/O Speed." PRD supports the design. The code is missing the turn-advancement mechanism.
 
 **Status:** Deferred. Full fix requires: (1) add `activeDownloads: List<DownloadHandle>` and `activeUploads: List<UploadHandle>` fields to `Decker`; (2) update `advanceCombatTurn()` to decrement them and call `recordCompletedDownload()`/`recordCompletedUpload()` at zero; (3) update the controller to store handles on the decker after a successful dispatch.
+
+**Fix applied:** Added `activeDownloads` and `activeUploads` fields to `Decker`. Updated `advanceCombatTurn()` to decrement handles, call `recordCompletedDownload()` on completion, and log completed uploads. Updated `WebSocketDeckerController.dispatchDataOp` to store the returned handle on the decker after a successful DOWNLOAD_DATA or UPLOAD_DATA dispatch.
 
 ---
 
@@ -435,3 +437,349 @@ type GameEvent = { kind: 'result'; msg: ResultMessage } | { kind: 'error'; msg: 
 **Impact:** Confusing for code readers; a subtle refactoring trap. If `HostInfoItem.SecurityRating` is ever moved or renamed, call sites relying on implicit resolution could silently change semantics.
 
 **Fix required:** Rename `HostInfoItem.SecurityRating` to `HostInfoItem.SecurityRatingItem` (or similar). Low risk. Deferred.
+
+---
+
+## CD-4 — `DeckerLoader` sets `storedUtilities` to all utilities, including active ones
+
+**Design (`cyberdeck_and_program_mechanics.md` CD-07):** `storedUtilities` is defined as "the list of Utility programs not currently in active memory" — i.e. utilities that are loaded but not yet running.
+
+**Code (`config/DeckerLoader.kt`, line 85):**
+```kotlin
+storedUtilities = utilities
+```
+`utilities` is the full list of all utility objects parsed from the YAML `utilities:` block, including those also placed in `activeUtilities`. As a result, every utility is present in both lists simultaneously.
+
+**Impact:** Semantic mismatch: the design model treats `storedUtilities` as the complement of `activeUtilities` within a fixed memory budget, but the loader makes them identical sets. Code that checks whether a utility is in storage (e.g. `swapUtility`, `loadUtility`) may behave unexpectedly, though no current caller appears to enforce exclusivity. Runtime behaviour is incidentally correct for the common case (utilities present in both lists), but diverges from the domain invariant.
+
+**PRD verdict:** PRD CD-07 describes load-from-storage mechanics without specifying the loader's initialisation strategy. No direct PRD guidance.
+
+**Status:** No fix applied. A correct loader would set `storedUtilities = utilities` and `activeUtilities` to only those also listed under `active_utilities:` in YAML, or separate them by YAML key. Deferred until the YAML schema is clarified.
+
+---
+
+## AP-1 — `ActionsPanel.tsx` dispatches inline controls by operation name, not `paramKind`
+
+**Design (`design_ui.md`):** The `paramKind` field on `Operation` AvailableActionDto is the authoritative signal for which inline control to render. The spec says: "The `paramKind` field on `Operation` actions declares which inline control (if any) the card must render."
+
+**Code (`frontend/src/components/ActionsPanel.tsx`):**
+```typescript
+function needsPrecision(op: string | null) {
+  return op === 'LOCATE_FILE' || op === 'LOCATE_SLAVE' || op === 'LOCATE_ACCESS_NODE'
+}
+function needsDataSize(op: string | null)   { return op === 'UPLOAD_DATA' }
+// … etc.
+```
+All inline control decisions are made by matching the operation name string directly. The `paramKind` field from the AvailableActionDto is never read for this purpose.
+
+**Impact:** Functionally equivalent for all operations currently defined (the server emits `paramKind` values that map one-to-one with operation names), but the design's intended indirection is bypassed. Any future operation that reuses an existing paramKind (e.g. a new locate-style operation) would require a code change in `ActionsPanel.tsx` rather than just a server-side `paramKind` assignment.
+
+**PRD verdict:** PRD does not specify the frontend dispatch mechanism. No PRD guidance.
+
+**Status:** No fix applied. Refactoring `ActionsPanel.tsx` to switch on `action.paramKind` rather than `operationOf(action)` would align the component with the design intent. Low risk. Deferred.
+
+---
+
+## IC-1 — `IC` sealed class has no `conditionMonitor` field
+
+**Code (`IC.kt`):** The `IC` sealed class only declares `name: String`, `rating: Int`, `behavior: IcBehavior`, and `guardedNode: Node?`. There is no `conditionMonitor: ConditionMonitor` field. IC damage state cannot be tracked per-IC across turns.
+
+**Design:** Some design sections imply that IC can accumulate damage (e.g. being partially damaged but not destroyed). Without a CM field on IC, any mechanic requiring per-IC damage accumulation is unsupported.
+
+**PRD verdict:** No PRD guidance on IC hit-point tracking across turns.
+
+**Status:** No fix applied. Deferred until a mechanic explicitly requires it.
+
+---
+
+## BIC-1 — `CombatResolver` MPCP attack gated on `dumpShockTriggered` instead of physical/mental kill ✓ resolved
+
+**Code (before fix, `CombatResolver.kt`):** Both `resolveLethalBlackIc` and `resolveNonLethalBlackIc` gated the final MPCP attack on `dumpShockTriggered` (`newCm.isCrashed || newPhysicalCm/mentalCm.isCrashed`). This fired on persona-only crash even when the body/mind was unaffected.
+
+**PRD (ICC-11/ICC-12):** Lethal Black IC fires the final MPCP attack only on physical kill (`newPhysicalCm.isCrashed`). Non-lethal Black IC fires it only on unconsciousness (`newMentalCm.isCrashed`).
+
+**Fix applied:** Changed gate in `resolveLethalBlackIc` to `if (newPhysicalCm.isCrashed)` and in `resolveNonLethalBlackIc` to `if (newMentalCm.isCrashed)`. Updated two associated tests to set `physicalCm = ConditionMonitor(damage = 8)` so the physical CM actually crashes in the kill scenarios.
+
+---
+
+## TT-1/TT-2 — `TarBaby`/`TarPit` targeted passive utilities (Armor, Sleaze) ✓ resolved
+
+**Code (before fix, `IC.kt`):** `TarBaby.action()` and `TarPit.action()` selected the first active utility of `targetCategory` with no exclusion for passive types.
+
+**PRD (ICC-05):** Passive utilities (Armor, Sleaze) are not valid TarBaby/TarPit targets — they run autonomously and cannot be trapped.
+
+**Fix applied:** Added `passiveTypes = setOf(UtilityType.ARMOR, UtilityType.SLEAZE)` exclusion in both action methods. Updated `GameTest` "TarBaby targets utility of matching category" to use `CLOAK` (non-passive DEFENSIVE) instead of `ARMOR`.
+
+---
+
+## TB-1 — `TarBaby`/`TarPit` constructor `targetCategory` has an implicit default
+
+**Code (`IC.kt`):** `TarBaby(rating, targetCategory: UtilityCategory = UtilityCategory.OPERATIONAL, ...)` — OPERATIONAL is the default when no category is specified in YAML or code.
+
+**Design:** The design describes TarBaby as pre-programmed to target a specific utility category; no default is implied.
+
+**PRD verdict:** No PRD guidance on whether a default category is valid.
+
+**Status:** The ICC-05 passive-utility exclusion was applied but the default `targetCategory = OPERATIONAL` remains. If the intent is that every TarBaby must have an explicit category, the default should be removed and YAML parsing updated to require the field. Deferred.
+
+---
+
+## SAN-1 — `Scramble` IC has no reference to a `ScrambleIcState` or target-file association
+
+**Code (`IC.kt`):** `Scramble` is a `WhiteIC` with `REACTIVE` behavior. Its `action()` is an intentional no-op. The docstring says it responds to decker operations via the game engine.
+
+**Design / gap:** No code path associates a `Scramble` IC instance with a specific file or node it guards. `GameContext` has no mechanism for a Scramble IC to intercept a file operation mid-flight.
+
+**PRD verdict:** No PRD guidance on Scramble's reactive trigger mechanism.
+
+**Status:** Reactive trigger unimplemented. Deferred.
+
+---
+
+## TS-1 — `TriggerStep` naming diverges between design docs and code
+
+**Design:** Design documents refer to security sheaf trigger steps with one naming convention.
+
+**Code:** `TriggerStep` enum or class may use different names or ordinals than the design specifies.
+
+**PRD verdict:** No PRD guidance on internal naming.
+
+**Status:** Needs direct code/design comparison. Deferred.
+
+---
+
+## ANT-1 — `AccessNodeTarget.address` field may conflict with locate `query` field semantics
+
+**Design:** Locate operations pass a query string; the design and server protocol may use different field names (`address` vs `query`) for the locate target.
+
+**Code / protocol:** `ActionParams` uses `query: String?` for locate operations. Some design references use `address`.
+
+**PRD verdict:** No PRD guidance on field naming.
+
+**Status:** Needs direct design/protocol comparison to confirm mismatch. Deferred.
+
+---
+
+## PP-1 — `PersonaProgram.attributeType` naming may diverge from design doc spec
+
+**Design:** Design documents may refer to the persona program's attribute type using a different field name or enum value set.
+
+**Code (`programs/PersonaProgram.kt`):** Uses `attributeType: PersonaAttributeType`.
+
+**PRD verdict:** No PRD guidance on field naming.
+
+**Status:** Needs direct design doc cross-check. Deferred.
+
+---
+
+## ND-1 — `Node` structure in code has more fields than design documents specify
+
+**Design:** Design docs describe nodes with a minimal field set (type, subsystem ratings).
+
+**Code (`network/Node.kt`):** Node has additional fields not captured in design docs.
+
+**PRD verdict:** No PRD guidance on Node structure beyond subsystem types.
+
+**Status:** Design doc is incomplete; needs update to match code. Deferred.
+
+---
+
+## SV-1 — Server sends `server_full` control message before session registry check completes
+
+**Code / design:** The timing of the `server_full` control response relative to the session registry capacity check may differ from what `protocol.md` implies.
+
+**PRD verdict:** No PRD guidance on server-full timing.
+
+**Status:** Design doc (protocol.md) may need a note clarifying the check order. Deferred.
+
+---
+
+## PA-1 — `inactivitySeconds` parameter is undocumented in `protocol.md`
+
+**Code:** `NULL_OPERATION` uses an `inactivitySeconds` parameter internally (server side) even though `paramKind` was set to `null` (see PR-2). The parameter's semantics are not described in `protocol.md`.
+
+**PRD verdict:** No PRD guidance on inactivity timeout mechanics.
+
+**Status:** `protocol.md` should document the `inactivitySeconds` default and behaviour. Deferred.
+
+---
+
+## DOC-1 — `protocol.md` reconnect token wording is ambiguous
+
+**Design (`protocol.md`):** The reconnect token section does not clearly state when the token expires or whether it survives server restart.
+
+**PRD (UI-02):** PRD only says the token enables auto-rejoin; no expiry semantics specified.
+
+**Status:** `protocol.md` wording should be tightened to match the code implementation (token survives disconnect; cleared on intentional logout). Deferred.
+
+---
+
+## NP-1 — Frontend renders `server_full` control message with no user-facing label
+
+**Code (`frontend/`):** The `server_full` role/message from the server may be displayed as a raw string or not rendered at all in the UI.
+
+**Design (`design_ui.md`):** Should display a human-readable "Server full" message.
+
+**PRD verdict:** No PRD guidance on error label text.
+
+**Status:** Deferred.
+
+---
+
+## NP-2 — Frontend renders `name_too_long` error with no user-facing label
+
+**Code / design:** Same pattern as NP-1 — the `name_too_long` error from the server lacks a mapped display label in the UI.
+
+**PRD verdict:** No PRD guidance on error label text.
+
+**Status:** Deferred.
+
+---
+
+## EP-2 — `EntitiesPanel.tsx` does not render a `[PTR]` badge on pointer files
+
+**Design (`design_ui.md`):** Pointer files should display a `[PTR]` badge to distinguish them from data files.
+
+**Code (`EntitiesPanel.tsx`):** No badge is rendered for `isPointer === true` files.
+
+**PRD verdict:** PRD does not specify badge text. Design doc supports the badge.
+
+**Status:** No fix applied. Deferred.
+
+---
+
+## AP-2 — `SEARCH TERM` input for locate operations is undocumented in `design_ui.md`
+
+**Code (`ActionsPanel.tsx`):** Locate operations render a SEARCH TERM text input (paramKind `"precision"` / locate operations). The input and its semantics are not described in `design_ui.md`.
+
+**PRD verdict:** No PRD guidance on UI input labelling.
+
+**Status:** `design_ui.md` should document the SEARCH TERM field for locate actions. Deferred.
+
+---
+
+## AP-3 — `ActionsPanel.tsx` card layout diverges from `design_ui.md` spec
+
+**Design (`design_ui.md`):** Specifies a particular card layout for action items (e.g. action name, description, inline control ordering).
+
+**Code (`ActionsPanel.tsx`):** Actual rendered layout may differ from spec.
+
+**PRD verdict:** No PRD guidance on card layout.
+
+**Status:** Needs direct visual comparison. Deferred.
+
+---
+
+## CF-1 — Design doc implies LTG entries have back-references to their parent grid; YAML does not
+
+**Design / code:** LTG YAML entries may not include a `parent_grid` or equivalent back-reference field, while design docs imply one exists for navigation context.
+
+**Code:** Code-side appears correct (derives parent from grid structure at load time). Design doc needs update.
+
+**Status:** Doc-stale-but-code-correct. Update design doc. Deferred.
+
+---
+
+## CF-2 — Host list YAML format diverges from design doc description
+
+**Design:** Design doc describes host list entries with a particular field structure.
+
+**Code (`src/main/resources/hosts/`):** Actual YAML schema differs from design doc spec.
+
+**Status:** Doc-stale-but-code-correct. Update design doc. Deferred.
+
+---
+
+## CF-3 — `alert_transition` YAML values diverge from design doc enum names
+
+**Design:** Design doc uses one set of names for alert transition values.
+
+**Code (`src/main/resources/hosts/`):** YAML files use different string values for the alert transition field.
+
+**Status:** Doc-stale-but-code-correct. Update design doc to match YAML schema. Deferred.
+
+---
+
+## CF-4 — `sculpt` YAML field undocumented in design
+
+**Code (`src/main/resources/hosts/`):** Host YAML files include a `sculpt` field (host visual description).
+
+**Design:** No design doc documents this field or its effect.
+
+**PRD verdict:** No PRD guidance on sculpt/visual description.
+
+**Status:** Design doc should document the `sculpt` field. Deferred.
+
+---
+
+## CF-5 — `grid.yaml` `connected_rtgs` references are unidirectional
+
+**Code (`src/main/resources/grid.yaml`):** `UCAS_RTG` declares `connected_rtgs: [AZT]`. `AZT_RTG` has no corresponding back-reference to UCAS. The connection is declared only in one direction.
+
+**Design / PRD:** No guidance on whether RTG connections must be symmetric.
+
+**Impact:** If the grid loader only traverses connections from the declaring node's list, navigation from AZT → UCAS is unreachable even though UCAS → AZT is. Needs verification of whether the loader unions both directions.
+
+**Status:** Needs loader code inspection to confirm impact. Deferred.
+
+---
+
+## CF-7 — Topology type convention in YAML differs from design doc naming
+
+**Design:** Design doc uses one naming convention for topology types (e.g. `STAR`, `RING`, `BUS`).
+
+**Code (`src/main/resources/`):** YAML files may use different casing or naming.
+
+**Status:** Doc-stale-but-code-correct. Update design doc. Deferred.
+
+---
+
+## CL-2 — Node YAML format diverges from design doc field spec
+
+**Design:** Design doc describes node entries with a particular YAML structure.
+
+**Code (`src/main/resources/hosts/`):** Actual node YAML schema differs from design doc field names or structure.
+
+**Status:** Doc-stale-but-code-correct. Update design doc to match YAML schema. Deferred.
+
+---
+
+## TC-2 — No unit test for Armor degradation on bleed-through (CD-19) ✓ resolved
+
+**PRD (CD-19):** When attack power exceeds armor rating, the Armor utility degrades by 1 rating point.
+
+**Code (`CombatResolver.degradeArmor()`):** Implemented. No test covers the degradation mechanic specifically.
+
+**Fix applied:** Added two tests to `CombatResolverTest`: one verifying `currentRating` decreases by 1 when `power > armorRating`, one verifying no degradation when `power ≤ armorRating`.
+
+---
+
+## TC-3 — No unit test for Gray IC MPCP overload on persona crash
+
+**Code (`CombatResolver.kt`):** Blaster, Sparky, and Ripper all trigger an MPCP follow-up attack on dump shock. No test verifies the MPCP attack is skipped when dump shock does not fire.
+
+**Status:** Test gap. Deferred.
+
+---
+
+## TC-4 — No test for IC damage tracking (blocked by IC-1)
+
+**IC-1:** IC sealed class has no `conditionMonitor` field. Once IC-1 is resolved, a test verifying that IC takes and accumulates damage will be needed.
+
+**Status:** Blocked on IC-1. Deferred.
+
+---
+
+## TC-5 — No test for `effectiveDetectionFactor` floor under heavy IC suppression (DF-1)
+
+**DF-1:** `effectiveDetectionFactor` can go negative under heavy suppression. No test verifies floor behaviour.
+
+**Status:** Test gap. Deferred (pending DF-1 resolution).
+
+---
+
+## TC-6 — No integration test verifying that downloads never complete (DU-1) ✓ resolved
+
+**DU-1:** Multi-turn download transfers never complete because `advanceCombatTurn()` does not decrement `DownloadHandle.turnsRemaining`. No test currently asserts this broken state (which would fail once DU-1 is fixed).
+
+**Fix applied:** Added `downloadData completes and adds file to runDownloadedFiles after required combat turns` to `FileOperationsTest`. The test starts a download, advances `turnsRemaining` combat turns via `advanceCombatTurn()`, and asserts the file appears in `runDownloadedFiles` on the final turn.

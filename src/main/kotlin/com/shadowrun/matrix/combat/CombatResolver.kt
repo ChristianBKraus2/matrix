@@ -282,7 +282,7 @@ object CombatResolver {
 
         // Rules p. 230: on kill, Black IC makes a final Blaster attack on MPCP at double rating.
         var mpcpReduction = 0
-        if (dumpShockTriggered) {
+        if (newPhysicalCm.isCrashed) {
             val mpcpTn = updatedDecker.cyberdeck.hardening + updatedDecker.cyberdeck.mcpRating
             val mpcpSuccesses = diceRoller.roll(ic.rating * 2, max(2, mpcpTn)).successes
             mpcpReduction = mpcpSuccesses / 2
@@ -342,7 +342,7 @@ object CombatResolver {
 
         // Rules p. 230: on unconsciousness, non-lethal Black IC gets a final shot at the MPCP at double rating.
         var mpcpReduction = 0
-        if (dumpShockTriggered) {
+        if (newMentalCm.isCrashed) {
             val mpcpTn = updatedDecker.cyberdeck.hardening + updatedDecker.cyberdeck.mcpRating
             val mpcpSuccesses = diceRoller.roll(ic.rating * 2, max(2, mpcpTn)).successes
             mpcpReduction = mpcpSuccesses / 2
