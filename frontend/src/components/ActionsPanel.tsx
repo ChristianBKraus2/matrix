@@ -35,28 +35,28 @@ function needsQuery(op: string | null) {
 
 function needsScanner(op: string | null)    { return op === 'TAP_COMCALL' }
 function needsEdit(op: string | null)       { return op === 'EDIT_FILE' }
-function needsInactivity(op: string | null) { return op === 'NULL_OPERATION' }
 function needsPasscode(op: string | null)   { return op === 'MAKE_COMCALL' }
+function needsDataSize(op: string | null)   { return op === 'UPLOAD_DATA' }
 
 interface CardState {
   precision: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'
   query: string
   scannerDeviceRating: number
   newContent: string
-  inactivitySeconds: number
   hasValidPasscode: boolean
+  dataSize: number
 }
 
 function defaultCardState(): CardState {
-  return { precision: 'NORMAL', query: '', scannerDeviceRating: 0, newContent: '', inactivitySeconds: 0, hasValidPasscode: false }
+  return { precision: 'NORMAL', query: '', scannerDeviceRating: 0, newContent: '', hasValidPasscode: false, dataSize: 100 }
 }
 
 function buildParams(op: string | null, cs: CardState): ActionParams | undefined {
   if (needsPrecision(op)) return { precision: cs.precision, query: cs.query }
   if (needsEdit(op))      return { newContent: cs.newContent === '' ? null : cs.newContent }
-  if (needsInactivity(op)) return { inactivitySeconds: cs.inactivitySeconds }
   if (needsScanner(op))   return { scannerDeviceRating: cs.scannerDeviceRating }
   if (needsPasscode(op))  return { hasValidPasscode: cs.hasValidPasscode }
+  if (needsDataSize(op))  return { dataSize: cs.dataSize }
   return undefined
 }
 
@@ -171,21 +171,6 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                   </div>
                 )}
 
-                {needsInactivity(op) && (
-                  <div className="action-control" onClick={e => e.stopPropagation()}>
-                    <div className="ctrl-label">INACTIVITY (seconds)</div>
-                    <input
-                      type="number"
-                      className="inactivity-input"
-                      min={0}
-                      max={3600}
-                      step={1}
-                      value={cs.inactivitySeconds}
-                      onChange={e => patchState(action.index, { inactivitySeconds: Math.min(3600, Math.max(0, Number(e.target.value) || 0)) })}
-                    />
-                  </div>
-                )}
-
                 {needsPasscode(op) && (
                   <div className="action-control" onClick={e => e.stopPropagation()}>
                     <div className="ctrl-label">VALID PASSCODE</div>
@@ -195,6 +180,23 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                     >
                       {cs.hasValidPasscode ? 'YES' : 'NO'}
                     </button>
+                  </div>
+                )}
+
+                {needsDataSize(op) && (
+                  <div className="action-control" onClick={e => e.stopPropagation()}>
+                    <div className="ctrl-label">DATA SIZE (Mp)</div>
+                    <div className="stepper">
+                      <button
+                        className="stepper-btn"
+                        onClick={() => patchState(action.index, { dataSize: Math.max(1, cs.dataSize - 10) })}
+                      >−</button>
+                      <span>{cs.dataSize}</span>
+                      <button
+                        className="stepper-btn"
+                        onClick={() => patchState(action.index, { dataSize: cs.dataSize + 10 })}
+                      >+</button>
+                    </div>
                   </div>
                 )}
               </div>

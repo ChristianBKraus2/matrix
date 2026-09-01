@@ -119,7 +119,6 @@ export function useWebSocket() {
     }
 
     ws.onclose = () => {
-      reconnectTokenRef.current = null
       if (!isMountedRef.current) return
       dispatch({ type: 'DISCONNECTED' })
       reconnectTimer.current = setTimeout(() => {

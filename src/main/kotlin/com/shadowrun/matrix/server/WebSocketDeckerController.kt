@@ -286,7 +286,7 @@ class WebSocketDeckerController(
                 decker.editFile(file, host, content?.toByteArray(), diceRoller).toDispatch()
             }
             SystemOperation.UPLOAD_DATA    -> {
-                val dataSizeMp = p?.query?.toIntOrNull() ?: 100
+                val dataSizeMp = p?.dataSize ?: 100
                 val (result, _) = decker.uploadData(host, dataSizeMp, diceRoller)
                 result.toDispatch()
             }

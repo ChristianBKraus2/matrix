@@ -38,6 +38,7 @@ enum class SystemOperation(
     GRACEFUL_LOGOFF(ACCESS, UtilityType.DECEPTION, COMPLEX, STANDARD),
     INVOKE_MEDIC(CONTROL, null, COMPLEX, STANDARD),
     LOCATE_ACCESS_NODE(INDEX, UtilityType.BROWSE, COMPLEX, INTERROGATION),
+    /** Implemented on Decker but not yet dispatched via WebSocketDeckerController; excluded from availableActions(). */
     LOCATE_DECKER(INDEX, UtilityType.SCANNER, COMPLEX, STANDARD),
     LOCATE_FILE(INDEX, UtilityType.BROWSE, COMPLEX, INTERROGATION),
     LOCATE_IC(INDEX, UtilityType.ANALYZE, COMPLEX, STANDARD),

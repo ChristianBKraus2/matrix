@@ -55,7 +55,8 @@ data class ActionParams(
     val precision: String? = null,
     val query: String? = null,
     val hasValidPasscode: Boolean? = null,
-    val scannerDeviceRating: Int? = null
+    val scannerDeviceRating: Int? = null,
+    val dataSize: Int? = null
 )
 
 @Serializable

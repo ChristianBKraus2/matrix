@@ -82,7 +82,7 @@ Add inside `routing { }` in `MatrixServer.kt`, **before** the `webSocket` route:
 
 ```kotlin
 staticResources("/", "static") {
-    defaultResource("index.html")
+    default("index.html")
 }
 ```
 
@@ -119,7 +119,7 @@ PHYS  [■][■][■][□][□][□][□][□][□][□]
 - `PASSIVE_ALERT` → `--amber`
 - `ACTIVE_ALERT` → `--red-alert` + `animation: blink 1s step-end infinite`
 
-**Active controller indicator:** Middle panel gets `border: 2px solid var(--green)` + `animation: blink-border 0.8s step-end infinite` when `role === "active_controller"`.
+**Active controller indicator:** Middle panel gets `border: 2px solid var(--green)` + `animation: pulse-border 0.8s ease-in-out infinite alternate` when `role === "active_controller"`.
 
 ---
 

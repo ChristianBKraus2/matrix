@@ -136,15 +136,30 @@ Iterates `context.deckers` and calls `decker.action(context, diceRoller)` `decke
 suspend fun runCombatTurn()
 ```
 
-1. **Roll initiative** for every active icon by calling `icon.initiative(context, diceRoller)` on each entry. Build a `MutableList<ActiveIconState>` sorted descending by `currentInitiative`.
+The turn is divided into three segments following PRD CC-01, CC-02, and CC-04:
 
-2. **Action loop**: find the entry with the highest `currentInitiative > 0`. Call `icon.action(context, diceRoller)`. Decrement that entry's `currentInitiative` by 10.
+**Proactive initiative segment (Matrix actions):**
 
-3. Repeat step 2 until all entries have `currentInitiative ≤ 0`. The turn is over.
+1. **Build combat sets** — separate active icons into two groups:
+   - *Proactive initiative list*: all non-meatworld-comm deckers + all proactive IC (IC with `behavior != REACTIVE`). Reactive IC are excluded (they act at end-of-turn per CC-02). Meatworld-comm deckers are excluded (they act in the physical segment per CC-04).
+   - *Meatworld-comm decker list*: deckers whose `meatworldComm == true`.
+2. **Roll initiative** for each icon in the proactive list by calling `icon.initiative(context, diceRoller)`. Build a `MutableList<ActiveIconState>` sorted descending by `currentInitiative`.
+3. **Action loop**: find the entry with the highest `currentInitiative > 0`. Call `icon.action(context, diceRoller)`. Decrement that entry's `currentInitiative` by 10.
+4. Repeat step 3 until all entries have `currentInitiative ≤ 0`.
 
-4. Advance utility upload timers for all deckers by calling `decker.advanceCombatTurn()` on each entry in `context.deckers` (CD-11/CC-33).
+**Physical segment (CC-04):**
 
-5. Return to step 1 for the next turn. Combat ends when `context.activeIc` is empty (all IC crashed or suppressed) or when the caller signals resolution externally.
+5. For each meatworld-comm decker, call `decker.action(context, diceRoller)` once.
+
+**Reactive IC end-of-turn (CC-02):**
+
+6. For each reactive IC in `context.activeIc`, call `ic.action(context, diceRoller)` once. Reactive IC act after all decker actions.
+
+**End-of-turn housekeeping:**
+
+7. Advance utility upload timers for all deckers by calling `decker.advanceCombatTurn()` on each entry in `context.deckers` (CD-11/CC-33).
+
+8. Return to step 1 for the next turn. Combat ends when `context.activeIc` is empty (all IC crashed or suppressed) or when the caller signals resolution externally.
 
 ---
 
@@ -401,7 +416,7 @@ This extension lives in `src/main/kotlin/com/shadowrun/matrix/game/DeckerExtensi
 
 Operations requiring host context must not appear in `availableActions` when the decker is on a grid node. The filter is applied inside `Decker.availableActions()`, not at the server dispatch point — offering an action and returning a failure is confusing to the player.
 
-This rule is additive to the existing deferral rule in `prd_game.md`: SWAP_MEMORY and LOCATE_DECKER are excluded regardless of context.
+Both `swapUtility()` and `locateDecker()` are implemented on `Decker` but are not yet dispatched via `WebSocketDeckerController` and are excluded from `availableActions()` regardless of location context. This overrides the `prd_game.md` deferral language — the Decker-side logic exists; the server dispatch layer is the remaining gap.
 
 ---
 

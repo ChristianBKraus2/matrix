@@ -84,9 +84,9 @@ All messages are JSON objects. Every message has a `"type"` discriminator field.
 |---|---|
 | `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE` | `precision` (QueryPrecision), `query` (string — required on first call, ignored on continuation) |
 | `EDIT_FILE` | `newContent` (string or null to erase) |
-| `NULL_OPERATION` | `inactivitySeconds` (int, 0–3600) |
 | `TAP_COMCALL` | `scannerDeviceRating` (int, 0–10) |
 | `MAKE_COMCALL` | `hasValidPasscode` (boolean, default false) |
+| `UPLOAD_DATA` | `dataSize` (int Mp, default 100) |
 
 ---
 
@@ -186,7 +186,7 @@ Sealed by `"kind"` field (not `"type"`):
 | `LogonToHost` | `hostName` |
 | `GracefulLogoff` | — |
 | `JackOut` | — |
-| `Operation` | `operation` (SystemOperation), `targetKind`, `targetName` |
+| `Operation` | `operation` (SystemOperation), `targetKind`, `targetName`, `paramKind` (`"precision"` / `"hasValidPasscode"` / `"scannerDeviceRating"` / `"newContent"` / null) |
 
 **Deferred operations** — never appear in `availableActions`:
 
@@ -201,11 +201,11 @@ Sealed by `"kind"` field:
 
 | kind | Key fields |
 |---|---|
-| `GridNode` | `name`, `region`, `alertStatus`, `ltgCount` |
-| `LocalGrid` | `name`, `parentRtgName`, `hostCount` |
-| `PrivateGrid` | `name`, `owner`, `parentLtgName` |
-| `HostNode` | `name`, `topologyType`, `securityCode`, `securityTally` |
+| `GridNode` | `name`, `region`, `alertStatus`, `securityCode`, `securityTally`, `ltgCount`, `connectedRtgCount` |
+| `LocalGrid` | `name`, `parentRtgName`, `alertStatus`, `securityTally`, `hostCount`, `pltgCount` |
+| `PrivateGrid` | `name`, `owner`, `parentLtgName`, `alertStatus`, `securityCode`, `hostCount` |
+| `HostNode` | `name`, `topologyType`, `offline`, `alertStatus`, `securityCode`, `securityTally` |
 | `HostSubsystem` | `subsystemType`, `description` | Rating intentionally omitted — revealed only after a successful `ANALYZE_HOST` or `ANALYZE_SUBSYSTEM` operation. |
 | `IcProgram` | `name`, `analyzed: Boolean`, `rating: Int?` (null when not analyzed), `behavior: String?` (null when not analyzed), `guardedNodeType: String?` (null when not analyzed) |
-| `File` | `name`, `isScrambleProtected`, `sizeMp` |
+| `File` | `name`, `isScrambleProtected`, `isPointer`, `sizeMp` |
 | `Device` | `name`, `systemAddress` |

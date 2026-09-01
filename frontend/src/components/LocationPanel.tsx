@@ -28,6 +28,7 @@ function LocationFields({ obj }: { obj: MatrixObjectDto }) {
       return (
         <>
           <Field label="REGION" value={obj.region} />
+          <Field label="SEC" value={obj.securityCode} cls={`sec-${obj.securityCode}`} />
           <Field label="ALERT" value={obj.alertStatus.replace('_', ' ')} cls={`alert-${obj.alertStatus}`} />
           <Field label="TALLY" value={obj.securityTally} />
           <Field label="LTGs" value={obj.ltgCount} />
@@ -49,6 +50,7 @@ function LocationFields({ obj }: { obj: MatrixObjectDto }) {
         <>
           <Field label="OWNER" value={obj.owner} />
           <Field label="PARENT LTG" value={obj.parentLtgName} />
+          <Field label="SEC" value={obj.securityCode} cls={`sec-${obj.securityCode}`} />
           <Field label="ALERT" value={obj.alertStatus.replace('_', ' ')} cls={`alert-${obj.alertStatus}`} />
           <Field label="HOSTS" value={obj.hostCount} />
         </>
