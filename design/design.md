@@ -111,7 +111,7 @@
     - (P)LTG : Grid
 
 - Host
-  - Node
+  - Node (`data class Node(val subsystemType: SubsystemType, val description: String = "")`)
   - SAN
   - IC
   - DataFile

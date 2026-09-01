@@ -123,9 +123,9 @@ class GrayCombatTest : IntegrationTestBase() {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
         }
-        val armor = Utility(UtilityType.ARMOR, rating = 4)
-        icon.equipUtility(armor)
-        assertEquals(1, icon.currentDecker().cyberdeck.activeUtilities.size, "Armor should be active before TarPit")
+        val cloak = Utility(UtilityType.CLOAK, rating = 4)
+        icon.equipUtility(cloak)
+        assertEquals(1, icon.currentDecker().cyberdeck.activeUtilities.size, "Cloak should be active before TarPit")
 
         icon.injectIc(TarPit(rating = 6, targetCategory = UtilityCategory.DEFENSIVE))
         icon.runCombatTurn(hitRoller())
@@ -141,7 +141,7 @@ class GrayCombatTest : IntegrationTestBase() {
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
         }
         assertEquals(0, icon.currentDecker().cyberdeck.activeUtilities.size)
-        icon.injectIc(TarPit(rating = 6))
+        icon.injectIc(TarPit(rating = 6, targetCategory = UtilityCategory.OPERATIONAL))
 
         val damageBefore = icon.currentDecker().persona!!.conditionMonitor.damage
         icon.runCombatTurn(hitRoller())

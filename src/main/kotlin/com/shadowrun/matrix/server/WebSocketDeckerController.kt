@@ -410,10 +410,6 @@ class WebSocketDeckerController(
         return DispatchResult(decker, outcome.deckerWins, outcome.deckerSuccesses, outcome.hostSuccesses, "Edit file$extra")
     }
 
-    private fun LocateDeckerResult.toDispatch(): DispatchResult {
-        val details = if (located) "Target located" + if (targetNotified) " (target notified)" else "" else "Not located"
-        return DispatchResult(decker, located, outcome.deckerSuccesses, outcome.hostSuccesses, details)
-    }
 
     private fun LocateResult.label() = when (this) {
         is LocateResult.Ongoing  -> "ongoing (${accumulatedSuccesses} accumulated)"

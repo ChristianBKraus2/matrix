@@ -65,3 +65,11 @@ The `source_code: true` field on utility YAML entries is parsed and stored, but 
 **Source:** [design_core/missing.md](design_core/missing.md)
 
 PRD ICC-10: if a companion at the jackpoint manually pulls the plug while Black IC is active, Black IC gets one automatic final attack. This scenario is entirely undesigned. Open questions: whether the decker's Willpower test is skipped, who triggers the final-attack resolution, and what calls `resolveJackOutWithPin` (or a variant). Belongs in `combat.md` (Black IC Pin section) and `movement.md` (`jackOut` section).
+
+---
+
+## 9. Scramble IC reactive trigger (SAN-1)
+
+**Source:** [discrepancies_without_prd.md](discrepancies_without_prd.md) (SAN-1)
+
+Scramble IC is designed as a reactive IC that triggers when a decker destructs a file. However, `Scramble.action()` is currently a no-op, and no interception point in the game engine triggers it on file destruction operations. Until a game-engine hook is implemented (e.g. in `destructFile` or `decryptFile`), Scramble fires no reactive attack.

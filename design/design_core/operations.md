@@ -773,7 +773,8 @@ host.copy(
 ```kotlin
 data class TriggerStep(
     val tallyThreshold: Int,
-    val icActivations: List<IC> = emptyList(),
+    val description: String,
+    val activatedIc: List<IC> = emptyList(),
     val alertTransition: AlertStatus? = null,
     val securityDeckerCount: Int = 0          // AL-02: number of NPC deckers to spawn
 )

@@ -145,6 +145,27 @@ class IcBehaviorTest {
         assertFalse(tarPit in ctx.activeIc, "TarPit should be removed from context when it wins the contest")
     }
 
+    // ── Blaster ───────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `Blaster does not reduce MPCP when hit does not trigger dump shock`() {
+        val d = decker()
+        val blaster = Blaster(rating = 5)
+        val originalMcp = d.cyberdeck.mcpRating
+
+        val hit = AttackResult.Hit(
+            attackerSuccesses = 1,
+            rawDamageLevel = DamageLevel.LIGHT,
+            stagedDamageLevel = DamageLevel.LIGHT,
+            power = 5
+        )
+        // allFaces(5) → willpower test (TN=2 for LIGHT): 5>=2 → passes → dumpShockTriggered=false
+        val result = CombatResolver.applyIcDamage(d, hit, blaster, allFaces(5))
+
+        assertFalse(result.dumpShockTriggered, "Dump shock should not trigger on LIGHT hit with fresh persona CM")
+        assertEquals(originalMcp, result.updatedDecker.cyberdeck.mcpRating, "MPCP must not be reduced when dump shock is not triggered")
+    }
+
     // ── Sparky ────────────────────────────────────────────────────────────────────
 
     @Test

@@ -324,20 +324,20 @@ PRD: ICC-10, CC-22, CC-30.
 
 ### `ConditionMonitor`
 
-**File:** `src/main/kotlin/com/shadowrun/matrix/decker/ConditionMonitor.kt`
+**File:** `src/main/kotlin/com/shadowrun/matrix/common/SharedTypes.kt`
 
 The existing `applyDamage` stub must apply boxes per the SR3 damage scale:
 
 ```kotlin
 fun applyDamage(damage: DamageLevel): ConditionMonitor = copy(
-    filledBoxes = minOf(10, filledBoxes + damage.boxes)
+    damage = minOf(maxBoxes, damage + damage.boxes)
 )
 
 fun applyDamage(stressBoxes: Int): ConditionMonitor = copy(
-    filledBoxes = minOf(10, filledBoxes + stressBoxes)
+    damage = minOf(maxBoxes, damage + stressBoxes)
 )
 
-val isCrashed: Boolean get() = filledBoxes >= 10
+val isCrashed: Boolean get() = damage >= maxBoxes
 ```
 
 Where `DamageLevel.boxes` is an extension or property: `LIGHT = 1`, `MODERATE = 3`, `SERIOUS = 6`, `DEADLY = 10`.
@@ -551,7 +551,7 @@ PRD: ICC-03. Returns the number of security tally points to add immediately.
 1. Roll `ic.rating` dice vs. `decker.effectiveDetectionFactor` → `successes`. (Suppressed IC reduces `effectiveDetectionFactor` via `suppressionDfPenalty`, lowering the TN Probe rolls against.)
 2. Return `successes`.
 
-Called by the game engine each time the decker performs a System Test while Probe is active.
+Called on Probe's own reactive action at the end of each Combat Turn.
 
 ---
 
@@ -688,11 +688,11 @@ PRD: ICC-14. Identical to `resolveNonLethalBlackIc` with the same no-MPCP-attack
 
 PRD: CC-30.
 
-1. Roll `targetDecker.persona!!.evasion` dice vs. `trackRating` → `evadeSuccesses`.
+1. Roll `targetDecker.persona!!.evasion` dice vs. `max(2, trackRating)` → `evadeSuccesses`.
 2. If `evadeSuccesses >= attack.attackerSuccesses` → return `null` (no lock).
 3. `net = attack.attackerSuccesses - evadeSuccesses`
 4. `cycleTurns = ceil(10.0 / net).toInt()`
-5. Return `TrackState(trackRating, cycleTurns)`.
+5. Return `TrackState(trackingIcRating = trackRating, locationCycleTurnsRemaining = cycleTurns, opponentSensorRating = trackRating, trackerMcpRating = trackRating)`.
 
 The caller sets `decker.trackState = result`. While `trackState != null`, Graceful Logoff TN is raised by `trackState.trackingIcRating`.
 

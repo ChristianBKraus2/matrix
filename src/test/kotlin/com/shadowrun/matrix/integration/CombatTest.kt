@@ -124,7 +124,7 @@ class CombatTest : IntegrationTestBase() {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
         }
-        icon.injectIc(TarBaby(rating = 6))
+        icon.injectIc(TarBaby(rating = 6, targetCategory = UtilityCategory.OPERATIONAL))
 
         assertEquals(0, icon.currentDecker().cyberdeck.activeUtilities.size, "No utilities present")
         // TarBaby fires but finds nothing to trap — decker state should be unchanged

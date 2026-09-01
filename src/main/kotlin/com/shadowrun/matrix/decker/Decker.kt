@@ -32,7 +32,6 @@ data class Decker(
     val willpower: Int,
     val reaction: Int,
     val computerSkill: Int,
-    val deckingSpecialization: Boolean = false,
     val cyberdeck: Cyberdeck,
     val physicalConditionMonitor: ConditionMonitor = ConditionMonitor(),
     val mentalConditionMonitor: ConditionMonitor = ConditionMonitor(),
@@ -60,8 +59,8 @@ data class Decker(
     /** Each suppressed IC reduces Detection Factor by 1 (CC-22). */
     val suppressionDfPenalty: Int get() = suppressedIc.size
 
-    /** Detection Factor used by the host in all System Tests = base DF minus suppression penalty. */
-    val effectiveDetectionFactor: Int get() = detectionFactor - suppressionDfPenalty
+    /** Detection Factor used by the host in all System Tests = base DF minus suppression penalty, floored at 2. */
+    val effectiveDetectionFactor: Int get() = maxOf(2, detectionFactor - suppressionDfPenalty)
 
     /** Detection Factor = ceil((Masking + Sleaze.currentRating) / 2); or ceil(Masking / 2) if no Sleaze active.
      *  Recalculated dynamically — Sleaze in pendingUploads does not count. PRD: CD-17, CD-18 */
@@ -166,7 +165,6 @@ data class Decker(
         add(AvailableAction.Operation(SystemOperation.LOCATE_ACCESS_NODE))
         add(AvailableAction.Operation(SystemOperation.ANALYZE_SECURITY))
         add(AvailableAction.Operation(SystemOperation.LOCATE_IC))
-        add(AvailableAction.Operation(SystemOperation.ANALYZE_IC))
     }
 
     private fun MutableList<AvailableAction>.addHostSystemActions(host: Host) {

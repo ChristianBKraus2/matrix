@@ -19,24 +19,7 @@ function actionLabel(action: AvailableActionDto): string {
   }
 }
 
-function operationOf(action: AvailableActionDto): string | null {
-  return action.kind === 'Operation' ? action.operation : null
-}
-
 function formatEnum(s: string) { return s.replace(/_/g, ' ') }
-
-function needsPrecision(op: string | null) {
-  return op === 'LOCATE_FILE' || op === 'LOCATE_SLAVE' || op === 'LOCATE_ACCESS_NODE'
-}
-
-function needsQuery(op: string | null) {
-  return op === 'LOCATE_FILE' || op === 'LOCATE_SLAVE' || op === 'LOCATE_ACCESS_NODE'
-}
-
-function needsScanner(op: string | null)    { return op === 'TAP_COMCALL' }
-function needsEdit(op: string | null)       { return op === 'EDIT_FILE' }
-function needsPasscode(op: string | null)   { return op === 'MAKE_COMCALL' }
-function needsDataSize(op: string | null)   { return op === 'UPLOAD_DATA' }
 
 interface CardState {
   precision: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'
@@ -51,12 +34,12 @@ function defaultCardState(): CardState {
   return { precision: 'NORMAL', query: '', scannerDeviceRating: 0, newContent: '', hasValidPasscode: false, dataSize: 100 }
 }
 
-function buildParams(op: string | null, cs: CardState): ActionParams | undefined {
-  if (needsPrecision(op)) return { precision: cs.precision, query: cs.query }
-  if (needsEdit(op))      return { newContent: cs.newContent === '' ? null : cs.newContent }
-  if (needsScanner(op))   return { scannerDeviceRating: cs.scannerDeviceRating }
-  if (needsPasscode(op))  return { hasValidPasscode: cs.hasValidPasscode }
-  if (needsDataSize(op))  return { dataSize: cs.dataSize }
+function buildParams(paramKind: string | null, cs: CardState): ActionParams | undefined {
+  if (paramKind === 'precision')           return { precision: cs.precision, query: cs.query }
+  if (paramKind === 'newContent')          return { newContent: cs.newContent === '' ? null : cs.newContent }
+  if (paramKind === 'scannerDeviceRating') return { scannerDeviceRating: cs.scannerDeviceRating }
+  if (paramKind === 'hasValidPasscode')    return { hasValidPasscode: cs.hasValidPasscode }
+  if (paramKind === 'dataSize')            return { dataSize: cs.dataSize }
   return undefined
 }
 
@@ -79,8 +62,8 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
 
   function handleClick(action: AvailableActionDto) {
     if (!isActiveTurn) return
-    const op = operationOf(action)
-    const params = buildParams(op, getState(action.index))
+    const paramKind = action.kind === 'Operation' ? action.paramKind : null
+    const params = buildParams(paramKind, getState(action.index))
     onAction(action.index, params)
   }
 
@@ -92,7 +75,7 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
           <div className="no-data">[ NO ACTIONS AVAILABLE ]</div>
         ) : (
           actions.map((action) => {
-            const op = operationOf(action)
+            const paramKind = action.kind === 'Operation' ? action.paramKind : null
             const cs = getState(action.index)
             const disabled = !isActiveTurn
             const safeActionType = SAFE_ACTION_TYPES.has(action.actionType) ? action.actionType : 'UNKNOWN'
@@ -111,7 +94,7 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                   <div className="action-target">▸ {action.targetName}</div>
                 )}
 
-                {needsQuery(op) && (
+                {paramKind === 'precision' && (
                   <div className="action-control" onClick={e => e.stopPropagation()}>
                     <div className="ctrl-label">SEARCH TERM</div>
                     <input
@@ -124,7 +107,7 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                   </div>
                 )}
 
-                {needsPrecision(op) && (
+                {paramKind === 'precision' && (
                   <div className="action-control" onClick={e => e.stopPropagation()}>
                     <div className="ctrl-label">PRECISION</div>
                     {(['VERY_VAGUE', 'VAGUE', 'NORMAL', 'SPECIFIC', 'VERY_SPECIFIC'] as const).map(v => (
@@ -139,7 +122,7 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                   </div>
                 )}
 
-                {needsScanner(op) && (
+                {paramKind === 'scannerDeviceRating' && (
                   <div className="action-control" onClick={e => e.stopPropagation()}>
                     <div className="ctrl-label">SCANNER RATING</div>
                     <div className="stepper">
@@ -157,7 +140,7 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                   </div>
                 )}
 
-                {needsEdit(op) && (
+                {paramKind === 'newContent' && (
                   <div className="action-control" onClick={e => e.stopPropagation()}>
                     <textarea
                       className="edit-textarea"
@@ -171,7 +154,7 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                   </div>
                 )}
 
-                {needsPasscode(op) && (
+                {paramKind === 'hasValidPasscode' && (
                   <div className="action-control" onClick={e => e.stopPropagation()}>
                     <div className="ctrl-label">VALID PASSCODE</div>
                     <button
@@ -183,7 +166,7 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                   </div>
                 )}
 
-                {needsDataSize(op) && (
+                {paramKind === 'dataSize' && (
                   <div className="action-control" onClick={e => e.stopPropagation()}>
                     <div className="ctrl-label">DATA SIZE (Mp)</div>
                     <div className="stepper">

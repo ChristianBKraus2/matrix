@@ -267,6 +267,14 @@ class DeckerTest {
         assertEquals(4, d.effectiveDetectionFactor)
     }
 
+    @Test
+    fun `effectiveDetectionFactor is floored at 2 under heavy suppression`() {
+        // base DF = 2 (masking=4, no sleaze); 5 suppressed IC → penalty=5 → max(2, 2-5) = 2
+        val ic = com.shadowrun.matrix.ic.Probe(rating = 3)
+        val d = deckerWithMasking(4).copy(suppressedIc = List(5) { IcSuppressionState(ic, ic.rating) })
+        assertEquals(2, d.effectiveDetectionFactor)
+    }
+
     // ── withUpdatedTally ──────────────────────────────────────────────────────────
 
     @Test

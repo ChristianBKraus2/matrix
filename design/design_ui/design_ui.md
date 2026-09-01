@@ -238,7 +238,7 @@ export type AvailableActionDto =
   | { kind: 'LogonToHost';   index: number; actionType: ActionType; hostName: string }
   | { kind: 'GracefulLogoff';index: number; actionType: ActionType }
   | { kind: 'JackOut';       index: number; actionType: ActionType }
-  | { kind: 'Operation';     index: number; actionType: ActionType; operation: string; targetKind: string | null; targetName: string | null; paramKind: "precision" | "hasValidPasscode" | "scannerDeviceRating" | "newContent" | "dataSize" | null };
+  | { kind: 'Operation';     index: number; actionType: ActionType; operation: SystemOperation; targetKind: string | null; targetName: string | null; paramKind: "precision" | "hasValidPasscode" | "scannerDeviceRating" | "newContent" | "dataSize" | null };
 
 export interface StateMessage {
   type: 'state';
@@ -300,7 +300,7 @@ interface WsState {
   role: Role | null;
   deckerName: string | null;
   gameState: StateMessage | null;
-  events: (ResultMessage | ErrorMessage)[];  // capped at last 20
+  events: GameEvent[];  // GameEvent wraps a result or error; capped at last 20
 }
 ```
 
@@ -377,9 +377,9 @@ Only entity kinds are shown: `HostSubsystem`, `IcProgram`, `File`, `Device`. Loc
 ### Bottom — ActionsPanel
 
 Horizontal scroll row of cards. Each card shows:
-- Top-left: action `kind` (e.g. `OPERATION`, `LOGON`, `JACK OUT`)
+- Top-left: formatted label — for `Logon` variants: `LOGON <NETWORK TYPE>: <name>` (e.g. `LOGON RTG: UCAS`); for `Operation` cards: the formatted operation name (e.g. `LOCATE FILE`); for other actions (`GRACEFUL LOGOFF`, `JACK OUT`): the action name directly.
 - Top-right: cost badge — `FREE` (green), `SIMPLE` (amber), `COMPLEX` (red)
-- Center: operation name and target (for `Operation` cards)
+- Below header (operation cards only): `▸ targetName` when a target is present.
 
 **Inline controls (rendered inside the card):**
 
@@ -387,7 +387,7 @@ The `paramKind` field on `Operation` actions declares which inline control (if a
 
 | `paramKind` | Control |
 |---|---|
-| `"precision"` | Five-position selector |
+| `"precision"` | Text input (SEARCH TERM) + five-position selector |
 | `"hasValidPasscode"` | Checkbox / toggle |
 | `"scannerDeviceRating"` | Numeric stepper |
 | `"newContent"` | Text area |
@@ -398,7 +398,7 @@ Full inline control specs per operation:
 
 | Operation | Control |
 |---|---|
-| `LOCATE_FILE` / `LOCATE_SLAVE` / `LOCATE_ACCESS_NODE` | Five-position selector `[VERY VAGUE]` / `[VAGUE]` / `[NORMAL]` / `[SPECIFIC]` / `[VERY SPECIFIC]` — NORMAL selected by default |
+| `LOCATE_FILE` / `LOCATE_SLAVE` / `LOCATE_ACCESS_NODE` | Text input `[SEARCH TERM]` (blank on new operation, ignored on continuation) + five-position selector `[VERY VAGUE]` / `[VAGUE]` / `[NORMAL]` / `[SPECIFIC]` / `[VERY SPECIFIC]` — NORMAL selected by default |
 | `MAKE_COMCALL` | Checkbox / toggle `VALID PASSCODE: [ ]` |
 | `TAP_COMCALL` | Numeric stepper `SCANNER RATING: [−] 0 [+]` |
 | `EDIT_FILE` | Text area that expands when the card is focused; empty = erase file |
@@ -420,10 +420,10 @@ Scrollable log of recent events (newest at bottom). Each entry is one of:
 | `no_action_pending` | No action pending |
 | `already_registered` | Already registered |
 | `name_already_taken` | Decker name already taken |
-| `name_too_long` | Decker name too long |
+| `name_too_long` | Decker name too long (max 32 characters) |
 | `unknown_message_type` | Unknown message type |
 | `bad_request` | Bad request |
-| `server_full` | Server full — maximum deckers already connected |
+| `server_full` | Server at capacity |
 
 When `role === "active_controller"`, the Middle panel's outer border pulses green (`animation: pulse-border 0.8s ease-in-out infinite alternate`) to signal it is this client's turn to act.
 

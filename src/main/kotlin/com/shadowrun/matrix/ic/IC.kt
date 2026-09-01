@@ -3,6 +3,7 @@ package com.shadowrun.matrix.ic
 import com.shadowrun.matrix.combat.AttackResult
 import com.shadowrun.matrix.combat.CombatInitiative
 import com.shadowrun.matrix.combat.CombatResolver
+import com.shadowrun.matrix.common.ConditionMonitor
 import com.shadowrun.matrix.common.IcBehavior
 import com.shadowrun.matrix.common.PersonaAttributeType
 import com.shadowrun.matrix.common.SecurityCode
@@ -20,8 +21,11 @@ sealed class IC(
     val name: String,
     val rating: Int,
     val behavior: IcBehavior,
-    val guardedNode: Node? = null
+    val guardedNode: Node? = null,
+    val conditionMonitor: ConditionMonitor = ConditionMonitor()
 ) : ActiveIcon {
+
+    abstract fun withConditionMonitor(cm: ConditionMonitor): IC
 
     abstract override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult
 
@@ -51,11 +55,13 @@ sealed class IC(
     }
 }
 
-sealed class WhiteIC(name: String, rating: Int, behavior: IcBehavior, guardedNode: Node? = null) :
-    IC(name, rating, behavior, guardedNode)
+sealed class WhiteIC(name: String, rating: Int, behavior: IcBehavior, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    IC(name, rating, behavior, guardedNode, conditionMonitor)
 
-class Crippler(rating: Int, val targetAttribute: PersonaAttributeType, guardedNode: Node? = null) :
-    WhiteIC("Crippler-${targetAttribute.name}", rating, IcBehavior.PROACTIVE, guardedNode) {
+class Crippler(rating: Int, val targetAttribute: PersonaAttributeType, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    WhiteIC("Crippler-${targetAttribute.name}", rating, IcBehavior.PROACTIVE, guardedNode, conditionMonitor) {
+
+    override fun withConditionMonitor(cm: ConditionMonitor) = Crippler(rating, targetAttribute, guardedNode, cm)
 
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
@@ -66,8 +72,10 @@ class Crippler(rating: Int, val targetAttribute: PersonaAttributeType, guardedNo
     }
 }
 
-class Killer(rating: Int, guardedNode: Node? = null) :
-    WhiteIC("Killer", rating, IcBehavior.PROACTIVE, guardedNode) {
+class Killer(rating: Int, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    WhiteIC("Killer", rating, IcBehavior.PROACTIVE, guardedNode, conditionMonitor) {
+
+    override fun withConditionMonitor(cm: ConditionMonitor) = Killer(rating, guardedNode, cm)
 
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
@@ -83,8 +91,10 @@ class Killer(rating: Int, guardedNode: Node? = null) :
     }
 }
 
-class Probe(rating: Int, guardedNode: Node? = null) :
-    WhiteIC("Probe", rating, IcBehavior.REACTIVE, guardedNode) {
+class Probe(rating: Int, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    WhiteIC("Probe", rating, IcBehavior.REACTIVE, guardedNode, conditionMonitor) {
+
+    override fun withConditionMonitor(cm: ConditionMonitor) = Probe(rating, guardedNode, cm)
 
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
@@ -100,14 +110,18 @@ class Probe(rating: Int, guardedNode: Node? = null) :
  * operations (e.g. destructing a file) via the game engine, not through the standard action
  * turn. This action implementation is intentionally a no-op.
  */
-class Scramble(rating: Int, guardedNode: Node? = null) :
-    WhiteIC("Scramble", rating, IcBehavior.REACTIVE, guardedNode) {
+class Scramble(rating: Int, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    WhiteIC("Scramble", rating, IcBehavior.REACTIVE, guardedNode, conditionMonitor) {
+
+    override fun withConditionMonitor(cm: ConditionMonitor) = Scramble(rating, guardedNode, cm)
 
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = ActionResult.NoTarget
 }
 
-class TarBaby(rating: Int, val targetCategory: UtilityCategory = UtilityCategory.OPERATIONAL, guardedNode: Node? = null) :
-    WhiteIC("Tar Baby", rating, IcBehavior.REACTIVE, guardedNode) {
+class TarBaby(rating: Int, val targetCategory: UtilityCategory, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    WhiteIC("Tar Baby", rating, IcBehavior.REACTIVE, guardedNode, conditionMonitor) {
+
+    override fun withConditionMonitor(cm: ConditionMonitor) = TarBaby(rating, targetCategory, guardedNode, cm)
 
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
@@ -124,11 +138,13 @@ class TarBaby(rating: Int, val targetCategory: UtilityCategory = UtilityCategory
     }
 }
 
-sealed class GrayIC(name: String, rating: Int, behavior: IcBehavior, guardedNode: Node? = null) :
-    IC(name, rating, behavior, guardedNode)
+sealed class GrayIC(name: String, rating: Int, behavior: IcBehavior, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    IC(name, rating, behavior, guardedNode, conditionMonitor)
 
-class Blaster(rating: Int, guardedNode: Node? = null) :
-    GrayIC("Blaster", rating, IcBehavior.PROACTIVE, guardedNode) {
+class Blaster(rating: Int, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    GrayIC("Blaster", rating, IcBehavior.PROACTIVE, guardedNode, conditionMonitor) {
+
+    override fun withConditionMonitor(cm: ConditionMonitor) = Blaster(rating, guardedNode, cm)
 
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
@@ -147,8 +163,10 @@ class Blaster(rating: Int, guardedNode: Node? = null) :
     }
 }
 
-class Ripper(rating: Int, val targetAttribute: PersonaAttributeType, guardedNode: Node? = null) :
-    GrayIC("Ripper-${targetAttribute.name}", rating, IcBehavior.PROACTIVE, guardedNode) {
+class Ripper(rating: Int, val targetAttribute: PersonaAttributeType, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    GrayIC("Ripper-${targetAttribute.name}", rating, IcBehavior.PROACTIVE, guardedNode, conditionMonitor) {
+
+    override fun withConditionMonitor(cm: ConditionMonitor) = Ripper(rating, targetAttribute, guardedNode, cm)
 
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
@@ -163,8 +181,10 @@ class Ripper(rating: Int, val targetAttribute: PersonaAttributeType, guardedNode
     }
 }
 
-class Sparky(rating: Int, guardedNode: Node? = null) :
-    GrayIC("Sparky", rating, IcBehavior.PROACTIVE, guardedNode) {
+class Sparky(rating: Int, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    GrayIC("Sparky", rating, IcBehavior.PROACTIVE, guardedNode, conditionMonitor) {
+
+    override fun withConditionMonitor(cm: ConditionMonitor) = Sparky(rating, guardedNode, cm)
 
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
@@ -184,8 +204,10 @@ class Sparky(rating: Int, guardedNode: Node? = null) :
     }
 }
 
-class TarPit(rating: Int, val targetCategory: UtilityCategory = UtilityCategory.OPERATIONAL, guardedNode: Node? = null) :
-    GrayIC("Tar Pit", rating, IcBehavior.REACTIVE, guardedNode) {
+class TarPit(rating: Int, val targetCategory: UtilityCategory, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    GrayIC("Tar Pit", rating, IcBehavior.REACTIVE, guardedNode, conditionMonitor) {
+
+    override fun withConditionMonitor(cm: ConditionMonitor) = TarPit(rating, targetCategory, guardedNode, cm)
 
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
         val target = findTarget(context) ?: return ActionResult.NoTarget
@@ -207,11 +229,13 @@ class TarPit(rating: Int, val targetCategory: UtilityCategory = UtilityCategory.
     }
 }
 
-sealed class BlackIC(name: String, rating: Int, guardedNode: Node? = null) :
-    IC(name, rating, IcBehavior.PROACTIVE, guardedNode)
+sealed class BlackIC(name: String, rating: Int, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    IC(name, rating, IcBehavior.PROACTIVE, guardedNode, conditionMonitor)
 
-class LethalBlackIC(rating: Int, guardedNode: Node? = null) :
-    BlackIC("Lethal Black IC", rating, guardedNode) {
+class LethalBlackIC(rating: Int, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    BlackIC("Lethal Black IC", rating, guardedNode, conditionMonitor) {
+
+    override fun withConditionMonitor(cm: ConditionMonitor) = LethalBlackIC(rating, guardedNode, cm)
 
     fun withRatingBonus(bonus: Int) = LethalBlackIC(rating + bonus, guardedNode)
 
@@ -228,8 +252,10 @@ class LethalBlackIC(rating: Int, guardedNode: Node? = null) :
     }
 }
 
-class NonLethalBlackIC(rating: Int, guardedNode: Node? = null) :
-    BlackIC("Non-Lethal Black IC", rating, guardedNode) {
+class NonLethalBlackIC(rating: Int, guardedNode: Node? = null, conditionMonitor: ConditionMonitor = ConditionMonitor()) :
+    BlackIC("Non-Lethal Black IC", rating, guardedNode, conditionMonitor) {
+
+    override fun withConditionMonitor(cm: ConditionMonitor) = NonLethalBlackIC(rating, guardedNode, cm)
 
     fun withRatingBonus(bonus: Int) = NonLethalBlackIC(rating + bonus, guardedNode)
 

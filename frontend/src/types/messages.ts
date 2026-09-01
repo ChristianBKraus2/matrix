@@ -79,7 +79,7 @@ export type ActionType = 'FREE' | 'SIMPLE' | 'COMPLEX'
 export type SystemOperation =
   | 'ANALYZE_HOST' | 'ANALYZE_IC' | 'ANALYZE_ICON' | 'ANALYZE_SECURITY' | 'ANALYZE_SUBSYSTEM'
   | 'CONTROL_SLAVE' | 'DECRYPT_ACCESS' | 'DECRYPT_FILE' | 'DECRYPT_SLAVE' | 'DOWNLOAD_DATA'
-  | 'EDIT_FILE' | 'EDIT_SLAVE' | 'LOCATE_ACCESS_NODE'
+  | 'EDIT_FILE' | 'EDIT_SLAVE' | 'INVOKE_MEDIC' | 'LOCATE_ACCESS_NODE'
   | 'LOCATE_FILE' | 'LOCATE_IC' | 'LOCATE_SLAVE'
   | 'MAKE_COMCALL' | 'MONITOR_SLAVE' | 'NULL_OPERATION'
   | 'RELOCATE_ICON' | 'TAP_COMCALL' | 'UPLOAD_DATA'
@@ -91,7 +91,7 @@ export type AvailableActionDto =
   | { kind: 'LogonToHost'; index: number; actionType: ActionType; hostName: string }
   | { kind: 'GracefulLogoff'; index: number; actionType: ActionType }
   | { kind: 'JackOut'; index: number; actionType: ActionType }
-  | { kind: 'Operation'; index: number; actionType: ActionType; operation: SystemOperation; paramKind: string | null; targetKind: string | null; targetName: string | null }
+  | { kind: 'Operation'; index: number; actionType: ActionType; operation: SystemOperation; paramKind: 'precision' | 'hasValidPasscode' | 'scannerDeviceRating' | 'newContent' | 'dataSize' | null; targetKind: string | null; targetName: string | null }
 
 export interface StateMessage {
   type: 'state'

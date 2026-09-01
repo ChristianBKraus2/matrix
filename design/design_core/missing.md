@@ -28,7 +28,7 @@ Rules present in `extraction/extracted_text.txt` that are not reflected in any d
 
 ---
 
-## 5. Physical Enhancements Don't Affect Matrix Initiative (rules p. 223)
+## 5. Physical Enhancements Don't Affect Matrix Initiative (rules p. 223) ✓ resolved
 
 The rules explicitly state: *"Wired reflexes, magical augmentation, vehicle-control rigs, and other enhancements that increase the Reaction Attribute of a decker's physical body do not affect Initiative in the Matrix."*
 
@@ -38,7 +38,7 @@ The rules explicitly state: *"Wired reflexes, magical augmentation, vehicle-cont
 
 ---
 
-## 6. Meatworld Comms — Action Timing Penalty (rules p. 222–223)
+## 6. Meatworld Comms — Action Timing Penalty (rules p. 222–223) ✓ resolved
 
 Beyond the initiative die penalty already covered in `combat.md`, the rules add a second rule: *"Deckers who are communicating directly by voice or datascreen with the meatworld resolve their actions along with the physical actions of an Initiative Pass as well, even if they have actions available before that time."*
 
@@ -50,7 +50,7 @@ This means a comms-engaged decker not only rolls fewer initiative dice but also 
 
 ---
 
-## 7. Delayed Action Resolution with Physical World (rules p. 222)
+## 7. Delayed Action Resolution with Physical World (rules p. 222) ✓ resolved
 
 The rules state: *"If a decker declares a Delayed Action to wait for something to happen in the physical world, resolve his action along with any physical actions of the Initiative Pass."* (And Matrix actions still precede physical actions within the same pass, so a decker delaying for a physical event goes after IC that acts in that pass.)
 
@@ -70,7 +70,7 @@ The rules specify: *"IC programs re-detect evading icons in a number of Combat T
 
 ---
 
-## 9. Black IC — Data Deletion on MPCP Destruction (rules p. 230)
+## 9. Black IC — Data Deletion on MPCP Destruction (rules p. 230) ✓ resolved
 
 When lethal black IC kills the decker, it makes a final blaster-equivalent attack on the MPCP at **double its rating**. If this completely destroys the MPCP (rating reduced to 0), the IC also:
 - Deletes all data downloaded by the decker during the run.
@@ -83,7 +83,7 @@ When lethal black IC kills the decker, it makes a final blaster-equivalent attac
 
 ---
 
-## 10. Non-Lethal Black IC — Final MPCP Shot on Unconsciousness (rules p. 230)
+## 10. Non-Lethal Black IC — Final MPCP Shot on Unconsciousness (rules p. 230) ✓ resolved
 
 The rules state: *"the non-lethal black IC still gets a final shot at the cyberdeck's MPCP and the data downloaded during the run"* when the decker is rendered unconscious.
 
@@ -93,7 +93,7 @@ The rules state: *"the non-lethal black IC still gets a final shot at the cyberd
 
 ---
 
-## 11. Scramble IC — Data Destruction on Failed Decrypt (rules p. 228)
+## 11. Scramble IC — Data Destruction on Failed Decrypt (rules p. 228) ✓ resolved
 
 The rules specify: *"If the decker tries to decrypt scramble IC and fails, the gamemaster makes a Scramble Test using its Rating against a target number equal to the decker's Computer Skill. If the test fails [i.e., the Scramble Test fails], the decker has managed to suppress the scramble IC's destruct code. If the test succeeds, the data is destroyed."*
 
@@ -103,7 +103,7 @@ The rules specify: *"If the decker tries to decrypt scramble IC and fails, the g
 
 ---
 
-## 12. Buffered Messages (rules p. 224)
+## 12. Buffered Messages (rules p. 224) ✓ resolved
 
 The rules describe a Free Action to buffer a message: *"the decker may write a message up to 100 words long and give it to any character linked to the decker with hitcher electrodes, radiolink, datascreen, or other device. The second character may also operate an icon the decker can 'see.' The second character receives the buffered message at the end of the Combat Turn."*
 
@@ -113,7 +113,7 @@ No design document covers this mechanic.
 
 ---
 
-## 13. Deckers Cannot Suppress IC After Leaving a System (rules p. 212)
+## 13. Deckers Cannot Suppress IC After Leaving a System (rules p. 212) ✓ resolved
 
 The rules state: *"Deckers cannot suppress IC in a system they have left."*
 
@@ -133,7 +133,7 @@ PRD ICC-10: *"If a companion at the jackpoint manually pulls the plug while Blac
 
 ---
 
-## 14. Legitimate Passcode — Devalidation on Jack-Out (rules p. 226)
+## 14. Legitimate Passcode — Devalidation on Jack-Out (rules p. 226) ✓ resolved
 
 The rules state that if a decker uses an acquired or planted Legitimate passcode to gain Legitimate combat status against the host's own IC, *"the host devalidates the passcode when the decker jacks out or logs off. He has blown his cover."* However, the decker may use the passcode in combat against *other* intruding deckers without blowing cover.
 

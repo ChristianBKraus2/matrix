@@ -9,6 +9,8 @@ import com.shadowrun.matrix.ic.Killer
 import com.shadowrun.matrix.ic.Probe
 import com.shadowrun.matrix.integration.utility.IntegrationTestBase
 import com.shadowrun.matrix.network.MatrixLocation
+import com.shadowrun.matrix.programs.Utility
+import com.shadowrun.matrix.programs.UtilityType
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -146,6 +148,8 @@ class DeckerCombatTest : IntegrationTestBase() {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
         }
+        // Add Sleaze so DF = ceil((masking=6 + sleaze=5) / 2) = 6; floor at 2 won't interfere with -2
+        icon.equipUtility(Utility(UtilityType.SLEAZE, rating = 5))
         val decker = icon.currentDecker()
         val currentHost = (decker.currentLocation as MatrixLocation.OnHost).host
         val dfBefore = decker.effectiveDetectionFactor

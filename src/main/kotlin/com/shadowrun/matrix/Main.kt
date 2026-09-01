@@ -28,7 +28,7 @@ fun main() {
     val host = requireNotNull(classLoader.getResourceAsStream("hosts/MitsuhamaPagoda.yaml")) { "Resource not found: hosts/MitsuhamaPagoda.yaml" }
         .use { HostLoader.load(it) }
 
-    GridInitializer.initialize()
+    val matrix = GridInitializer.initialize()
 
     val registry = SessionRegistry()
     startMatrixServer(registry)
@@ -37,7 +37,8 @@ fun main() {
     val context = GameContext(
         host = host,
         securityCode = SecurityCode.GREEN,
-        deckers = listOf(decker)
+        deckers = listOf(decker),
+        matrix = matrix
     )
     val controller = WebSocketDeckerController(registry, decker)
     val diceRoller = DiceRoller()

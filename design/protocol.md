@@ -34,7 +34,7 @@ All messages are JSON objects. Every message has a `"type"` discriminator field.
 ```json
 { "type": "control", "role": "<Role>", "deckerName": "<string|null>", "reconnectToken": "<string|null>" }
 ```
-`deckerName` is present when `role` is `registered_decker` or `active_controller`. `reconnectToken` is non-null only when `role` is `registered_decker`; use it to reclaim the same decker slot after a disconnect.
+`deckerName` is present when `role` is `registered_decker` or `active_controller`. `reconnectToken` is non-null only when `role` is `registered_decker`; use it to reclaim the same decker slot after a disconnect. The token survives disconnect but is cleared on intentional logout (graceful logoff).
 
 ### `StateMessage` (server → client)
 ```json
@@ -87,6 +87,7 @@ All messages are JSON objects. Every message has a `"type"` discriminator field.
 | `TAP_COMCALL` | `scannerDeviceRating` (int, 0–10) |
 | `MAKE_COMCALL` | `hasValidPasscode` (boolean, default false) |
 | `UPLOAD_DATA` | `dataSize` (int Mp, default 100) |
+| `NULL_OPERATION` | `inactivitySeconds` (int seconds of inactivity, default 0) |
 
 ---
 
@@ -148,7 +149,7 @@ Timeout: if no `ActionCommand` arrives within 120 seconds, the server broadcasts
 | `name_too_long` | decker name exceeds 32 characters |
 | `unknown_message_type` | `type` field not recognised; `details` contains the received value |
 | `bad_request` | JSON parse or deserialization error; `details` contains the exception message |
-| `server_full` | `join` rejected because the server has reached `MAX_CONNECTIONS` (32) |
+| `server_full` | connection refused at WebSocket open (before any client message) because the server has reached `MAX_CONNECTIONS` (32) |
 
 ---
 

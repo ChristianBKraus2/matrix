@@ -119,6 +119,7 @@ rtgs:
     name: Aztlan Grid
     security: Orange-3
     ratings: { access: 8, control: 8, index: 6, files: 7, slave: 7 }
+    connected_rtgs: [UCAS]
     ltgs:
       - id: AZT-MEX
         region: Mexico City

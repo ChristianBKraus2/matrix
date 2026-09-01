@@ -71,6 +71,18 @@ object SystemTestResolver {
         return resolve(decker, SystemOperation.NULL_OPERATION, host.subsystemRatings.control, effectiveSecurityValue, diceRoller)
     }
 
+    fun resolveNullOperation(
+        decker: Decker,
+        grid: Grid,
+        inactivitySeconds: Int,
+        diceRoller: DiceRoller
+    ): SystemTestOutcome {
+        val bonus = NullOperationModifier.totalBonusForDuration(inactivitySeconds)
+        val effectiveSecurityValue = grid.securityRating.value + bonus
+        logger.info { "[${decker.name}] Null Operation: inactivity=${inactivitySeconds}s, SV bonus=+$bonus → effectiveSV=$effectiveSecurityValue" }
+        return resolve(decker, SystemOperation.NULL_OPERATION, grid.subsystemRatings.control, effectiveSecurityValue, diceRoller)
+    }
+
     /**
      * Resolves one step of an interrogation operation and updates the accumulated success state.
      * Utility reduction is applied first, then [queryPrecision] modifies the result (SO-07).
@@ -84,36 +96,17 @@ object SystemTestResolver {
         state: InterrogationState,
         queryPrecision: QueryPrecision,
         diceRoller: DiceRoller
-    ): Pair<SystemTestOutcome, InterrogationState> {
-        val baseSubsystemRating = host.subsystemRatings.get(
-            requireNotNull(operation.testType) {
-                "${operation.name} has a dynamic test type — pass an explicit subsystem rating instead of using resolveInterrogation"
-            }
+    ): Pair<SystemTestOutcome, InterrogationState> =
+        resolveInterrogationCore(
+            decker, operation,
+            baseSubsystemRating = host.subsystemRatings.get(
+                requireNotNull(operation.testType) {
+                    "${operation.name} has a dynamic test type — pass an explicit subsystem rating instead of using resolveInterrogation"
+                }
+            ),
+            securityValue = host.securityRating.value,
+            state, queryPrecision, diceRoller
         )
-        // Reduce TN by utility rating first, then apply query-precision modifier; clamp to ≥ 2 at each step
-        val utilityRating = if (operation.utility != null)
-            decker.cyberdeck.activeUtilities
-                .firstOrNull { it.type == operation.utility }
-                ?.let { effectiveRating(it, decker.cyberdeck) } ?: 0
-        else 0
-        val clampedBase = maxOf(2, baseSubsystemRating - utilityRating)
-        val adjustedTn = maxOf(2, clampedBase + queryPrecision.modifier)
-
-        val deckerResult = diceRoller.roll(decker.computerSkill, adjustedTn)
-        logger.info { "[${decker.name}] Interrogation ${operation.name}: TN=$adjustedTn (base=$baseSubsystemRating precision=${queryPrecision.modifier} utility=$utilityRating) → ${deckerResult.successes} successes" }
-
-        val hostResult = diceRoller.roll(host.securityRating.value, decker.effectiveDetectionFactor)
-        logger.info { "[${decker.name}] Host Security Test: ${host.securityRating.value} dice vs DF=${decker.effectiveDetectionFactor} → ${hostResult.successes} successes" }
-
-        val outcome = SystemTestOutcome(
-            deckerSuccesses = deckerResult.successes,
-            hostSuccesses = hostResult.successes,
-            deckerWins = deckerResult.successes >= hostResult.successes
-        )
-        val newState = state.copy(accumulatedSuccesses = state.accumulatedSuccesses + maxOf(0, deckerResult.successes - hostResult.successes))
-        logger.info { "[${decker.name}] Interrogation accumulated successes: ${newState.accumulatedSuccesses}" }
-        return Pair(outcome, newState)
-    }
 
     fun resolveInterrogation(
         decker: Decker,

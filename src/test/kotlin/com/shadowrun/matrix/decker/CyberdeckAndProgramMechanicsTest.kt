@@ -775,7 +775,9 @@ class CyberdeckAndProgramMechanicsTest {
     @Test
     fun `effectiveDetectionFactor decreases by 1 per suppressed IC`() {
         val h = suppressionTestHost()
-        val d = decker(jackedIn = true).copy(currentLocation = MatrixLocation.OnHost(h))
+        // MPCP=12 + programs(8) → masking program=8, DF=4; two suppressions land at max(2,2)=2=baseline-2
+        val d = decker(cyberdeck = deck(mcpRating = 12, programs = programs(8)), jackedIn = true)
+            .copy(currentLocation = MatrixLocation.OnHost(h))
         val baseline = d.effectiveDetectionFactor
         val withOne = CombatResolver.suppressIc(d, Probe(rating = 4), h)
         assertEquals(baseline - 1, withOne.effectiveDetectionFactor)

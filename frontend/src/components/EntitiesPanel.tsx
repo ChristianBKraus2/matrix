@@ -37,10 +37,15 @@ function EntityCard({
       <div className="entity-kind">{obj.kind.toUpperCase()}</div>
       {obj.kind === 'IcProgram' && (
         <>
-          <div className="entity-name">{obj.name}</div>
-          <EF label="RATING" value={obj.rating} />
-          <EF label="BEHAVIOR" value={obj.behavior} />
-          {obj.guardedNodeType && <EF label="GUARDS" value={obj.guardedNodeType} />}
+          <div className="entity-name">
+            {obj.name}
+            {obj.analyzed
+              ? <span className="badge badge-green">ANALYZED</span>
+              : <span className="badge badge-gray">UNKNOWN</span>}
+          </div>
+          {obj.analyzed && <EF label="RATING" value={obj.rating} />}
+          {obj.analyzed && <EF label="BEHAVIOR" value={obj.behavior} />}
+          {obj.analyzed && obj.guardedNodeType && <EF label="GUARDS" value={obj.guardedNodeType} />}
         </>
       )}
       {obj.kind === 'HostSubsystem' && (

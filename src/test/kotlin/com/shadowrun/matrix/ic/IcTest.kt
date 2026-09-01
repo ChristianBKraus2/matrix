@@ -1,9 +1,11 @@
 package com.shadowrun.matrix.ic
 
+import com.shadowrun.matrix.common.ConditionMonitor
 import com.shadowrun.matrix.common.IcBehavior
 import com.shadowrun.matrix.common.PersonaAttributeType
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.common.SubsystemType
+import com.shadowrun.matrix.common.UtilityCategory
 import com.shadowrun.matrix.network.Node
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -59,7 +61,7 @@ class IcTest {
     @Test
     fun `Reactive IC can guard a specific node`() {
         val slaveNode = Node(SubsystemType.SLAVE, "Slave subsystem")
-        val tarBaby = TarBaby(rating = 5, guardedNode = slaveNode)
+        val tarBaby = TarBaby(rating = 5, targetCategory = UtilityCategory.OPERATIONAL, guardedNode = slaveNode)
         assertEquals(slaveNode, tarBaby.guardedNode)
         assertEquals(SubsystemType.SLAVE, tarBaby.guardedNode?.subsystemType)
     }
@@ -70,6 +72,22 @@ class IcTest {
         val scramble = Scramble(rating = 7, guardedNode = filesNode)
         assertIs<WhiteIC>(scramble)
         assertEquals(filesNode, scramble.guardedNode)
+    }
+
+    @Test
+    fun `IC conditionMonitor defaults to empty ConditionMonitor`() {
+        val killer = Killer(rating = 6)
+        assertEquals(ConditionMonitor(), killer.conditionMonitor)
+    }
+
+    @Test
+    fun `withConditionMonitor returns new IC with updated conditionMonitor preserving other fields`() {
+        val killer = Killer(rating = 6)
+        val cm = ConditionMonitor(damage = 3)
+        val wounded = killer.withConditionMonitor(cm)
+        assertIs<Killer>(wounded)
+        assertEquals(cm, wounded.conditionMonitor)
+        assertEquals(6, wounded.rating)
     }
 }
 

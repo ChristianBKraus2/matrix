@@ -10,6 +10,7 @@ import com.shadowrun.matrix.common.SecurityRating
 import com.shadowrun.matrix.common.SubsystemRatings
 import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.common.TopologyType
+import com.shadowrun.matrix.common.UtilityCategory
 import com.shadowrun.matrix.decker.Cyberdeck
 import com.shadowrun.matrix.decker.Decker
 import com.shadowrun.matrix.decker.Persona
@@ -362,7 +363,7 @@ class GameTest {
     @Test
     fun `TarBaby returns IcAttack with no-utility message when deck is empty`() {
         val node = accessNode()
-        val ic = TarBaby(rating = 5, guardedNode = node)
+        val ic = TarBaby(rating = 5, targetCategory = UtilityCategory.OPERATIONAL, guardedNode = node)
         val decker = intrudingDecker(node = node)
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
         val result = ic.blockingAction(ctx, allFaces(5))
@@ -373,7 +374,7 @@ class GameTest {
     @Test
     fun `TarBaby traps utility on success`() {
         val node = accessNode()
-        val ic = TarBaby(rating = 5, guardedNode = node)
+        val ic = TarBaby(rating = 5, targetCategory = UtilityCategory.OPERATIONAL, guardedNode = node)
         val utility = Utility(UtilityType.ANALYZE, rating = 3)
         val decker = intrudingDecker(node = node, activeUtilities = listOf(utility))
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
@@ -459,7 +460,7 @@ class GameTest {
     @Test
     fun `TarPit returns IcAttack with no-utility message when deck is empty`() {
         val node = accessNode()
-        val ic = TarPit(rating = 5, guardedNode = node)
+        val ic = TarPit(rating = 5, targetCategory = UtilityCategory.OPERATIONAL, guardedNode = node)
         val decker = intrudingDecker(node = node)
         val ctx = context(deckers = listOf(decker), activeIc = listOf(ic))
         val result = ic.blockingAction(ctx, allFaces(5))

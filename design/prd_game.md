@@ -35,4 +35,4 @@ The `availableActions` list returned to the client must only include operations 
 
 ## Decker State — Multi-Turn Interrogation
 
-The `Decker` data class holds `interrogationStates: Map<SystemOperation, InterrogationState>`. This map tracks accumulated successes across multiple turns for locate operations (`LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`). The relevant entries are cleared when the decker logs off, jacks out, or is dumped.
+The `Decker` data class holds `interrogationStates: Map<String, InterrogationState>`. Keys use the format `"OPERATION_NAME@CONTEXT"`, e.g. `"LOCATE_FILE@HOST"` or `"LOCATE_ACCESS_NODE@GRID"`, allowing `LOCATE_ACCESS_NODE` to maintain independent state for host-context and grid-context searches. This map tracks accumulated successes across multiple turns for locate operations (`LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`). The relevant entries are cleared when the decker logs off, jacks out, or is dumped.

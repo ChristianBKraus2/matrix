@@ -12,6 +12,10 @@ data class DataFile(
 ) {
     val isPointer: Boolean get() = pointerToHost != null
 
+    // pointerToHost/pointerTargetFile are excluded from equals/hashCode to avoid cyclic-reference
+    // stack overflows (Host embeds DataFile which would embed Host). Two pointer files with the same
+    // name and size compare equal regardless of their target; callers relying on pointer identity
+    // must compare by reference (===) rather than by value.
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is DataFile) return false

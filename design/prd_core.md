@@ -32,6 +32,7 @@ This document focuses on the various use cases.
   - Enter any LTG attached to the RTG via **Logon to LTG**.
   - Perform a **Locate Access Node** operation to discover LTG codes and host addresses.
 - M-08: From a **PLTG**, a decker may perform any system operation available on public RTGs and LTGs.
+- M-08a: **ANALYZE_IC** is only available inside a host. IC programs are host-resident objects; this operation is not available from RTG, LTG, or PLTG contexts.
 
 #### Security Tally Persistence Rules
 
@@ -183,6 +184,7 @@ The following persona values are **calculated by the application** and must not 
 
 - CD-17: Sleaze is a passive program. Once fully uploaded into active memory (not pending), it contributes automatically to the Detection Factor for every subsequent System Test during that run. No explicit activation is required.
 - CD-18: The Detection Factor is recalculated at the moment each System Test is resolved, not cached at jack-in. If a Sleaze utility is fully active: DF = ⌈(Masking + Sleaze.currentRating) ÷ 2⌉; otherwise DF = ⌈Masking ÷ 2⌉. Loading or unloading Sleaze mid-run changes the Detection Factor for all tests resolved after that action.
+- CD-18a: `effectiveDetectionFactor` — the Detection Factor used by the host in System Tests — equals `max(2, detectionFactor - suppressionDfPenalty)`. The floor of 2 is the standard SR3 target number minimum.
 
 ### Utility Degradation
 

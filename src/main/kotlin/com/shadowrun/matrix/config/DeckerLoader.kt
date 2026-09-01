@@ -35,7 +35,6 @@ object DeckerLoader {
             willpower      = (data["willpower"] as Int),
             reaction       = (data["reaction"] as Int),
             computerSkill  = (data["computer_skill"] as Int),
-            deckingSpecialization = (data["decking_specialization"] as? Boolean) ?: false,
             cyberdeck      = cyberdeck
         )
     }

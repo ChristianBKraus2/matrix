@@ -5,6 +5,7 @@ import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.decker.Decker
 import com.shadowrun.matrix.ic.IC
 import com.shadowrun.matrix.network.Host
+import com.shadowrun.matrix.network.Matrix
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.network.Node
 import com.shadowrun.matrix.network.applyAlertTransition
@@ -13,7 +14,8 @@ class GameContext(
     host: Host,
     val securityCode: SecurityCode,
     deckers: List<Decker>,
-    activeIc: List<IC> = emptyList()
+    activeIc: List<IC> = emptyList(),
+    val matrix: Matrix = Matrix()
 ) {
     var host: Host = host
         private set

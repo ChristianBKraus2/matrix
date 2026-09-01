@@ -118,7 +118,7 @@
 
 **PersonaProgram** (extends Program) — defines one persona attribute.
 
-- Type: Bod | Evasion | Masking | Sensors
+- attributeType: PersonaAttributeType (Bod | Evasion | Masking | Sensors)
 - Constraint: Rating ≤ MPCP; sum of all four persona program ratings ≤ MPCP × 3
 
 **Utility** (extends Program) — operational tools loaded into active memory.
@@ -448,7 +448,7 @@ classDiagram
             +MpSize int
         }
         class PersonaProgram {
-            +Type
+            +attributeType PersonaAttributeType
         }
         class Utility {
             +Category

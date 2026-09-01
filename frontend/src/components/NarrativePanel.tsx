@@ -6,7 +6,7 @@ const ERROR_LABELS: Record<string, string> = {
   no_action_pending:    'No action pending',
   already_registered:   'Already registered',
   name_already_taken:   'Decker name already taken',
-  name_too_long:        'Name too long',
+  name_too_long:        'Decker name too long (max 32 characters)',
   unknown_message_type: 'Unknown message type',
   bad_request:          'Bad request',
   server_full:          'Server at capacity',

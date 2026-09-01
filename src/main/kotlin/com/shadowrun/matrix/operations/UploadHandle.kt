@@ -1,5 +1,7 @@
 package com.shadowrun.matrix.operations
 
+import com.shadowrun.matrix.network.DataFile
+
 /**
  * Tracks an in-progress Upload Data operation.
  * [turnsRemaining] is decremented by the game engine each Combat Turn.
@@ -7,7 +9,7 @@ package com.shadowrun.matrix.operations
  * PRD: SO-10 through SO-12
  */
 data class UploadHandle(
-    val description: String,
+    val file: DataFile,
     val totalMp: Int,
     val ioSpeedMpPerTurn: Int,
     val turnsRemaining: Int,

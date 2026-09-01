@@ -8,6 +8,7 @@ import com.shadowrun.matrix.common.PersonaAttributeType
 import com.shadowrun.matrix.common.PersonaStatus
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.common.SecurityRating
+import com.shadowrun.matrix.common.UtilityCategory
 import com.shadowrun.matrix.common.SubsystemRatings
 import com.shadowrun.matrix.common.boxes
 import com.shadowrun.matrix.decker.*
@@ -619,7 +620,7 @@ class CombatResolverTest {
             *IntArray(5) { 5 },  // IC dice vs utility.currentRating
             *IntArray(4) { 1 }   // utility dice vs ic.rating
         ))
-        val ic = TarBaby(rating = 5)
+        val ic = TarBaby(rating = 5, targetCategory = UtilityCategory.OPERATIONAL)
         val d = decker(cyberdeck = deck(activeUtilities = listOf(utility),
             storedUtilities = listOf(utility)))
         val result = CombatResolver.resolveTarBaby(d, ic, utility, roller)
@@ -637,7 +638,7 @@ class CombatResolverTest {
             5, 1, 1, 1, 1, 1     // sensor test: 1 success
         ))
         val utility = Utility(UtilityType.ATTACK, 4)
-        val ic = TarBaby(rating = 5)
+        val ic = TarBaby(rating = 5, targetCategory = UtilityCategory.OPERATIONAL)
         val result = CombatResolver.resolveTarBaby(decker(), ic, utility, roller)
         assertFalse(result.bothCrashed)
         assertTrue(result.deckerNoticed)
@@ -652,7 +653,7 @@ class CombatResolverTest {
             *IntArray(6) { 1 }   // sensor test: all fail
         ))
         val utility = Utility(UtilityType.ATTACK, 4)
-        val ic = TarBaby(rating = 5)
+        val ic = TarBaby(rating = 5, targetCategory = UtilityCategory.OPERATIONAL)
         val result = CombatResolver.resolveTarBaby(decker(), ic, utility, roller)
         assertFalse(result.deckerNoticed)
     }
@@ -751,7 +752,7 @@ class CombatResolverTest {
     fun `resolveTarPit IC wins removes utility from active memory`() {
         val utility = Utility(UtilityType.ANALYZE, 4)
         val roller = DiceRoller(stubRandom(*IntArray(5) { 5 }, *IntArray(4) { 1 }))
-        val ic = TarPit(rating = 5)
+        val ic = TarPit(rating = 5, targetCategory = UtilityCategory.OPERATIONAL)
         val d = decker(cyberdeck = deck(activeUtilities = listOf(utility), storedUtilities = listOf(utility)))
         val result = CombatResolver.resolveTarPit(d, ic, utility, roller)
         assertTrue(result.bothCrashed)
@@ -762,7 +763,7 @@ class CombatResolverTest {
         // tn = hardening+mcpRating = 0+4 = 4; IC 5 dice, all show 5 → 5 successes
         val utility = Utility(UtilityType.ANALYZE, 4)
         val roller = DiceRoller(stubRandom(*IntArray(5) { 5 }))
-        val ic = TarPit(rating = 5)
+        val ic = TarPit(rating = 5, targetCategory = UtilityCategory.OPERATIONAL)
         val d = decker(cyberdeck = deck(mcpRating = 4,
             activeUtilities = listOf(utility), storedUtilities = listOf(utility)))
         val result = CombatResolver.resolveTarPitMpcpTest(d, ic, utility, roller)
@@ -774,7 +775,7 @@ class CombatResolverTest {
     fun `resolveTarPitMpcpTest with 0 successes leaves utility in storage`() {
         val utility = Utility(UtilityType.ANALYZE, 4)
         val roller = allFaces(1)
-        val ic = TarPit(rating = 5)
+        val ic = TarPit(rating = 5, targetCategory = UtilityCategory.OPERATIONAL)
         val d = decker(cyberdeck = deck(mcpRating = 4,
             activeUtilities = listOf(utility), storedUtilities = listOf(utility)))
         val result = CombatResolver.resolveTarPitMpcpTest(d, ic, utility, roller)

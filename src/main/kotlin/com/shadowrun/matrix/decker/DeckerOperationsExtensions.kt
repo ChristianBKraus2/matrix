@@ -398,7 +398,7 @@ fun Decker.uploadData(host: Host, dataSizeMp: Int, diceRoller: DiceRoller): Pair
             return Pair(OperationResult.Failure(updated, outcome), null)
         }
         val turns = ceil(dataSizeMp.toDouble() / ioSpeed).toInt().coerceAtLeast(1)
-        val handle = UploadHandle(description = "upload to ${host.name}", totalMp = dataSizeMp, ioSpeedMpPerTurn = ioSpeed, turnsRemaining = turns)
+        val handle = UploadHandle(file = DataFile(name = "upload to ${host.name}", sizeMp = dataSizeMp), totalMp = dataSizeMp, ioSpeedMpPerTurn = ioSpeed, turnsRemaining = turns)
         logger.info { "[$name] uploadData started: ${handle.turnsRemaining} turns at $ioSpeed Mp/turn" }
         Pair(OperationResult.Success(updated, outcome), handle)
     } else {
@@ -480,6 +480,14 @@ fun Decker.nullOperation(host: Host, inactivitySeconds: Int, diceRoller: DiceRol
     logger.info { "[$name] nullOperation: inactivity=${inactivitySeconds}s on ${host.name}" }
     requireJackedIn()
     val outcome = SystemTestResolver.resolveNullOperation(this, host, inactivitySeconds, diceRoller)
+    val updated = withUpdatedTally(outcome.hostSuccesses)
+    return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
+}
+
+fun Decker.nullOperation(grid: Grid, inactivitySeconds: Int, diceRoller: DiceRoller): OperationResult {
+    logger.info { "[$name] nullOperation: inactivity=${inactivitySeconds}s on ${grid.name}" }
+    requireJackedIn()
+    val outcome = SystemTestResolver.resolveNullOperation(this, grid, inactivitySeconds, diceRoller)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
 }
