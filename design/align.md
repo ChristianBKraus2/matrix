@@ -55,6 +55,9 @@ These phrases indicate a spot check, not an audit. They are never acceptable:
 - Citing a PRD clause without having read the PRD in full in this session
 - Grouping multiple files into a single manifest row (e.g. "all files in combat/ — no issues")
 - Declaring a file clean without having applied the per-file checklist to **every method** in it
+- A manifest excerpt that is a behavioural description ("method X sets field Y to Z") rather than a code token copied verbatim from the file
+- A manifest excerpt identical or nearly identical to the finding text in the same manifest row — the excerpt must come from the file, not from the finding
+- A manifest excerpt that synthesises multiple lines or multiple methods into one sentence
 
 If you find yourself writing one of these, stop and read the skipped files.
 
@@ -74,6 +77,15 @@ For every file you mark ✓ in the manifest, the manifest entry must contain a
 verbatim excerpt copied from that file (a field name, a function signature, a
 literal value). Paraphrase is not acceptable. This is the only proof that the
 file was read rather than inferred from context.
+
+For files exceeding 100 lines, provide **two** verbatim excerpts separated by
+at least 30 lines in the source — one from the opening third, one from the
+closing third. A function signature from line 12 of a 400-line file does not
+prove the final 350 lines were read.
+
+For any file whose Findings column is non-empty, at least one excerpt must come
+from the **specific code location that contains the finding** — not from a
+passing line elsewhere in the file.
 
 ### Rule 3 — Read PRDs first, completely
 
@@ -120,6 +132,11 @@ attention to:
   operation with distinct pre-conditions and return types.
 - Controller dispatch blocks: each `when` / `if` branch for each operation is a
   separate unit to check.
+
+For files whose name contains `Resolver`, `Extensions`, or `Controller`, the manifest
+entry must include an explicit list of every method/function checked alongside the
+verbatim excerpt, e.g. `methods: resolveBlackHammer, resolveCrippler, resolveRipper`.
+This makes the per-method coverage claim falsifiable.
 
 ### Rule 9 — Constructor calls must be verified for completeness
 
@@ -262,3 +279,5 @@ SD- Shadowing · TS- TypeScript type · TRK- Track/lock · UI- UI component · U
 | Numeric param clamped below PRD maximum | For every `coerceIn(a, b)` on a PRD-governed value, verify `b` against the PRD's stated maximum; an incorrect cap silently prevents extended algorithm branches from firing |
 | Test assertion trivially true by construction | `assertEquals(0, x.coerceAtMost(0))` is always 0 for non-negative x; `assertTrue(n >= 0)` is always true; these give false confidence — verify the assertion actually distinguishes correct from incorrect behaviour |
 | Frontend hook behavioral contract unchecked | Reading types is not enough; verify every state-transition rule, role guard, and token-lifecycle clause in design_ui.md against the hook implementation |
+| Manifest excerpt is a paraphrase or summary | Replace with a code token that could only have been written by someone who opened the file; if none can be supplied, re-read the file |
+| File with findings has excerpt from a passing line only | Replace or supplement with an excerpt from the specific location that contains the finding — a passing-line excerpt does not prove the bug site was read |
