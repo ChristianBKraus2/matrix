@@ -55,8 +55,8 @@ class GrayCombatTest : IntegrationTestBase() {
         // IC net successes > 0 → reduction = net/2. Result BOD = max(0, 1 - reduction).
         val result = CombatResolver.resolveRipper(icon.currentDecker(), ic, 5, hitRoller())
 
-        assertTrue(result.updatedDecker.persona!!.bod >= 0, "Ripper floor is 0")
-        assertTrue(result.reduction >= 0, "Reduction should be non-negative")
+        assertEquals(0, result.updatedDecker.persona!!.bod, "Ripper should reduce BOD to 0")
+        assertTrue(result.reduction >= 1, "Ripper should have positive reduction")
     }
 
     // ── Sparky IC ─────────────────────────────────────────────────────────────

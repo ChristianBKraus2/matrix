@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the User Interface (UI) for the game described in [design.md](design.md). The UI is build based on React and communicates with the backend based on WebSockets. This Websocket interface is documented in depth by [web-interface.md](web-interface.md).
+This document describes the User Interface (UI) for the game described in [design.md](design.md). The UI is build based on React and communicates with the backend based on WebSockets. This Websocket interface is documented in depth by [protocol.md](protocol.md).
 
 The UI displays the environment and triggers the actions in the backend. The game loop is defined in the backend which (after connection) gives the control to one of the (potentially) several UI instances that are connected to the backend.
 
@@ -46,7 +46,7 @@ All possible action are dispayed as card on the bottom. Pressing the card should
 
 ## State Details
 
-This section maps every field from the WebSocket `StateMessage` (and related messages) to a UI area. See [web-interface.md](web-interface.md) for the full protocol specification.
+This section maps every field from the WebSocket `StateMessage` (and related messages) to a UI area. See [protocol.md](protocol.md) for the full protocol specification.
 
 ### Left — Decker panel
 
@@ -85,7 +85,7 @@ Entity-type objects from `visibleObjects` are displayed as cards in the Right pa
 | Kind | Displayed fields |
 |---|---|
 | `HostSubsystem` | `subsystemType`, `description` |
-| `IcProgram` | `name`, `rating`, `behavior`, `guardedNodeType` |
+| `IcProgram` | `name`, `rating`, `behavior`, `guardedNodeType`; when analyzed (name in decker's `analyzedIcNames`): additionally display IC type badge |
 | `File` | `name`, `isScrambleProtected`, `isPointer`, `sizeMp` |
 | `Device` | `name`, `systemAddress` |
 
@@ -124,7 +124,7 @@ The following actions are fully determined by pressing the card alone:
 
 - **Navigation** (excluded from general analysis — handled separately): `LogonToRtg`, `LogonToLtg`, `LogonToPltg`, `LogonToHost`
 - **Exit actions**: `GracefulLogoff`, `JackOut`
-- **All `Operation` actions** where `params` is ignored by the server — this covers the majority of operations: `ANALYZE_IC`, `CRASH_PROGRAM`, `READ_FILE`, `DOWNLOAD_FILE`, `RELOCATE`, `DECRYPT`, `DECEPTION`, `COMMLINK`, `SCANNER`, `SPOOF`, and others not listed below
+- **All `Operation` actions** where `params` is ignored by the server — this covers the majority of operations: `ANALYZE_HOST`, `ANALYZE_IC`, `ANALYZE_ICON`, `ANALYZE_SECURITY`, `ANALYZE_SUBSYSTEM`, `CONTROL_SLAVE`, `DECRYPT_ACCESS`, `DECRYPT_FILE`, `DECRYPT_SLAVE`, `DOWNLOAD_DATA`, `EDIT_SLAVE`, `GRACEFUL_LOGOFF`, `INVOKE_MEDIC`, `LOCATE_IC`, `MAKE_COMCALL`, `MONITOR_SLAVE`, `RELOCATE_ICON`
 - **`NULL_OPERATION`**: uses `inactivitySeconds` (default `0`) — the default is sufficient; no extra input required
 
 ## Actions that require inline parameter input

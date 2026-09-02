@@ -47,9 +47,11 @@ const SAFE_ACTION_TYPES = new Set(['FREE', 'SIMPLE', 'COMPLEX'])
 
 export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props) {
   const [cardStates, setCardStates] = useState<Record<number, CardState>>({})
+  const [focusedCards, setFocusedCards] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     setCardStates({})
+    setFocusedCards(new Set())
   }, [actions])
 
   function getState(idx: number): CardState {
@@ -63,6 +65,15 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
   function handleClick(action: AvailableActionDto) {
     if (!isActiveTurn) return
     const paramKind = action.kind === 'Operation' ? action.paramKind : null
+    if (paramKind === 'newContent') {
+      setFocusedCards(prev => {
+        const next = new Set(prev)
+        if (next.has(action.index)) next.delete(action.index)
+        else next.add(action.index)
+        return next
+      })
+      return
+    }
     const params = buildParams(paramKind, getState(action.index))
     onAction(action.index, params)
   }
@@ -142,15 +153,29 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
 
                 {paramKind === 'newContent' && (
                   <div className="action-control" onClick={e => e.stopPropagation()}>
-                    <textarea
-                      className="edit-textarea"
-                      placeholder="New file content…"
-                      value={cs.newContent}
-                      onChange={e => patchState(action.index, { newContent: e.target.value })}
-                      rows={3}
-                      maxLength={4096}
-                    />
-                    <div className="edit-hint">Leave empty to erase file</div>
+                    {focusedCards.has(action.index) ? (
+                      <>
+                        <textarea
+                          className="edit-textarea"
+                          placeholder="New file content…"
+                          value={cs.newContent}
+                          onChange={e => patchState(action.index, { newContent: e.target.value })}
+                          rows={3}
+                          maxLength={4096}
+                          autoFocus
+                        />
+                        <div className="edit-hint">Leave empty to erase file</div>
+                        <button
+                          className="confirm-btn"
+                          disabled={disabled}
+                          onClick={() => onAction(action.index, buildParams('newContent', cs))}
+                        >
+                          CONFIRM
+                        </button>
+                      </>
+                    ) : (
+                      <div className="edit-placeholder">[ click to enter content ]</div>
+                    )}
                   </div>
                 )}
 

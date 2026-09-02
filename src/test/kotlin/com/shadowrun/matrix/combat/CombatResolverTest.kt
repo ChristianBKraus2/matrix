@@ -1082,7 +1082,7 @@ class CombatResolverTest {
     }
 
     @Test
-    fun `resolveSlow with 4 net successes loses 2 actions`() {
+    fun `resolveSlow with 6 net successes loses 3 actions`() {
         // sv for ORANGE = 5; slow 6 dice all succeed; IC 5 dice all fail → net=6 → actionsLost=3
         val roller = DiceRoller(stubRandom(
             *IntArray(5) { 1 },  // IC dice vs slowRating: fail

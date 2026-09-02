@@ -14,11 +14,11 @@ object SystemTestResolver {
 
     /**
      * Resolves one Success Contest:
-     *   - Decker rolls [computerSkill] dice vs [accessRating] (reduced by the utility associated
+     *   - Decker rolls [computerSkill] + [hackingPoolDice] dice vs [accessRating] (reduced by the utility associated
      *     with [operation] if it is fully active in active memory, min TN 2).
      *   - Host rolls [hostSecurityValue] dice vs decker's Detection Factor.
      * Returns a [SystemTestOutcome]; host successes must be added to the security tally by the caller.
-     * PRD: CD-14, CD-15
+     * PRD: CD-14, CD-15, CC-01
      *
      * Cyberterminal users have all utility ratings reduced by 1 at test resolution time (CT-03).
      */
@@ -27,7 +27,8 @@ object SystemTestResolver {
         operation: SystemOperation,
         accessRating: Int,
         hostSecurityValue: Int,
-        diceRoller: DiceRoller
+        diceRoller: DiceRoller,
+        hackingPoolDice: Int = 0
     ): SystemTestOutcome {
         val utilityType = operation.utility
         val utilityRating = if (utilityType != null)
@@ -39,8 +40,9 @@ object SystemTestResolver {
             0
         val effectiveTn = maxOf(2, accessRating - utilityRating)
 
-        val deckerResult = diceRoller.roll(decker.computerSkill, effectiveTn)
-        logger.info { "[${decker.name}] Decker rolls: ${decker.computerSkill} dice vs TN $effectiveTn (base=$accessRating, ${operation.name} modifier=$utilityRating) → ${deckerResult.successes} successes" }
+        val totalDeckerDice = decker.computerSkill + hackingPoolDice
+        val deckerResult = diceRoller.roll(totalDeckerDice, effectiveTn)
+        logger.info { "[${decker.name}] Decker rolls: $totalDeckerDice dice vs TN $effectiveTn (base=$accessRating, ${operation.name} modifier=$utilityRating, hackingPool=$hackingPoolDice) → ${deckerResult.successes} successes" }
 
         val detectionFactor = decker.effectiveDetectionFactor
         val hostResult = diceRoller.roll(hostSecurityValue, detectionFactor)
@@ -63,24 +65,26 @@ object SystemTestResolver {
         decker: Decker,
         host: Host,
         inactivitySeconds: Int,
-        diceRoller: DiceRoller
+        diceRoller: DiceRoller,
+        hackingPoolDice: Int = 0
     ): SystemTestOutcome {
         val bonus = NullOperationModifier.totalBonusForDuration(inactivitySeconds)
         val effectiveSecurityValue = host.securityRating.value + bonus
         logger.info { "[${decker.name}] Null Operation: inactivity=${inactivitySeconds}s, SV bonus=+$bonus → effectiveSV=$effectiveSecurityValue" }
-        return resolve(decker, SystemOperation.NULL_OPERATION, host.subsystemRatings.control, effectiveSecurityValue, diceRoller)
+        return resolve(decker, SystemOperation.NULL_OPERATION, host.subsystemRatings.control, effectiveSecurityValue, diceRoller, hackingPoolDice)
     }
 
     fun resolveNullOperation(
         decker: Decker,
         grid: Grid,
         inactivitySeconds: Int,
-        diceRoller: DiceRoller
+        diceRoller: DiceRoller,
+        hackingPoolDice: Int = 0
     ): SystemTestOutcome {
         val bonus = NullOperationModifier.totalBonusForDuration(inactivitySeconds)
         val effectiveSecurityValue = grid.securityRating.value + bonus
         logger.info { "[${decker.name}] Null Operation: inactivity=${inactivitySeconds}s, SV bonus=+$bonus → effectiveSV=$effectiveSecurityValue" }
-        return resolve(decker, SystemOperation.NULL_OPERATION, grid.subsystemRatings.control, effectiveSecurityValue, diceRoller)
+        return resolve(decker, SystemOperation.NULL_OPERATION, grid.subsystemRatings.control, effectiveSecurityValue, diceRoller, hackingPoolDice)
     }
 
     /**
@@ -95,7 +99,8 @@ object SystemTestResolver {
         host: Host,
         state: InterrogationState,
         queryPrecision: QueryPrecision,
-        diceRoller: DiceRoller
+        diceRoller: DiceRoller,
+        hackingPoolDice: Int = 0
     ): Pair<SystemTestOutcome, InterrogationState> =
         resolveInterrogationCore(
             decker, operation,
@@ -105,7 +110,7 @@ object SystemTestResolver {
                 }
             ),
             securityValue = host.securityRating.value,
-            state, queryPrecision, diceRoller
+            state, queryPrecision, diceRoller, hackingPoolDice
         )
 
     fun resolveInterrogation(
@@ -114,7 +119,8 @@ object SystemTestResolver {
         grid: Grid,
         state: InterrogationState,
         queryPrecision: QueryPrecision,
-        diceRoller: DiceRoller
+        diceRoller: DiceRoller,
+        hackingPoolDice: Int = 0
     ): Pair<SystemTestOutcome, InterrogationState> =
         resolveInterrogationCore(
             decker, operation,
@@ -124,7 +130,7 @@ object SystemTestResolver {
                 }
             ),
             securityValue = grid.securityRating.value,
-            state, queryPrecision, diceRoller
+            state, queryPrecision, diceRoller, hackingPoolDice
         )
 
     private fun resolveInterrogationCore(
@@ -134,7 +140,8 @@ object SystemTestResolver {
         securityValue: Int,
         state: InterrogationState,
         queryPrecision: QueryPrecision,
-        diceRoller: DiceRoller
+        diceRoller: DiceRoller,
+        hackingPoolDice: Int = 0
     ): Pair<SystemTestOutcome, InterrogationState> {
         val utilityRating = if (operation.utility != null)
             decker.cyberdeck.activeUtilities
@@ -144,8 +151,9 @@ object SystemTestResolver {
         val clampedBase = maxOf(2, baseSubsystemRating - utilityRating)
         val adjustedTn = maxOf(2, clampedBase + queryPrecision.modifier)
 
-        val deckerResult = diceRoller.roll(decker.computerSkill, adjustedTn)
-        logger.info { "[${decker.name}] Interrogation ${operation.name}: TN=$adjustedTn (base=$baseSubsystemRating precision=${queryPrecision.modifier} utility=$utilityRating) → ${deckerResult.successes} successes" }
+        val totalDeckerDice = decker.computerSkill + hackingPoolDice
+        val deckerResult = diceRoller.roll(totalDeckerDice, adjustedTn)
+        logger.info { "[${decker.name}] Interrogation ${operation.name}: TN=$adjustedTn (base=$baseSubsystemRating precision=${queryPrecision.modifier} utility=$utilityRating hackingPool=$hackingPoolDice) → ${deckerResult.successes} successes" }
 
         val hostResult = diceRoller.roll(securityValue, decker.effectiveDetectionFactor)
         logger.info { "[${decker.name}] Host Security Test: $securityValue dice vs DF=${decker.effectiveDetectionFactor} → ${hostResult.successes} successes" }

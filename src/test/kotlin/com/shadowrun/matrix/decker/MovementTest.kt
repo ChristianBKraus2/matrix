@@ -188,8 +188,8 @@ class MovementTest {
         assertIs<LogonResult.Failure>(result)
         // Security tally must have increased on the LTG stored in the location
         // (even on failure the host's successes are counted — M-05)
-        // The failure result returns the previous location (null on initial jack-in),
-        // but we verify the decker's state hasn't changed.
+        assertTrue((result.location as MatrixLocation.OnLTG).ltg.securityTally > 0,
+            "jackInToLtg failure should increment LTG security tally (M-05)")
         assertNull(result.decker.persona)
     }
 

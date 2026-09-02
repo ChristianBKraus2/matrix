@@ -48,7 +48,7 @@ The `source_code: true` field on utility YAML entries is parsed and stored, but 
 
 **Source:** [design_core/cyberdeck_and_program_mechanics.md](design_core/cyberdeck_and_program_mechanics.md) · [discrepancies_without_prd.md](discrepancies_without_prd.md) (NM-1)
 
-`DownloadHandle` does not include a `destination` field; all downloads route to deck storage. The `DownloadDestination` sealed class exists in code but is unused. When implemented, a `destination: DownloadDestination` field set to `OfflineStorage` will route the download to external storage without consuming `storedUtilities` capacity on the cyberdeck.
+`DownloadHandle` now includes a `destination: DownloadDestination` field defaulting to `StorageMemory`. The `DownloadDestination` sealed class is implemented; setting `destination` to `OfflineStorage` routes the download to external storage without consuming `storedUtilities` capacity on the cyberdeck. Routing of completed downloads to offline storage is not yet wired up.
 
 ---
 

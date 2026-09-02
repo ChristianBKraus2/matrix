@@ -42,13 +42,14 @@ class SystemOperationsTest {
     private fun deck(
         mcpRating: Int = 8,
         responseIncrease: Int = 0,
+        programs: List<PersonaProgram> = programs(),
         activeUtilities: List<Utility> = emptyList(),
         storedUtilities: List<Utility> = emptyList()
     ) = Cyberdeck(
         name = "TestDeck", mcpRating = mcpRating,
         activeMemoryMp = 2000, storageMemoryMp = 5000,
         ioSpeedMpPerTurn = 100, costNuyen = 0,
-        personaPrograms = programs(),
+        personaPrograms = programs,
         responseIncrease = responseIncrease,
         activeUtilities = activeUtilities,
         storedUtilities = storedUtilities
@@ -57,6 +58,7 @@ class SystemOperationsTest {
     private fun decker(
         cyberdeck: Cyberdeck = deck(),
         reaction: Int = 5,
+        intelligence: Int = 6,
         jackedIn: Boolean = false,
         host: Host? = null,
         computerSkill: Int = 6
@@ -67,7 +69,7 @@ class SystemOperationsTest {
         ) else null
         val location = if (host != null && jackedIn) MatrixLocation.OnHost(host) else null
         return Decker(
-            name = "TestDecker", intelligence = 6, body = 4,
+            name = "TestDecker", intelligence = intelligence, body = 4,
             willpower = 5, reaction = reaction, computerSkill = computerSkill,
             cyberdeck = cyberdeck,
             physicalConditionMonitor = ConditionMonitor(),
@@ -214,7 +216,7 @@ class SystemOperationsTest {
     @Test
     fun `analyzeHost decker chooses security rating with 1 net success`() {
         val h = host(secValue = 2, control = 2)
-        val d = decker(jackedIn = true, host = h)
+        val d = decker(jackedIn = true, host = h, intelligence = 0, cyberdeck = deck(mcpRating = 2, programs = programs(rating = 1)))
         val result = d.analyzeHost(h, listOf(HostInfoItem.SecurityRating), winRoller)
         assertNotNull(result.revealedSecurityRating)
         assertTrue(result.revealedSubsystemRatings.isEmpty())
@@ -223,7 +225,7 @@ class SystemOperationsTest {
     @Test
     fun `analyzeHost decker chooses subsystem instead of security rating`() {
         val h = host(secValue = 2, control = 2)
-        val d = decker(jackedIn = true, host = h)
+        val d = decker(jackedIn = true, host = h, intelligence = 0, cyberdeck = deck(mcpRating = 2, programs = programs(rating = 1)))
         val result = d.analyzeHost(h, listOf(HostInfoItem.Subsystem(SubsystemType.FILES)), winRoller)
         assertNull(result.revealedSecurityRating)
         assertNotNull(result.revealedSubsystemRatings[SubsystemType.FILES])
@@ -231,13 +233,11 @@ class SystemOperationsTest {
 
     @Test
     fun `analyzeHost with 2 net successes reveals only first 2 requested items`() {
-        // face=4: decker rolls 6d6 all-4 vs TN=2 → 6 successes; host rolls 2d6 all-4 vs DF≈3 → 2 successes; net=4
-        // Use a narrow roller that gives exactly 2 net: face=2 keeps decker below TN on most dice
-        // Simpler: use a host with secValue=0 so host always gets 0 successes, and constrain decker successes.
-        // Instead rely on: face=5, control=4 → TN=4, decker hits on 5 (1 success per die with 6 dice = 6 successes);
+        // face=5, control=4 → TN=4, decker hits on 5 (1 success per die with 6 dice = 6 successes);
         // host secValue=4, DF≈3 → host hits on 3 with 4 dice = 4 successes; net = 6-4 = 2.
+        // hackingPool=0 (intelligence=1, mcpRating=1) ensures exact dice count.
         val h = host(secValue = 4, control = 4)
-        val d = decker(jackedIn = true, host = h)
+        val d = decker(jackedIn = true, host = h, intelligence = 0, cyberdeck = deck(mcpRating = 2, programs = programs(rating = 1)))
         val requested = listOf(
             HostInfoItem.SecurityRating,
             HostInfoItem.Subsystem(SubsystemType.INDEX),
@@ -252,9 +252,9 @@ class SystemOperationsTest {
 
     @Test
     fun `analyzeHost reveals all on 7 plus net successes regardless of requestedItems`() {
-        // computerSkill=9, face=5, TN=2 → 9 decker successes; secValue=2, face=5 vs DF=3 → 2 host successes; net=7
+        // computerSkill=9, hackingPool=0, face=5, TN=2 → 9 decker successes; secValue=2, face=5 vs DF=3 → 2 host successes; net=7
         val h = host(secValue = 2, control = 2)
-        val d = decker(jackedIn = true, host = h, computerSkill = 9)
+        val d = decker(jackedIn = true, host = h, computerSkill = 9, intelligence = 0, cyberdeck = deck(mcpRating = 2, programs = programs(rating = 1)))
         val result = d.analyzeHost(h, emptyList(), winRoller)
         assertEquals(7, result.outcome.deckerSuccesses - result.outcome.hostSuccesses)
         assertNotNull(result.revealedSecurityRating)
@@ -294,7 +294,7 @@ class SystemOperationsTest {
         val result = d.analyzeSecurity(h, winRoller)
         assertEquals(AlertStatus.PASSIVE_ALERT, result.alertStatus)
         assertEquals(h.securityRating, result.securityRating)
-        assertTrue(result.currentTally >= 0)
+        assertTrue(result.currentTally > 0)
     }
 
     // ── Interrogation / Locate File ───────────────────────────────────────────────

@@ -42,6 +42,7 @@ sealed class AttackResult {
         val attackerSuccesses: Int,
         val rawDamageLevel: DamageLevel,
         val stagedDamageLevel: DamageLevel,
+        val rawWeaponPower: Int,
         val power: Int
     ) : AttackResult()
 
@@ -49,7 +50,7 @@ sealed class AttackResult {
 }
 ```
 
-PRD: CC-20–CC-26. `rawDamageLevel` is the pre-staging base; `stagedDamageLevel` is what is applied to the Condition Monitor.
+PRD: CC-20–CC-26. `rawDamageLevel` is the pre-staging base; `stagedDamageLevel` is what is applied to the Condition Monitor. `rawWeaponPower` is the weapon's base power before armor reduction; `power` is the effective power after armor reduction (`max(0, rawWeaponPower - armorRating)`).
 
 ---
 
@@ -433,7 +434,7 @@ PRD: CC-20–CC-26.
 8. Roll `defender.bod` dice vs. `effectivePower` → `defenderSuccesses`.
 9. `net = attackerSuccesses - defenderSuccesses`
 10. `staged = stage(attacker.rawDamageLevel, net)`
-11. Return `AttackResult.Hit(attackerSuccesses, attacker.rawDamageLevel, staged, effectivePower)`.
+11. Return `AttackResult.Hit(attackerSuccesses, attacker.rawDamageLevel, staged, power, effectivePower)`.
 
 **`private fun attackTn(status: PersonaStatus, code: SecurityCode): Int`** encodes the CC-24 table:
 

@@ -135,7 +135,7 @@ class DeckerOperationsTest {
         val ic = Killer(rating = 5)
         val result = d.analyzeIc(ic, h, winRoller)
         val tally = (result.decker.currentLocation as? MatrixLocation.OnHost)?.host?.securityTally ?: 0
-        assertTrue(tally >= 0)
+        assertTrue(tally > 0)
     }
 
     // ── analyzeIcon ───────────────────────────────────────────────────────────────
@@ -268,7 +268,7 @@ class DeckerOperationsTest {
         val d = decker(host = h)
         val (result, _) = d.uploadData(h, dataSizeMp = 100, winRoller)
         val tally = (result.decker.currentLocation as? MatrixLocation.OnHost)?.host?.securityTally ?: 0
-        assertTrue(tally >= 0)
+        assertTrue(tally > 0)
     }
 
     // ── editSlave ─────────────────────────────────────────────────────────────────

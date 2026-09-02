@@ -60,7 +60,7 @@ class DeckerCombatTest : IntegrationTestBase() {
         )
         val result = CombatResolver.resolveBlackHammer(decker, attack, hitRoller())
 
-        assertTrue(result.updatedDecker.persona!!.conditionMonitor.damage >= 0, "Condition monitor should not be negative")
+        assertTrue(result.updatedDecker.persona!!.conditionMonitor.damage >= 1, "Black Hammer should still deal icon damage even with minimal staging")
     }
 
     // ── Killjoy ───────────────────────────────────────────────────────────────
@@ -227,7 +227,7 @@ class DeckerCombatTest : IntegrationTestBase() {
         // winRoller: decker wins → IC loses actions
         val result = CombatResolver.resolveSlow(killer, slowRating = 4, securityValue = 5, icInitiative = icInitiative, diceRoller = winRoller())
 
-        assertTrue(result.actionsLost >= 0, "actionsLost should be non-negative")
+        assertTrue(result.actionsLost > 0, "actionsLost should be positive when decker wins against proactive IC")
     }
 
     @Test

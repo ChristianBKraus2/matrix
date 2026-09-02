@@ -236,7 +236,7 @@ fun Decker.gracefulLogoff(diceRoller: DiceRoller): LogoffResult {
     val trackPenalty = trackState?.trackingIcRating ?: 0
     val effectiveTn = accessRating + trackPenalty
     if (trackPenalty > 0) logger.info { "[$name] gracefulLogoff: Track penalty +$trackPenalty applied to TN" }
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.GRACEFUL_LOGOFF, effectiveTn, securityValue, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.GRACEFUL_LOGOFF, effectiveTn, securityValue, diceRoller, hackingPoolDice = hackingPool)
     return if (outcome.deckerWins) {
         LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet(), analyzedIcNames = emptySet())).also {
             logger.info { "[$name] gracefulLogoff succeeded: traces cleared, no dump shock" }
@@ -298,7 +298,7 @@ private fun Decker.performLogon(
         return LogonResult.Success(copy(persona = newPersona, currentLocation = newLocation), newLocation,
             deckerSuccesses = 0, hostSuccesses = 0)
     }
-    val outcome = SystemTestResolver.resolve(this, operation, accessRating, securityValue, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, operation, accessRating, securityValue, diceRoller, hackingPoolDice = hackingPool)
     val newLocation = buildLocation(outcome.hostSuccesses)
     return if (outcome.deckerWins) {
         val newPersona = persona ?: run {

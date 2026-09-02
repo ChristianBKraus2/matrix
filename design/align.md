@@ -58,6 +58,9 @@ These phrases indicate a spot check, not an audit. They are never acceptable:
 - A manifest excerpt that is a behavioural description ("method X sets field Y to Z") rather than a code token copied verbatim from the file
 - A manifest excerpt identical or nearly identical to the finding text in the same manifest row — the excerpt must come from the file, not from the finding
 - A manifest excerpt that synthesises multiple lines or multiple methods into one sentence
+- Using Grep or a search call to locate specific content and reporting only those hits as the manifest excerpt — this is the same failure mode as using Explore: it finds only what you already know to look for
+- A manifest excerpt reused from a prior audit run without re-reading the file in the current session — the excerpt must be obtained from a `Read` call made in this session, not copied from a previous manifest
+- Citing a design doc clause without having read that design doc in full in this session (mirrors the PRD rule above; applies to `design_core/`, `design_game/`, and `design_ui/` files equally)
 
 If you find yourself writing one of these, stop and read the skipped files.
 
@@ -65,27 +68,37 @@ If you find yourself writing one of these, stop and read the skipped files.
 
 ## Methodology
 
-### Rule 1 — Never read excerpts
+### Rule 1 — Read complete files, not excerpts
 
-**Never use an agent type that reads excerpts** (e.g. the `Explore` subagent).
-It silently drops content past its read window. Use direct `Read` tool calls
-or `general-purpose` agents with full tool access.
+**Never use an agent type that reads excerpts** (e.g. the `Explore` subagent) —
+it silently drops content past its read window.
 
-### Rule 2 — Verbatim excerpt required for every file
+**Never substitute a Grep or search call for a Read.** Grep finds only what you already
+know to look for; a complete Read finds what you don't. For every file in the manifest,
+use the `Read` tool (or a `general-purpose` agent with full `Read` access) starting at
+line 1. For files that exceed the Read tool's single-call limit, issue sequential `Read`
+calls with increasing `offset` until the entire file is consumed. A file is not read
+until its last line has been seen.
 
-For every file you mark ✓ in the manifest, the manifest entry must contain a
-verbatim excerpt copied from that file (a field name, a function signature, a
-literal value). Paraphrase is not acceptable. This is the only proof that the
-file was read rather than inferred from context.
+### Rule 2 — Record line count and verbatim excerpts proving full coverage
 
-For files exceeding 100 lines, provide **two** verbatim excerpts separated by
-at least 30 lines in the source — one from the opening third, one from the
-closing third. A function signature from line 12 of a 400-line file does not
-prove the final 350 lines were read.
+The Status field for every ✓ row must include the file's total line count:
+`✓ Read — N lines`. This proves the file was opened to its end, not grepped.
+
+The Verbatim excerpt field must contain code tokens copied directly from the file.
+Paraphrase is not acceptable. Minimum excerpt requirements scale with file size:
+
+- **Files ≤ 100 lines:** one verbatim excerpt from anywhere in the file.
+- **Files 101–300 lines:** two verbatim excerpts — one from the opening third,
+  one from the closing third (each separated by at least 30 source lines).
+- **Files > 300 lines:** three verbatim excerpts — one from each third of the
+  file (opening, middle, closing), each separated by at least 50 source lines.
 
 For any file whose Findings column is non-empty, at least one excerpt must come
 from the **specific code location that contains the finding** — not from a
 passing line elsewhere in the file.
+
+More excerpts are always acceptable; the above are minimums.
 
 ### Rule 3 — Read PRDs first, completely
 
@@ -138,6 +151,11 @@ entry must include an explicit list of every method/function checked alongside t
 verbatim excerpt, e.g. `methods: resolveBlackHammer, resolveCrippler, resolveRipper`.
 This makes the per-method coverage claim falsifiable.
 
+The same requirement applies to frontend hook files (any `.ts` file under `hooks/`)
+and any `.tsx` component file that exports more than one named function or component.
+The manifest entry must list every exported hook, function, and component checked,
+e.g. `exports: useWebSocket, join, connect, reset`.
+
 ### Rule 9 — Constructor calls must be verified for completeness
 
 Whenever a domain object is constructed (e.g. `Persona(…)`, `Cyberdeck(…)`,
@@ -147,6 +165,16 @@ that every field the design specifies is supplied. Omissions are silent: a missi
 
 Also applies to factory functions and loader methods that produce domain objects from
 config or from other domain objects.
+
+### Rule 11 — Verify deferred items are current before skipping
+
+Before marking any file or feature Skip:deferred, read the corresponding entry in
+`deferred.md` and verify it still accurately describes the current code state.
+If the code has advanced past the deferred entry — a field the entry says is absent
+now exists, a stub the entry treats as intentional now has a real implementation, a
+restriction the entry documents has since been lifted — that gap is a DS- finding
+against `deferred.md`, and the file must receive a ✓ Read entry in the manifest
+rather than Skip:deferred.
 
 ### Rule 10 — Verify the post-fix surface after a prior audit
 
@@ -186,8 +214,12 @@ Before declaring the audit complete, verify all three conditions:
 3. **Adversarial check** — answer explicitly: "If I had done a spot check and
    stopped after the first N interesting findings, what would I have missed?"
    If the answer reveals anything unexamined, go examine it.
+4. **Deferred currency** — for every Skip:deferred row in the manifest, confirm
+   that the corresponding `deferred.md` entry still matches the current code state.
+   A deferred entry that no longer reflects reality is a DS- finding, not a valid
+   skip reason.
 
-Do not write "audit complete" until all three are satisfied.
+Do not write "audit complete" until all four are satisfied.
 
 ---
 
@@ -281,3 +313,5 @@ SD- Shadowing · TS- TypeScript type · TRK- Track/lock · UI- UI component · U
 | Frontend hook behavioral contract unchecked | Reading types is not enough; verify every state-transition rule, role guard, and token-lifecycle clause in design_ui.md against the hook implementation |
 | Manifest excerpt is a paraphrase or summary | Replace with a code token that could only have been written by someone who opened the file; if none can be supplied, re-read the file |
 | File with findings has excerpt from a passing line only | Replace or supplement with an excerpt from the specific location that contains the finding — a passing-line excerpt does not prove the bug site was read |
+| Agent used Grep instead of Read for a manifest file | Grep hits are not a substitute for a full Read; re-read the file completely from line 1 and update the line count in the Status field |
+| Deferred entry describes absent feature that now exists in code | Before accepting Skip:deferred, read the deferred.md entry and verify it matches the current file; if code has advanced past the entry, raise DS- and mark the file ✓ Read |

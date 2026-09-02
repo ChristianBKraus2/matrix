@@ -145,7 +145,7 @@ object CombatResolver {
     fun resolveJackOutWithPin(decker: Decker, diceRoller: DiceRoller): JackOutPinResult {
         require(decker.isPinnedByBlackIc) { "Decker is not pinned by Black IC" }
         val pin = requireNotNull(decker.blackIcPin) { "resolveJackOutWithPin: decker.blackIcPin is null despite isPinnedByBlackIc guard" }
-        val successes = diceRoller.roll(decker.willpower, pin.pinningIc.rating).successes
+        val successes = diceRoller.roll(decker.willpower, maxOf(2, pin.pinningIc.rating)).successes
         return if (successes >= 1) {
             JackOutPinResult(succeeded = true, finalIcAttackTriggered = true)
         } else {
@@ -159,7 +159,7 @@ object CombatResolver {
         val icSuccesses = diceRoller.roll(securityValue, max(2, decker.effectiveDetectionFactor)).successes
         val persona = requireNotNull(decker.persona) { "resolveCrippler: decker has no active persona" }
         val currentAttr = persona.attribute(ic.targetAttribute)
-        val deckerSuccesses = diceRoller.roll(currentAttr, ic.rating).successes
+        val deckerSuccesses = diceRoller.roll(currentAttr, maxOf(2, ic.rating)).successes
         val net = icSuccesses - deckerSuccesses
         val reduction = max(0, net / 2)
         val newValue = max(1, currentAttr - reduction)
@@ -191,7 +191,7 @@ object CombatResolver {
         val icSuccesses = diceRoller.roll(securityValue, max(2, decker.effectiveDetectionFactor)).successes
         val persona = requireNotNull(decker.persona) { "resolveRipper: decker has no active persona" }
         val currentAttr = persona.attribute(ic.targetAttribute)
-        val deckerSuccesses = if (currentAttr > 0) diceRoller.roll(currentAttr, ic.rating).successes else 0
+        val deckerSuccesses = if (currentAttr > 0) diceRoller.roll(currentAttr, maxOf(2, ic.rating)).successes else 0
         val net = icSuccesses - deckerSuccesses
         val reduction = max(0, net / 2)
         val newValue = max(0, currentAttr - reduction)
@@ -382,7 +382,7 @@ object CombatResolver {
             persona = persona.copy(conditionMonitor = newCm),
             physicalConditionMonitor = newPhysicalCm
         )
-        updatedDecker = degradeArmor(updatedDecker, damageBledThrough = attack.power > 0) // CD-19
+        updatedDecker = degradeArmor(updatedDecker, damageBledThrough = effectivePower > 0) // CD-19
         val dumpShockTriggered = newCm.isCrashed || newPhysicalCm.isCrashed
         return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered)
     }
@@ -402,7 +402,7 @@ object CombatResolver {
             persona = persona.copy(conditionMonitor = newCm),
             mentalConditionMonitor = newMentalCm
         )
-        updatedDecker = degradeArmor(updatedDecker, damageBledThrough = attack.power > 0) // CD-19
+        updatedDecker = degradeArmor(updatedDecker, damageBledThrough = effectivePower > 0) // CD-19
         val dumpShockTriggered = newCm.isCrashed || newMentalCm.isCrashed
         return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered)
     }

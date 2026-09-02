@@ -336,8 +336,9 @@ class ScenarioBuilder(private val matrix: Matrix) {
     }
 
     fun invokeMedic(name: String = "invokeMedic") = step(name) {
+        val damageBefore = currentDecker().persona?.conditionMonitor?.damage ?: 0
         val result = currentDecker().invokeMedic(roller)
-        assertTrue(result.boxesRepaired >= 0, "$name: boxesRepaired should be non-negative")
+        if (damageBefore > 0) assertTrue(result.boxesRepaired >= 1, "$name: boxesRepaired should be >= 1 when decker has damage")
         updateCurrentDecker(result.updatedDecker)
     }
 

@@ -58,8 +58,8 @@
 - Name
 - ScrambleProtected: bool — file is guarded by a Scramble IC program
 - IsPointer: bool — file contains only a reference to data stored on another host
-- PointerTargetHost: Host? — the host where the actual data resides (non-null when IsPointer = true)
-- PointerTargetFile: DataFile? — the specific file on the target host (may be another pointer, forming a chain)
+- pointerToHost: Host? — the host where the actual data resides (non-null when isPointer = true)
+- pointerTargetFile: DataFile? — the specific file on the target host (may be another pointer, forming a chain)
 
 ### Implementation Notes
 
@@ -88,7 +88,7 @@
 - Active Memory (Mp): limits how many utilities run simultaneously
 - Storage Memory (Mp): stores all utilities and downloaded data; caps download size
 - I/O Speed (Mp per Combat Turn): upload/download rate
-- Response Increase (0–3 points; max = MPCP ÷ 4): each point adds +2 Reaction and +1D6 Initiative
+- Response Increase (0–3 points; max = ⌊MPCP ÷ 4⌋): each point adds +2 Reaction and +1D6 Initiative
 - Detection Factor = (Masking + Sleaze) ÷ 2 rounded up; or Masking ÷ 2 if no Sleaze running
 - Cost (nuyen)
 

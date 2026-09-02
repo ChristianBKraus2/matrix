@@ -88,10 +88,10 @@ class SystemTestResolverTest {
     fun `resolveNullOperation under 10 seconds applies 0 bonus to SecurityValue`() {
         val d = decker()
         val h = host(secValue = 4)
-        // With face=8 (open-ended) decker always wins; we care that host rolls exactly 4 dice (no bonus)
+        // With face=5 decker always fails high TN; host (DF=3) always succeeds — we care host rolls exactly 4 dice (no bonus)
         val outcome = SystemTestResolver.resolveNullOperation(d, h, inactivitySeconds = 5, fixedRoller(5))
-        // secValue=4, bonus=0 → host rolled 4 dice; with face=8 vs DF=3 host gets 4 successes
-        // decker rolled 6 dice with face=8 vs TN=max(2, control-deception)
+        // secValue=4, bonus=0 → host rolled 4 dice; with face=5 vs DF=3 host gets 4 successes
+        // decker rolled 6 dice with face=5 vs TN=max(2, control-deception)
         // Structural check: outcome is returned with no exception
         assertEquals(4, outcome.hostSuccesses)
         assertFalse(outcome.deckerWins)

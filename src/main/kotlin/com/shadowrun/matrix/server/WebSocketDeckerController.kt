@@ -203,11 +203,7 @@ class WebSocketDeckerController(
             }
             SystemOperation.ANALYZE_SECURITY -> decker.analyzeSecurity(grid, diceRoller).toDispatch()
             SystemOperation.LOCATE_IC        -> decker.locateIc(grid, diceRoller).toDispatch()
-            SystemOperation.ANALYZE_IC -> {
-                val ic = (action.target as? MatrixObject.IcProgram)?.ic
-                    ?: return DispatchResult(decker, false, 0, 0, "ANALYZE_IC requires an IcProgram target")
-                decker.analyzeIc(ic, grid, diceRoller).toDispatch()
-            }
+            SystemOperation.INVOKE_MEDIC -> decker.invokeMedic(diceRoller).toDispatch()
             else -> DispatchResult(decker, false, 0, 0, "${action.operation} not supported on grid")
         }
     }
@@ -320,7 +316,7 @@ class WebSocketDeckerController(
                 decker.editFile(file, host, content?.toByteArray(), diceRoller).toDispatch()
             }
             SystemOperation.UPLOAD_DATA    -> {
-                val dataSizeMp = p?.dataSize ?: 100
+                val dataSizeMp = (p?.dataSize ?: 100).coerceAtLeast(1)
                 val (result, handle) = decker.uploadData(host, dataSizeMp, diceRoller)
                 val dispatch = result.toDispatch()
                 if (handle != null && dispatch.success)
@@ -386,7 +382,7 @@ class WebSocketDeckerController(
                 else dispatch
             }
             SystemOperation.TAP_COMCALL -> {
-                val (opResult, handle) = decker.tapComcall(host, cmd.params?.scannerDeviceRating ?: 0, diceRoller)
+                val (opResult, handle) = decker.tapComcall(host, (cmd.params?.scannerDeviceRating ?: 0).coerceIn(0..10), diceRoller)
                 val dispatch = opResult.toDispatch()
                 if (handle != null && dispatch.success)
                     dispatch.copy(decker = dispatch.decker.copy(activeMonitoredOperations = dispatch.decker.activeMonitoredOperations + handle))

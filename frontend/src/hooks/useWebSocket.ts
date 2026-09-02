@@ -165,8 +165,11 @@ export function useWebSocket() {
       }
       pendingNameRef.current = null
       wsRef.current.send(JSON.stringify(msg))
+    } else {
+      suppressReconnectRef.current = false
+      connect()
     }
-  }, [])
+  }, [connect])
 
   const sendAction = useCallback((actionIndex: number, params?: ActionParams) => {
     if (state.role !== 'active_controller') return
