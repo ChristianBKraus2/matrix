@@ -33,6 +33,7 @@ class DeckerCombatTest : IntegrationTestBase() {
             attackerSuccesses = 6,
             rawDamageLevel = DamageLevel.SERIOUS,
             stagedDamageLevel = DamageLevel.SERIOUS,
+            rawWeaponPower = 6,
             power = 6
         )
         val result = CombatResolver.resolveBlackHammer(decker, attack, hitRoller())
@@ -54,6 +55,7 @@ class DeckerCombatTest : IntegrationTestBase() {
             attackerSuccesses = 3,
             rawDamageLevel = DamageLevel.LIGHT,
             stagedDamageLevel = DamageLevel.LIGHT,
+            rawWeaponPower = 6,
             power = 6
         )
         val result = CombatResolver.resolveBlackHammer(decker, attack, hitRoller())
@@ -75,6 +77,7 @@ class DeckerCombatTest : IntegrationTestBase() {
             attackerSuccesses = 6,
             rawDamageLevel = DamageLevel.SERIOUS,
             stagedDamageLevel = DamageLevel.SERIOUS,
+            rawWeaponPower = 6,
             power = 6
         )
         val result = CombatResolver.resolveKilljoy(decker, attack, hitRoller())
@@ -96,6 +99,7 @@ class DeckerCombatTest : IntegrationTestBase() {
             attackerSuccesses = 6,
             rawDamageLevel = DamageLevel.SERIOUS,
             stagedDamageLevel = DamageLevel.SERIOUS,
+            rawWeaponPower = 6,
             power = 6
         )
         val result = CombatResolver.resolveKilljoy(decker, attack, hitRoller())
@@ -177,6 +181,7 @@ class DeckerCombatTest : IntegrationTestBase() {
             attackerSuccesses = 10,
             rawDamageLevel = DamageLevel.LIGHT,
             stagedDamageLevel = DamageLevel.LIGHT,
+            rawWeaponPower = 4,
             power = 4
         )
         val trackState = CombatResolver.resolveTrackLock(attack, decker, trackRating = 6, diceRoller = failRoller())
@@ -199,6 +204,7 @@ class DeckerCombatTest : IntegrationTestBase() {
             attackerSuccesses = 1,
             rawDamageLevel = DamageLevel.LIGHT,
             stagedDamageLevel = DamageLevel.LIGHT,
+            rawWeaponPower = 4,
             power = 4
         )
         val trackState = CombatResolver.resolveTrackLock(attack, decker, trackRating = 1, diceRoller = hitRoller())

@@ -59,7 +59,7 @@ function EntityCard({
           <div className="entity-name">
             {obj.name}
             {obj.isScrambleProtected && <span className="badge badge-red">SCRAMBLED</span>}
-            {obj.isPointer && <span className="badge badge-amber">PTR</span>}
+            {obj.isPointer && <span className="badge badge-amber">POINTER</span>}
           </div>
           <EF label="SIZE" value={`${obj.sizeMp} MP`} />
         </>

@@ -603,7 +603,7 @@ class DeckerOperationsTest {
         // Track penalty = 4; base access = 2 → effective TN = 6
         // face=5 < 6 → decker fails → JackOut with dump shock
         val h = host(secValue = 2, access = 2)
-        val track = TrackState(trackingIcRating = 4, locationCycleTurnsRemaining = 3)
+        val track = TrackState(trackingIcRating = 4, locationCycleTurnsRemaining = 3, opponentSensorRating = 4, trackerMcpRating = 4)
         val d = decker(host = h).copy(trackState = track)
         // Roller: decker loses (face=5 fails TN=6); host wins (face=5 ≥ DF=3)
         val result = d.gracefulLogoff(fixedRoller(5))

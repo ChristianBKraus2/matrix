@@ -36,7 +36,7 @@ fun main() {
 
     val context = GameContext(
         host = host,
-        securityCode = SecurityCode.GREEN,
+        securityCode = host.securityRating.code,
         deckers = listOf(decker),
         matrix = matrix
     )

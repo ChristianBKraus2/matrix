@@ -46,7 +46,7 @@ function JoinScreen({
   return (
     <div className="join-screen">
       <div className="join-box">
-        <div className="join-title">MATRIX OF SHADOWRUN</div>
+        <div className="join-title">MATRIX OF SHADOWRUN v1.0</div>
         <div className="join-subtitle">▸ CONNECT TO THE GRID ◂</div>
 
         {!connected ? (

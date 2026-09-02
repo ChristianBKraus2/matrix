@@ -472,7 +472,7 @@ Replaces the 7-step sequence in `creation.md`:
 6. Instantiate the four `PersonaPrograms`; validate ratings ≤ MPCP and sum ≤ MPCP × 3.
 7. Validate Response Increase ≤ min(3, floor(MPCP ÷ 4)).
 8. Instantiate each `Utility` with `rating`, `currentRating = rating`, `sourceCode` flag; validate `rating ≤ MPCP` (CD-01); calculate Mp sizes; validate total ≤ Storage Memory. Note: `currentRating` is not validated at load time — it starts equal to `rating` and can only decrease during play, so it is always within bounds at construction.
-9. Partition utilities by `active` flag: `active: true` → `activeUtilities` (turnsRemaining = 0, fully uploaded); others → `storedUtilities`. Validate total active Mp ≤ Active Memory.
+9. All utilities go into `storedUtilities`; those with `active: true` also go into `activeUtilities` (turnsRemaining = 0, fully uploaded). Validate total active Mp ≤ Active Memory.
 10. Derive and attach the `Persona`: Bod/Evasion/Masking/Sensor from persona programs; Reaction = base + Response Increase × 2; Hacking Pool and Detection Factor computed lazily.
 
 ---

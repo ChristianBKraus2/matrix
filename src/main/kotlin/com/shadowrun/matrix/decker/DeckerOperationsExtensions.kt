@@ -498,7 +498,7 @@ fun Decker.nullOperation(grid: Grid, inactivitySeconds: Int, diceRoller: DiceRol
 
 // ── Medic Utility ──────────────────────────────────────────────────────────────
 
-/** PRD: CD-26 / G-15 */
+/** PRD: CD-20 */
 fun Decker.invokeMedic(diceRoller: DiceRoller): MedicResult {
     logger.info { "[$name] invokeMedic: invoking Medic utility" }
     check(persona != null) { "invokeMedic requires a jacked-in persona" }

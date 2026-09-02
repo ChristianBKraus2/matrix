@@ -19,4 +19,3 @@ data class DumpShock(val securityRating: SecurityRating) {
     }
 }
 
-data class SimsenseOverload(val damageLevel: DamageLevel)

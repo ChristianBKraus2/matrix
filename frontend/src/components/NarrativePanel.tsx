@@ -39,7 +39,7 @@ export default function NarrativePanel({ events, isActiveTurn }: Props) {
                 return (
                   <div key={i} className={`event-item ${cls}`}>
                     <span className="event-badge">
-                      {ev.msg.success ? 'SUCCESS' : 'FAILURE'}
+                      {ev.msg.success ? '✓ SUCCESS' : '✗ FAILURE'}
                     </span>
                     <span className="event-dice">
                       [{ev.msg.deckerSuccesses}d vs {ev.msg.hostSuccesses}h]

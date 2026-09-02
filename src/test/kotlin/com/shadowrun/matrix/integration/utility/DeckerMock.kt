@@ -30,7 +30,7 @@ object DeckerMock {
         )
         val deck = Cyberdeck(
             name = "Fairlight Excalibur",
-            mcpRating = 10,
+            mcpRating = 12,
             activeMemoryMp = 2000,
             storageMemoryMp = 5000,
             ioSpeedMpPerTurn = 300,

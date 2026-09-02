@@ -11,6 +11,7 @@ import com.shadowrun.matrix.operations.DownloadHandle
 import com.shadowrun.matrix.operations.InterrogationState
 import com.shadowrun.matrix.operations.Icon
 import com.shadowrun.matrix.operations.MatrixObject
+import com.shadowrun.matrix.operations.MonitoredOperationHandle
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.operations.UploadHandle
 import com.shadowrun.matrix.programs.UtilityType
@@ -45,9 +46,11 @@ data class Decker(
     val runDownloadedFiles: List<DataFile> = emptyList(),
     val activeDownloads: List<DownloadHandle> = emptyList(),
     val activeUploads: List<UploadHandle> = emptyList(),
+    val activeMonitoredOperations: List<MonitoredOperationHandle> = emptyList(),
     val interrogationStates: Map<String, InterrogationState> = emptyMap(),
     val detectedIcons: Set<Icon> = emptySet(),
-    val analyzedIcNames: Set<String> = emptySet()
+    val analyzedIcNames: Set<String> = emptySet(),
+    val knownPasscodes: Set<String> = emptySet()
 ) : ActiveIcon {
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = ActionResult.DeckerAction
 
@@ -66,9 +69,9 @@ data class Decker(
     /** Detection Factor = ceil((Masking + Sleaze.currentRating) / 2); or ceil(Masking / 2) if no Sleaze active.
      *  Recalculated dynamically — Sleaze in pendingUploads does not count. PRD: CD-17, CD-18 */
     val detectionFactor: Int get() {
-        val masking = cyberdeck.personaPrograms
-            .firstOrNull { it.attributeType == PersonaAttributeType.MASKING }
-            ?.rating ?: 0
+        val masking = persona?.masking
+            ?: cyberdeck.personaPrograms.firstOrNull { it.attributeType == PersonaAttributeType.MASKING }?.rating
+            ?: 0
         val sleaze = cyberdeck.activeUtilities
             .firstOrNull { it.type == UtilityType.SLEAZE }?.currentRating
         return cyberdeck.detectionFactor(masking, sleaze)

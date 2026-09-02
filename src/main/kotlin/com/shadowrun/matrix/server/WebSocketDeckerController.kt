@@ -3,6 +3,7 @@ package com.shadowrun.matrix.server
 import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.combat.CombatResolver
 import com.shadowrun.matrix.common.SecurityCode
+import com.shadowrun.matrix.common.SecurityRating
 import com.shadowrun.matrix.ic.LethalBlackIC
 import com.shadowrun.matrix.ic.NonLethalBlackIC
 import com.shadowrun.matrix.decker.*import com.shadowrun.matrix.game.ActionResult
@@ -23,6 +24,7 @@ import com.shadowrun.matrix.operations.LocateDeckerResult
 import com.shadowrun.matrix.operations.LocateResult
 import com.shadowrun.matrix.operations.Icon
 import com.shadowrun.matrix.operations.MatrixObject
+import com.shadowrun.matrix.operations.MonitoredOperationHandle
 import com.shadowrun.matrix.operations.OperationResult
 import com.shadowrun.matrix.operations.QueryPrecision
 import com.shadowrun.matrix.operations.SystemOperation
@@ -149,29 +151,28 @@ class WebSocketDeckerController(
             is AvailableAction.LogonToPltg    -> decker.logonToPltg(action.pltg, diceRoller).toDispatch()
             is AvailableAction.LogonToHost    -> decker.logonToHost(action.host, diceRoller).toDispatch()
             is AvailableAction.GracefulLogoff -> {
-                val preLogoffHost = (decker.currentLocation as? MatrixLocation.OnHost)?.host
-                decker.gracefulLogoff(diceRoller).toDispatch(preLogoffHost, diceRoller)
+                val preLogoffSecRating = decker.currentLocation?.securityRating()
+                decker.gracefulLogoff(diceRoller).toDispatch(preLogoffSecRating, diceRoller)
             }
             is AvailableAction.JackOut        -> {
+                val preLogoffSecRating = decker.currentLocation?.securityRating()
                 if (decker.isPinnedByBlackIc) {
                     val pin = requireNotNull(decker.blackIcPin)
                     val pinResult = CombatResolver.resolveJackOutWithPin(decker, diceRoller)
                     if (!pinResult.succeeded) {
                         DispatchResult(decker, false, 0, 0, "Willpower test failed — Black IC maintains the pin")
                     } else {
-                        val preLogoffHost = (decker.currentLocation as? MatrixLocation.OnHost)?.host
-                        val securityCode = preLogoffHost?.securityRating?.code ?: SecurityCode.GREEN
+                        val securityCode = preLogoffSecRating?.code ?: SecurityCode.GREEN
                         val postAttackDecker = if (pinResult.finalIcAttackTriggered) {
                             when (val ic = pin.pinningIc) {
                                 is LethalBlackIC    -> CombatResolver.resolveLethalBlackIc(decker, ic, securityCode, diceRoller).updatedDecker
                                 is NonLethalBlackIC -> CombatResolver.resolveNonLethalBlackIc(decker, ic, securityCode, diceRoller).updatedDecker
                             }
                         } else decker
-                        postAttackDecker.copy(blackIcPin = null).jackOut().toDispatch(preLogoffHost, diceRoller)
+                        postAttackDecker.copy(blackIcPin = null).jackOut().toDispatch(preLogoffSecRating, diceRoller)
                     }
                 } else {
-                    val preLogoffHost = (decker.currentLocation as? MatrixLocation.OnHost)?.host
-                    decker.jackOut().toDispatch(preLogoffHost, diceRoller)
+                    decker.jackOut().toDispatch(preLogoffSecRating, diceRoller)
                 }
             }
             is AvailableAction.Operation -> {
@@ -194,7 +195,7 @@ class WebSocketDeckerController(
         }
         val p = cmd.params
         return when (action.operation) {
-            SystemOperation.NULL_OPERATION -> decker.nullOperation(grid, p?.inactivitySeconds?.coerceIn(0, 3600) ?: 0, diceRoller).toDispatch()
+            SystemOperation.NULL_OPERATION -> decker.nullOperation(grid, p?.inactivitySeconds?.coerceAtLeast(0) ?: 0, diceRoller).toDispatch()
             SystemOperation.RELOCATE_ICON  -> DispatchResult(decker, false, 0, 0, "RELOCATE_ICON requires a host context")
             SystemOperation.LOCATE_ACCESS_NODE -> {
                 val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateAccessNode(grid, q, prec, diceRoller) }
@@ -271,16 +272,23 @@ class WebSocketDeckerController(
 
     private fun dispatchLocateOp(action: AvailableAction.Operation, cmd: ActionCommand, host: Host, diceRoller: DiceRoller): DispatchResult {
         val p = cmd.params
+        val query = p?.query?.trim() ?: ""
         return when (action.operation) {
             SystemOperation.LOCATE_FILE -> {
+                if (query.isBlank() && decker.interrogationStates["LOCATE_FILE@HOST"] == null)
+                    return DispatchResult(decker, false, 0, 0, "LOCATE_FILE requires a search term on the first call")
                 val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateFile(host, q, prec, diceRoller) }
                 opResult.toDispatch(locateResult.label())
             }
             SystemOperation.LOCATE_SLAVE -> {
+                if (query.isBlank() && decker.interrogationStates["LOCATE_SLAVE@HOST"] == null)
+                    return DispatchResult(decker, false, 0, 0, "LOCATE_SLAVE requires a search term on the first call")
                 val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateSlave(host, q, prec, diceRoller) }
                 opResult.toDispatch(locateResult.label())
             }
             SystemOperation.LOCATE_ACCESS_NODE -> {
+                if (query.isBlank() && decker.interrogationStates["LOCATE_ACCESS_NODE@HOST"] == null)
+                    return DispatchResult(decker, false, 0, 0, "LOCATE_ACCESS_NODE requires a search term on the first call")
                 val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateAccessNode(host, q, prec, diceRoller) }
                 opResult.toDispatch(locateResult.label())
             }
@@ -341,25 +349,49 @@ class WebSocketDeckerController(
             SystemOperation.CONTROL_SLAVE -> {
                 val device = (action.target as? MatrixObject.Device)?.device
                     ?: return DispatchResult(decker, false, 0, 0, "CONTROL_SLAVE requires a Device target")
-                decker.controlSlave(device, host, diceRoller).first.toDispatch()
+                val (opResult, handle) = decker.controlSlave(device, host, diceRoller)
+                val dispatch = opResult.toDispatch()
+                if (handle != null && dispatch.success)
+                    dispatch.copy(decker = dispatch.decker.copy(activeMonitoredOperations = dispatch.decker.activeMonitoredOperations + handle))
+                else dispatch
             }
             SystemOperation.EDIT_SLAVE -> {
                 val device = (action.target as? MatrixObject.Device)?.device
                     ?: return DispatchResult(decker, false, 0, 0, "EDIT_SLAVE requires a Device target")
-                decker.editSlave(device, host, diceRoller).first.toDispatch()
+                val (opResult, handle) = decker.editSlave(device, host, diceRoller)
+                val dispatch = opResult.toDispatch()
+                if (handle != null && dispatch.success)
+                    dispatch.copy(decker = dispatch.decker.copy(activeMonitoredOperations = dispatch.decker.activeMonitoredOperations + handle))
+                else dispatch
             }
             SystemOperation.MONITOR_SLAVE -> {
                 val device = (action.target as? MatrixObject.Device)?.device
                     ?: return DispatchResult(decker, false, 0, 0, "MONITOR_SLAVE requires a Device target")
-                decker.monitorSlave(device, host, diceRoller).first.toDispatch()
+                val (opResult, handle) = decker.monitorSlave(device, host, diceRoller)
+                val dispatch = opResult.toDispatch()
+                if (handle != null && dispatch.success)
+                    dispatch.copy(decker = dispatch.decker.copy(activeMonitoredOperations = dispatch.decker.activeMonitoredOperations + handle))
+                else dispatch
             }
             else -> DispatchResult(decker, false, 0, 0, "Unsupported slave op: ${action.operation}")
         }
 
     private fun dispatchCommsOp(action: AvailableAction.Operation, cmd: ActionCommand, host: Host, diceRoller: DiceRoller): DispatchResult {
         return when (action.operation) {
-            SystemOperation.MAKE_COMCALL -> decker.makeComcall(host, diceRoller, cmd.params?.hasValidPasscode ?: false).first.toDispatch()
-            SystemOperation.TAP_COMCALL  -> decker.tapComcall(host, cmd.params?.scannerDeviceRating ?: 0, diceRoller).first.toDispatch()
+            SystemOperation.MAKE_COMCALL -> {
+                val (opResult, handle) = decker.makeComcall(host, diceRoller, cmd.params?.hasValidPasscode ?: false)
+                val dispatch = opResult.toDispatch()
+                if (handle != null && dispatch.success)
+                    dispatch.copy(decker = dispatch.decker.copy(activeMonitoredOperations = dispatch.decker.activeMonitoredOperations + handle))
+                else dispatch
+            }
+            SystemOperation.TAP_COMCALL -> {
+                val (opResult, handle) = decker.tapComcall(host, cmd.params?.scannerDeviceRating ?: 0, diceRoller)
+                val dispatch = opResult.toDispatch()
+                if (handle != null && dispatch.success)
+                    dispatch.copy(decker = dispatch.decker.copy(activeMonitoredOperations = dispatch.decker.activeMonitoredOperations + handle))
+                else dispatch
+            }
             else -> DispatchResult(decker, false, 0, 0, "Unsupported comms op: ${action.operation}")
         }
     }
@@ -367,7 +399,7 @@ class WebSocketDeckerController(
     private fun dispatchMiscOp(action: AvailableAction.Operation, cmd: ActionCommand, host: Host, diceRoller: DiceRoller): DispatchResult {
         val p = cmd.params
         return when (action.operation) {
-            SystemOperation.NULL_OPERATION -> decker.nullOperation(host, p?.inactivitySeconds?.coerceIn(0, 3600) ?: 0, diceRoller).toDispatch()
+            SystemOperation.NULL_OPERATION -> decker.nullOperation(host, p?.inactivitySeconds?.coerceAtLeast(0) ?: 0, diceRoller).toDispatch()
             SystemOperation.RELOCATE_ICON  -> dispatchRelocateIcon(host, diceRoller)
             SystemOperation.INVOKE_MEDIC   -> decker.invokeMedic(diceRoller).toDispatch()
             else -> DispatchResult(decker, false, 0, 0, "Unsupported misc op: ${action.operation}")
@@ -387,6 +419,13 @@ class WebSocketDeckerController(
         return call(precision, query)
     }
 
+    private fun MatrixLocation.securityRating(): SecurityRating = when (this) {
+        is MatrixLocation.OnHost -> host.securityRating
+        is MatrixLocation.OnRTG  -> rtg.securityRating
+        is MatrixLocation.OnLTG  -> ltg.securityRating
+        is MatrixLocation.OnPLTG -> pltg.securityRating
+    }
+
     // ── Result converters ──────────────────────────────────────────────────────
 
     private data class DispatchResult(
@@ -402,11 +441,11 @@ class WebSocketDeckerController(
         is LogonResult.Failure -> DispatchResult(decker, false, deckerSuccesses, hostSuccesses, "Logon failed")
     }
 
-    private fun LogoffResult.toDispatch(preLogoffHost: Host?, diceRoller: DiceRoller) = when (this) {
+    private fun LogoffResult.toDispatch(preLogoffSecRating: SecurityRating?, diceRoller: DiceRoller) = when (this) {
         is LogoffResult.GracefulSuccess -> DispatchResult(decker, true, 0, 0, "Graceful logoff")
         is LogoffResult.JackOut -> {
-            val finalDecker = if (dumpShock && preLogoffHost != null) {
-                CombatResolver.resolveDumpShock(decker, preLogoffHost, diceRoller)
+            val finalDecker = if (dumpShock && preLogoffSecRating != null) {
+                CombatResolver.resolveDumpShock(decker, preLogoffSecRating, diceRoller)
             } else decker
             DispatchResult(finalDecker, true, 0, 0, if (dumpShock) "Jacked out (dump shock!)" else "Jacked out")
         }

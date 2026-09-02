@@ -62,6 +62,7 @@ class GameContext(
     host: Host,
     val securityCode: SecurityCode,
     deckers: List<Decker>,
+    val matrix: Matrix = Matrix(),
     activeIc: List<IC> = emptyList()
 ) {
     var host: Host = host

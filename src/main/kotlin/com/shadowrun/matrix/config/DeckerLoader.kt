@@ -66,7 +66,7 @@ object DeckerLoader {
         }
 
         // Partition utilities by active flag; pre-loaded ones go into activeUtilities.
-        val (activeUtils, storedOnly) = utilities.partition { u ->
+        val activeUtils = utilities.filter { u ->
             activeByType[u.type] ?: false
         }
 

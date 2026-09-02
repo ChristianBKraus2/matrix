@@ -53,6 +53,8 @@ These phrases indicate a spot check, not an audit. They are never acceptable:
 - "No issues expected in..."
 - "I checked representative files from this layer"
 - Citing a PRD clause without having read the PRD in full in this session
+- Grouping multiple files into a single manifest row (e.g. "all files in combat/ — no issues")
+- Declaring a file clean without having applied the per-file checklist to **every method** in it
 
 If you find yourself writing one of these, stop and read the skipped files.
 
@@ -106,6 +108,37 @@ and any test whose name matches a design doc section.
 - Frontend types (`messages.ts` / equivalent) — must match server DTOs
 - Frontend components — rendering logic must match design_ui spec
 
+### Rule 8 — Apply the per-file checklist to every method, not to the file as a whole
+
+A file with 12 methods that has 11 correct ones and 1 wrong one is not "clean." For every
+function / method in the file, step through the checklist independently. Pay special
+attention to:
+
+- Resolver files (`CombatResolver`, `SystemTestResolver`, etc.) where each `resolve*`
+  function has its own algorithm, TN formula, and edge-case handling.
+- Extension files (`Decker*Extensions.kt`) where each extension encodes a separate
+  operation with distinct pre-conditions and return types.
+- Controller dispatch blocks: each `when` / `if` branch for each operation is a
+  separate unit to check.
+
+### Rule 9 — Constructor calls must be verified for completeness
+
+Whenever a domain object is constructed (e.g. `Persona(…)`, `Cyberdeck(…)`,
+`GameContext(…)`), cross-reference the constructor call against the design doc to verify
+that every field the design specifies is supplied. Omissions are silent: a missing
+`sleazeRating = …` compiles without error but violates the spec.
+
+Also applies to factory functions and loader methods that produce domain objects from
+config or from other domain objects.
+
+### Rule 10 — Verify the post-fix surface after a prior audit
+
+When running an audit on a codebase that has had previous findings applied, each fixed
+finding may have been applied only to the most obvious code path. For every partial-fix
+pattern — especially conditional guards of the form `if (x != null) callResolver(…)` —
+enumerate all code paths that should trigger the resolver and verify each one. A fix that
+covers the host case but not the grid case is a new finding, not a closed one.
+
 ---
 
 ## Iteration Structure
@@ -155,6 +188,18 @@ For every file read:
 - [ ] No dead code for operations the design doc describes as active
 - [ ] Wire format field names (`@SerialName`, JSON keys) match the protocol doc
 - [ ] `paramKind` advertised to the client matches what the server actually reads
+- [ ] Every constructor / factory call that builds a designed type supplies all fields
+      the design specifies — omitted optional fields with wrong defaults count
+- [ ] Every method returning a `Pair` / tuple whose second element is a handle or
+      side-effect result: the caller stores / uses that second element; `.first`-only
+      calls are a finding unless the design explicitly permits discarding the second
+- [ ] Every `coerceIn` / `clamp` / `min` applied to a PRD-governed numeric parameter:
+      the upper bound is verified against the PRD's actual maximum (not a guess)
+- [ ] Every conditional guard on a resolver call (`if (x != null) resolve(…)`): all
+      code paths that should trigger the resolver are enumerated and verified — a guard
+      that covers only the host path but not the grid path is incomplete
+- [ ] For frontend hooks: every behavioral contract in the UI design doc is checked
+      (not just type shapes) — state-transition invariants, role guards, token lifecycle
 
 ---
 
@@ -210,3 +255,10 @@ SD- Shadowing · TS- TypeScript type · TRK- Track/lock · UI- UI component · U
 | Dead extension function for a deferred operation | Check every extension function against the set of operations that can dispatch to it |
 | DTO field order differs from design doc | Note in discrepancies log to keep the doc in sync |
 | Test encodes the wrong expectation | Read integration tests; verify the assertion matches the PRD, not just current code |
+| Constructor omits a design-required field | For every `data class` instantiation in init/loader/navigation code, list the design's fields alongside the constructor arguments and compare one-for-one |
+| Live runtime value shadowed by stored/immutable copy | When a domain object has both a stored-program value and a live persona attribute for the same concept (e.g. `personaPrograms[MASKING].rating` vs `persona?.masking`), verify the runtime path reads the degradable live value |
+| Result handle discarded via `.first` / `component1()` | For every operation that returns `Pair<Result, Handle>` or similar, verify the handle is stored somewhere; `.first`-only extraction is a finding |
+| Partial fix covers only one code path | After a prior finding is applied, enumerate all code paths the fix should cover; a condition `if (x != null)` may silently skip the null/grid/secondary path |
+| Numeric param clamped below PRD maximum | For every `coerceIn(a, b)` on a PRD-governed value, verify `b` against the PRD's stated maximum; an incorrect cap silently prevents extended algorithm branches from firing |
+| Test assertion trivially true by construction | `assertEquals(0, x.coerceAtMost(0))` is always 0 for non-negative x; `assertTrue(n >= 0)` is always true; these give false confidence — verify the assertion actually distinguishes correct from incorrect behaviour |
+| Frontend hook behavioral contract unchecked | Reading types is not enough; verify every state-transition rule, role guard, and token-lifecycle clause in design_ui.md against the hook implementation |

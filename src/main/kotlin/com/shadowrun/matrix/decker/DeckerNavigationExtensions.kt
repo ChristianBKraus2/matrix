@@ -9,6 +9,7 @@ import com.shadowrun.matrix.network.PLTG
 import com.shadowrun.matrix.network.RTG
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.operations.SystemTestResolver
+import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.utility.DiceRoller
 import io.github.oshai.kotlinlogging.KotlinLogging
 
@@ -48,6 +49,7 @@ fun Decker.jackInToLtg(ltg: LTG, diceRoller: DiceRoller): LogonResult {
         accessRating = ltg.subsystemRatings.access,
         securityValue = ltg.securityRating.value,
         diceRoller = diceRoller,
+        targetName = ltg.name,
         buildLocation = { updatedTally ->
             val updatedRtg = ltg.parentRtg.copy(
                 securityTally = ltg.parentRtg.securityTally + updatedTally
@@ -76,6 +78,7 @@ fun Decker.jackInToHost(host: Host, diceRoller: DiceRoller): LogonResult {
         accessRating = host.subsystemRatings.access,
         securityValue = host.securityRating.value,
         diceRoller = diceRoller,
+        targetName = host.name,
         buildLocation = { updatedTally ->
             MatrixLocation.OnHost(host.copy(securityTally = host.securityTally + updatedTally))
         }
@@ -115,6 +118,7 @@ fun Decker.logonToRtg(rtg: RTG, diceRoller: DiceRoller): LogonResult {
         accessRating = rtg.subsystemRatings.access,
         securityValue = rtg.securityRating.value,
         diceRoller = diceRoller,
+        targetName = rtg.name,
         buildLocation = { hostTallyDelta ->
             MatrixLocation.OnRTG(rtg.copy(securityTally = rtg.securityTally + hostTallyDelta))
         }
@@ -147,6 +151,7 @@ fun Decker.logonToLtg(ltg: LTG, diceRoller: DiceRoller): LogonResult {
         accessRating = ltg.subsystemRatings.access,
         securityValue = ltg.securityRating.value,
         diceRoller = diceRoller,
+        targetName = ltg.name,
         buildLocation = { hostTallyDelta ->
             val newTally = baseTally + hostTallyDelta
             val updatedRtg = ltg.parentRtg.copy(securityTally = newTally)
@@ -177,6 +182,7 @@ fun Decker.logonToPltg(pltg: PLTG, diceRoller: DiceRoller): LogonResult {
         accessRating = pltg.subsystemRatings.access,
         securityValue = pltg.securityRating.value,
         diceRoller = diceRoller,
+        targetName = pltg.name,
         buildLocation = { hostTallyDelta ->
             MatrixLocation.OnPLTG(pltg.copy(securityTally = inheritedTally + hostTallyDelta))
         }
@@ -209,6 +215,7 @@ fun Decker.logonToHost(host: Host, diceRoller: DiceRoller): LogonResult {
         accessRating = host.subsystemRatings.access,
         securityValue = host.securityRating.value,
         diceRoller = diceRoller,
+        targetName = host.name,
         buildLocation = { hostTallyDelta ->
             MatrixLocation.OnHost(host.copy(securityTally = host.securityTally + hostTallyDelta))
         }
@@ -266,8 +273,31 @@ private fun Decker.performLogon(
     accessRating: Int,
     securityValue: Int,
     diceRoller: DiceRoller,
-    buildLocation: (Int) -> MatrixLocation
+    buildLocation: (Int) -> MatrixLocation,
+    targetName: String = ""
 ): LogonResult {
+    if (knownPasscodes.contains(targetName)) {
+        val newLocation = buildLocation(0)
+        val newPersona = persona ?: run {
+            val bod     = cyberdeck.personaPrograms.firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.BOD }?.rating ?: 0
+            val evasion = cyberdeck.personaPrograms.firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.EVASION }?.rating ?: 0
+            val masking = cyberdeck.personaPrograms.firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.MASKING }?.rating ?: 0
+            val sensor  = cyberdeck.personaPrograms.firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.SENSORS }?.rating ?: 0
+            require(bod >= 1 && evasion >= 1 && masking >= 1 && sensor >= 1) {
+                "Cannot log on: all persona attributes must be ≥ 1 " +
+                "(bod=$bod, evasion=$evasion, masking=$masking, sensor=$sensor) — " +
+                "ensure matching persona programs are installed"
+            }
+            Persona(
+                bod = bod, evasion = evasion, masking = masking, sensor = sensor,
+                sleazeRating = cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.SLEAZE }?.currentRating ?: 0,
+                reaction = reaction + cyberdeck.responseIncrease * 2,
+                status = com.shadowrun.matrix.common.PersonaStatus.LEGITIMATE
+            )
+        }
+        return LogonResult.Success(copy(persona = newPersona, currentLocation = newLocation), newLocation,
+            deckerSuccesses = 0, hostSuccesses = 0)
+    }
     val outcome = SystemTestResolver.resolve(this, operation, accessRating, securityValue, diceRoller)
     val newLocation = buildLocation(outcome.hostSuccesses)
     return if (outcome.deckerWins) {
@@ -283,6 +313,7 @@ private fun Decker.performLogon(
             }
             Persona(
                 bod = bod, evasion = evasion, masking = masking, sensor = sensor,
+                sleazeRating = cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.SLEAZE }?.currentRating ?: 0,
                 reaction = reaction + cyberdeck.responseIncrease * 2,
                 status = com.shadowrun.matrix.common.PersonaStatus.INTRUDING
             )

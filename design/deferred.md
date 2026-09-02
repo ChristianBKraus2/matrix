@@ -68,7 +68,12 @@ PRD ICC-10: if a companion at the jackpoint manually pulls the plug while Black 
 
 ---
 
-## 10. Matrix Perception wiring — `detectedIcons` / `noticeIcon` (DS-1)
+## 11. Security decker spawning in `GameContext` (GC-2)
+
+**Source:** [design_game/game.md](design_game/game.md)
+
+`GameContext` does not spawn or manage security deckers as NPC opponents. The PRD anticipates that a host's security response could include deploying a counter-intrusion decker, but the NPC AI design (action selection, target priority, logon sequencing) is not yet specified. Until that design exists, only IC programs act as automated defenders. Belongs in a future `npc_ai.md` design document.
+
 
 **Source:** [design_core/ord.md](design_core/ord.md) · PRD MP-01 through MP-10
 

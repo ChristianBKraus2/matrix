@@ -22,6 +22,7 @@ import com.shadowrun.matrix.utility.DiceRoller
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -92,8 +93,8 @@ class SystemTestResolverTest {
         // secValue=4, bonus=0 → host rolled 4 dice; with face=8 vs DF=3 host gets 4 successes
         // decker rolled 6 dice with face=8 vs TN=max(2, control-deception)
         // Structural check: outcome is returned with no exception
-        assertEquals(0, outcome.hostSuccesses.coerceAtMost(0))  // just confirming no crash; real assertion below
-        assertTrue(outcome.deckerSuccesses >= 0)
+        assertEquals(4, outcome.hostSuccesses)
+        assertFalse(outcome.deckerWins)
     }
 
     @Test

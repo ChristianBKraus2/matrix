@@ -67,7 +67,7 @@ data class AnalyzeHostResult(
 sealed class LocatedTarget {
     data class FileTarget(val file: DataFile) : LocatedTarget()
     data class SlaveTarget(val device: RemoteDevice) : LocatedTarget()
-    data class AccessNodeTarget(val query: String) : LocatedTarget()
+    data class AccessNodeTarget(val address: String) : LocatedTarget()
 }
 ```
 
@@ -575,7 +575,7 @@ fun uploadData(
 
 ```kotlin
 data class UploadHandle(
-    val description: String,
+    val file: DataFile,
     val totalMp: Int,
     val ioSpeedMpPerTurn: Int,
     val turnsRemaining: Int,
@@ -610,6 +610,7 @@ fun editFile(
     file: DataFile,
     host: Host,
     newContent: ByteArray?,  // null = deletion
+    attemptAuthentication: Boolean = false,
     diceRoller: DiceRoller
 ): EditFileResult
 

@@ -72,7 +72,11 @@ class CyberdeckAndProgramMechanicsTest {
         cyberdeck: Cyberdeck = deck(),
         jackedIn: Boolean = false
     ): Decker {
-        val persona = if (jackedIn) Persona(bod = 6, evasion = 6, masking = 6, sensor = 6) else null
+        val persona = if (jackedIn) {
+            val maskingRating = cyberdeck.personaPrograms
+                .firstOrNull { it.attributeType == PersonaAttributeType.MASKING }?.rating ?: 6
+            Persona(bod = 6, evasion = 6, masking = maskingRating, sensor = 6)
+        } else null
         return Decker(
             name = "TestDecker",
             intelligence = 6,

@@ -33,7 +33,7 @@ function reducer(state: WsState, action: WsAction): WsState {
     case 'CONNECTED':
       return { ...state, connected: true }
     case 'DISCONNECTED':
-      return { ...state, connected: false, role: null, gameState: null, events: [] }
+      return { ...state, connected: false, role: null, gameState: null }
     case 'CONTROL':
       return {
         ...state,
@@ -72,6 +72,8 @@ export function useWebSocket() {
   const isMountedRef = useRef(true)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectDelay = useRef(3000)
+  const suppressReconnectRef = useRef(false)
+  const wasJackedInRef = useRef(false)
 
   const connect = useCallback(() => {
     const state = wsRef.current?.readyState
@@ -106,9 +108,17 @@ export function useWebSocket() {
               }
             }
             break
-          case 'state':
+          case 'state': {
+            const isJackedIn = msg.decker.location !== 'not jacked in'
+            if (!isJackedIn && wasJackedInRef.current) {
+              reconnectTokenRef.current = null
+              suppressReconnectRef.current = true
+              ws.close()
+            }
+            wasJackedInRef.current = isJackedIn
             dispatch({ type: 'STATE', msg })
             break
+          }
           case 'result':
             dispatch({ type: 'RESULT', msg })
             break
@@ -126,6 +136,7 @@ export function useWebSocket() {
     ws.onclose = () => {
       if (!isMountedRef.current) return
       dispatch({ type: 'DISCONNECTED' })
+      if (suppressReconnectRef.current) return
       reconnectTimer.current = setTimeout(() => {
         reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000)
         connect()
@@ -158,6 +169,7 @@ export function useWebSocket() {
   }, [])
 
   const sendAction = useCallback((actionIndex: number, params?: ActionParams) => {
+    if (state.role !== 'active_controller') return
     if (wsRef.current?.readyState !== WebSocket.OPEN) return
     const msg: ActionCommand = {
       type: 'action',
@@ -165,7 +177,7 @@ export function useWebSocket() {
       ...(params ? { params } : {}),
     }
     wsRef.current.send(JSON.stringify(msg))
-  }, [])
+  }, [state.role])
 
   return { ...state, join, sendAction }
 }

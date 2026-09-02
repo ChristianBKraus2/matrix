@@ -61,7 +61,7 @@ fun Application.matrixModule(registry: SessionRegistry) {
                             logger.error(e) { "Frame dispatch error" }
                             runCatching {
                                 this.send(Frame.Text(MatrixJson.encodeToString(
-                                    ErrorMessage(message = ErrorCode.BAD_REQUEST, details = null)
+                                    ErrorMessage(message = ErrorCode.BAD_REQUEST, details = e.message?.take(256))
                                 )))
                             }
                         }

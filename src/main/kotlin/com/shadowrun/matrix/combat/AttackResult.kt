@@ -7,6 +7,7 @@ sealed class AttackResult {
         val attackerSuccesses: Int,
         val rawDamageLevel: DamageLevel,
         val stagedDamageLevel: DamageLevel,
+        val rawWeaponPower: Int,
         val power: Int
     ) : AttackResult()
 

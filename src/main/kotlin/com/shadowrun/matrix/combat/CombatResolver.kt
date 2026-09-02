@@ -82,7 +82,7 @@ object CombatResolver {
         val defenderSuccesses = diceRoller.roll(defender.bod, max(2, effectivePower)).successes
         val net = attackerSuccesses - defenderSuccesses
         val staged = stage(attacker.rawDamageLevel, net)
-        return AttackResult.Hit(attackerSuccesses, attacker.rawDamageLevel, staged, effectivePower)
+        return AttackResult.Hit(attackerSuccesses, attacker.rawDamageLevel, staged, power, effectivePower)
     }
 
     // ── Icon Damage and Secondary Effects ─────────────────────────────────────────
@@ -128,8 +128,11 @@ object CombatResolver {
         return IcDamageResult(updatedDecker, attack, simsense, dumpShockTriggered)
     }
 
-    fun resolveDumpShock(decker: Decker, host: Host, diceRoller: DiceRoller): Decker {
-        val shock = DumpShock(host.securityRating)
+    fun resolveDumpShock(decker: Decker, host: Host, diceRoller: DiceRoller): Decker =
+        resolveDumpShock(decker, host.securityRating, diceRoller)
+
+    fun resolveDumpShock(decker: Decker, securityRating: com.shadowrun.matrix.common.SecurityRating, diceRoller: DiceRoller): Decker {
+        val shock = DumpShock(securityRating)
         val successes = diceRoller.roll(decker.body, max(2, shock.power)).successes
         val actualLevel = stage(shock.level, -successes)
         return decker.copy(
@@ -296,7 +299,7 @@ object CombatResolver {
             }
         }
 
-        val attack = AttackResult.Hit(1, rawLevel, iconStaged, power)
+        val attack = AttackResult.Hit(1, rawLevel, iconStaged, power, power)
         val personaOnlyCrashed = newCm.isCrashed && !newPhysicalCm.isCrashed
         return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered,
             mpcpReductionOnKill = mpcpReduction, personaOnlyCrashed = personaOnlyCrashed)
@@ -356,7 +359,7 @@ object CombatResolver {
             }
         }
 
-        val attack = AttackResult.Hit(1, rawLevel, iconStaged, power)
+        val attack = AttackResult.Hit(1, rawLevel, iconStaged, power, power)
         val personaOnlyCrashed = newCm.isCrashed && !newMentalCm.isCrashed
         return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered,
             mpcpReductionOnKill = mpcpReduction, personaOnlyCrashed = personaOnlyCrashed)
@@ -368,7 +371,7 @@ object CombatResolver {
         require(!targetDecker.cyberdeck.isCyberterminal) {
             "resolveBlackHammer: cyberterminal users are immune to Black Hammer (ICC-13, CT-04)"
         }
-        val power = attack.power
+        val power = attack.rawWeaponPower
         val effectivePower = max(0, power - targetDecker.cyberdeck.hardening)
         val persona = requireNotNull(targetDecker.persona) { "resolveBlackHammer: decker has no active persona" }
         val newCm = persona.conditionMonitor.applyDamage(attack.stagedDamageLevel)
@@ -388,7 +391,7 @@ object CombatResolver {
         require(!targetDecker.cyberdeck.isCyberterminal) {
             "resolveKilljoy: cyberterminal users are immune to Killjoy (ICC-14, CT-04)"
         }
-        val power = attack.power
+        val power = attack.rawWeaponPower
         val effectivePower = max(0, power - targetDecker.cyberdeck.hardening)
         val persona = requireNotNull(targetDecker.persona) { "resolveKilljoy: decker has no active persona" }
         val newCm = persona.conditionMonitor.applyDamage(attack.stagedDamageLevel)
@@ -521,8 +524,8 @@ object CombatResolver {
     }
 
     private fun resolveTarContest(decker: Decker, icRating: Int, utility: Utility, context: String, diceRoller: DiceRoller): TarBabyResult {
-        val icSuccesses = diceRoller.roll(icRating, utility.currentRating).successes
-        val utilitySuccesses = diceRoller.roll(utility.currentRating, icRating).successes
+        val icSuccesses = diceRoller.roll(icRating, max(2, utility.currentRating)).successes
+        val utilitySuccesses = diceRoller.roll(utility.currentRating, max(2, icRating)).successes
         return if (icSuccesses >= utilitySuccesses) {
             val updatedDeck = decker.cyberdeck.copy(
                 activeUtilities = decker.cyberdeck.activeUtilities.filterNot { it.type == utility.type }

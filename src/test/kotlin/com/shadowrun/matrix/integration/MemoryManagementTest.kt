@@ -112,7 +112,7 @@ class MemoryManagementTest : IntegrationTestBase() {
         assertIs<LoadUtilityResult.Success>(result, "swapUtility should succeed")
         icon.context.updateDecker(icon.currentDecker(), result.decker)
 
-        assertTrue(result.decker.cyberdeck.activeUtilities.none { it.type == UtilityType.ARMOR } ||
+        assertTrue(result.decker.cyberdeck.activeUtilities.none { it.type == UtilityType.ARMOR } &&
                    result.decker.cyberdeck.pendingUploads.none { it.utility.type == UtilityType.ARMOR },
             "Armor should be unloaded after swap")
     }

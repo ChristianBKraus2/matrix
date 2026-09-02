@@ -425,7 +425,7 @@ class CombatResolverTest {
         val roller = allFaces(5) // Willpower test: all succeed → no stun
         val d = decker()
         val ic = Killer(rating = 5)
-        val attack = AttackResult.Hit(3, DamageLevel.MODERATE, DamageLevel.MODERATE, 5)
+        val attack = AttackResult.Hit(3, DamageLevel.MODERATE, DamageLevel.MODERATE, 5, 5)
         val result = CombatResolver.applyIcDamage(d, attack, ic, roller)
         assertEquals(3, result.updatedDecker.persona!!.conditionMonitor.damage)
     }
@@ -436,7 +436,7 @@ class CombatResolverTest {
         val roller = allFaces(1)
         val d = decker(willpower = 3)
         val ic = Killer(rating = 5)
-        val attack = AttackResult.Hit(2, DamageLevel.MODERATE, DamageLevel.MODERATE, 5)
+        val attack = AttackResult.Hit(2, DamageLevel.MODERATE, DamageLevel.MODERATE, 5, 5)
         val result = CombatResolver.applyIcDamage(d, attack, ic, roller)
         val overload = result.simsenseOverload
         assertNotNull(overload)
@@ -450,7 +450,7 @@ class CombatResolverTest {
         val roller = allFaces(5)
         val d = decker(willpower = 5)
         val ic = Killer(rating = 5)
-        val attack = AttackResult.Hit(2, DamageLevel.MODERATE, DamageLevel.MODERATE, 5)
+        val attack = AttackResult.Hit(2, DamageLevel.MODERATE, DamageLevel.MODERATE, 5, 5)
         val result = CombatResolver.applyIcDamage(d, attack, ic, roller)
         val overload = result.simsenseOverload
         assertNotNull(overload)
@@ -464,7 +464,7 @@ class CombatResolverTest {
         val roller = allFaces(1)  // if a test were made it would fail; but no test should occur
         val d = decker()
         val ic = Killer(rating = 5)
-        val attack = AttackResult.Hit(1, DamageLevel.DEADLY, DamageLevel.DEADLY, 5)
+        val attack = AttackResult.Hit(1, DamageLevel.DEADLY, DamageLevel.DEADLY, 5, 5)
         val result = CombatResolver.applyIcDamage(d, attack, ic, roller)
         assertTrue(result.dumpShockTriggered)
         assertNull(result.simsenseOverload)
@@ -478,7 +478,7 @@ class CombatResolverTest {
         val d = decker(persona = personaWithAlmostCrashed)
         val ic = Killer(rating = 5)
         // LIGHT = 1 box; 9+1 = 10 → crashed
-        val attack = AttackResult.Hit(1, DamageLevel.LIGHT, DamageLevel.LIGHT, 5)
+        val attack = AttackResult.Hit(1, DamageLevel.LIGHT, DamageLevel.LIGHT, 5, 5)
         val result = CombatResolver.applyIcDamage(d, attack, ic, roller)
         assertTrue(result.dumpShockTriggered)
     }
@@ -982,7 +982,7 @@ class CombatResolverTest {
     }
 
     @Test
-    fun `resolveNonLethalBlackIc MPCP death blow fires on icon CM crash`() {
+    fun `resolveNonLethalBlackIc MPCP death blow does NOT fire on persona-only CM crash`() {
         // Icon CM = 8 → MODERATE icon hit crashes it → kill fires; MPCP shot (ic.rating*2=12 dice) all fail → reduction=0
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6,
             conditionMonitor = ConditionMonitor(damage = 8))
@@ -1002,7 +1002,7 @@ class CombatResolverTest {
         // body all fail → staged damage applied to physical CM
         val roller = allFaces(1)
         val d = decker(body = 4)
-        val attack = AttackResult.Hit(3, DamageLevel.SERIOUS, DamageLevel.SERIOUS, 6)
+        val attack = AttackResult.Hit(3, DamageLevel.SERIOUS, DamageLevel.SERIOUS, 6, 6)
         val result = CombatResolver.resolveBlackHammer(d, attack, roller)
         assertTrue(result.updatedDecker.physicalConditionMonitor.damage > 0)
         assertNull(result.simsenseOverload)
@@ -1014,7 +1014,7 @@ class CombatResolverTest {
     fun `resolveKilljoy applies mental damage via Willpower resist`() {
         val roller = allFaces(1)  // willpower fails
         val d = decker(willpower = 5)
-        val attack = AttackResult.Hit(3, DamageLevel.MODERATE, DamageLevel.MODERATE, 6)
+        val attack = AttackResult.Hit(3, DamageLevel.MODERATE, DamageLevel.MODERATE, 6, 6)
         val result = CombatResolver.resolveKilljoy(d, attack, roller)
         assertTrue(result.updatedDecker.mentalConditionMonitor.damage > 0)
         assertNull(result.simsenseOverload)
@@ -1024,7 +1024,7 @@ class CombatResolverTest {
     fun `resolveBlackHammer throws for immune decker`() {
         val immuneDeck = deck().copy(isCyberterminal = true)
         val d = decker(cyberdeck = immuneDeck)
-        val attack = AttackResult.Hit(3, DamageLevel.SERIOUS, DamageLevel.SERIOUS, 6)
+        val attack = AttackResult.Hit(3, DamageLevel.SERIOUS, DamageLevel.SERIOUS, 6, 6)
         val result = runCatching { CombatResolver.resolveBlackHammer(d, attack, allFaces(1)) }
         assertTrue(result.isFailure)
     }
@@ -1033,7 +1033,7 @@ class CombatResolverTest {
     fun `resolveKilljoy throws for immune decker`() {
         val immuneDeck = deck().copy(isCyberterminal = true)
         val d = decker(cyberdeck = immuneDeck)
-        val attack = AttackResult.Hit(3, DamageLevel.MODERATE, DamageLevel.MODERATE, 6)
+        val attack = AttackResult.Hit(3, DamageLevel.MODERATE, DamageLevel.MODERATE, 6, 6)
         val result = runCatching { CombatResolver.resolveKilljoy(d, attack, allFaces(1)) }
         assertTrue(result.isFailure)
     }
@@ -1045,7 +1045,7 @@ class CombatResolverTest {
         // evasion=6 dice, 2 succeed; attacker successes=5; net=3 → ceil(10/3)=4
         val roller = DiceRoller(stubRandom(5, 5, 1, 1, 1, 1))
         val d = decker()
-        val attack = AttackResult.Hit(5, DamageLevel.LIGHT, DamageLevel.LIGHT, 4)
+        val attack = AttackResult.Hit(5, DamageLevel.LIGHT, DamageLevel.LIGHT, 4, 4)
         val result = CombatResolver.resolveTrackLock(attack, d, trackRating = 4, diceRoller = roller)
         assertNotNull(result)
         assertEquals(4, result!!.locationCycleTurnsRemaining)
@@ -1056,7 +1056,7 @@ class CombatResolverTest {
         // evasion=6 dice, 5 succeed; attacker successes=5 → evadeSuccesses >= attack → no lock
         val roller = DiceRoller(stubRandom(*IntArray(6) { 5 }))
         val d = decker()
-        val attack = AttackResult.Hit(5, DamageLevel.LIGHT, DamageLevel.LIGHT, 4)
+        val attack = AttackResult.Hit(5, DamageLevel.LIGHT, DamageLevel.LIGHT, 4, 4)
         val result = CombatResolver.resolveTrackLock(attack, d, trackRating = 4, diceRoller = roller)
         assertNull(result)
     }
@@ -1065,7 +1065,7 @@ class CombatResolverTest {
     fun `resolveTrackLock evader exceeds attacker returns null`() {
         val roller = DiceRoller(stubRandom(*IntArray(6) { 5 }))
         val d = decker()
-        val attack = AttackResult.Hit(3, DamageLevel.LIGHT, DamageLevel.LIGHT, 4)
+        val attack = AttackResult.Hit(3, DamageLevel.LIGHT, DamageLevel.LIGHT, 4, 4)
         val result = CombatResolver.resolveTrackLock(attack, d, trackRating = 4, diceRoller = roller)
         assertNull(result)
     }
@@ -1113,7 +1113,7 @@ class CombatResolverTest {
 
     @Test
     fun `advanceCombatTurn decrements locationCycleTurnsRemaining`() {
-        val track = TrackState(trackingIcRating = 4, locationCycleTurnsRemaining = 3)
+        val track = TrackState(trackingIcRating = 4, locationCycleTurnsRemaining = 3, opponentSensorRating = 4, trackerMcpRating = 4)
         val d = decker().copy(trackState = track)
         val updated = d.advanceCombatTurn()
         assertEquals(2, updated.trackState!!.locationCycleTurnsRemaining)
@@ -1121,7 +1121,7 @@ class CombatResolverTest {
 
     @Test
     fun `advanceCombatTurn clears trackState when turns reach 0`() {
-        val track = TrackState(trackingIcRating = 4, locationCycleTurnsRemaining = 1)
+        val track = TrackState(trackingIcRating = 4, locationCycleTurnsRemaining = 1, opponentSensorRating = 4, trackerMcpRating = 4)
         val d = decker().copy(trackState = track)
         val updated = d.advanceCombatTurn()
         assertNull(updated.trackState)
