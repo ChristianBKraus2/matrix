@@ -632,7 +632,7 @@ class MovementTest {
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
         val d = decker(currentLocation = MatrixLocation.OnLTG(l), persona = persona).copy(
             interrogationStates = mapOf(
-                SystemOperation.LOCATE_FILE to InterrogationState(SystemOperation.LOCATE_FILE, "paydata", 2)
+                "LOCATE_FILE@HOST" to InterrogationState(SystemOperation.LOCATE_FILE, "paydata", 2)
             )
         )
         assertEquals(1, d.interrogationStates.size)
@@ -651,7 +651,7 @@ class MovementTest {
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
         val d = decker(currentLocation = MatrixLocation.OnLTG(l), persona = persona).copy(
             interrogationStates = mapOf(
-                SystemOperation.LOCATE_FILE to InterrogationState(SystemOperation.LOCATE_FILE, "paydata", 3)
+                "LOCATE_FILE@HOST" to InterrogationState(SystemOperation.LOCATE_FILE, "paydata", 3)
             )
         )
         assertEquals(1, d.interrogationStates.size)

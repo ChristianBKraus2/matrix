@@ -45,8 +45,9 @@ data class Decker(
     val runDownloadedFiles: List<DataFile> = emptyList(),
     val activeDownloads: List<DownloadHandle> = emptyList(),
     val activeUploads: List<UploadHandle> = emptyList(),
-    val interrogationStates: Map<SystemOperation, InterrogationState> = emptyMap(),
-    val detectedIcons: Set<Icon> = emptySet()
+    val interrogationStates: Map<String, InterrogationState> = emptyMap(),
+    val detectedIcons: Set<Icon> = emptySet(),
+    val analyzedIcNames: Set<String> = emptySet()
 ) : ActiveIcon {
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = ActionResult.DeckerAction
 
@@ -111,7 +112,7 @@ data class Decker(
             is MatrixLocation.OnHost -> buildList {
                 add(MatrixObject.HostNode(loc.host))
                 loc.host.nodes.forEach { add(MatrixObject.HostSubsystem(it)) }
-                loc.host.icPrograms.forEach { add(MatrixObject.IcProgram(it)) }
+                loc.host.icPrograms.forEach { add(MatrixObject.IcProgram(it, analyzed = it.name in analyzedIcNames)) }
                 loc.host.dataFiles.forEach { add(MatrixObject.File(it)) }
                 loc.host.remoteDevices.forEach { add(MatrixObject.Device(it)) }
                 loc.host.connectedHosts.forEach { add(MatrixObject.HostNode(it)) }

@@ -231,12 +231,12 @@ fun Decker.gracefulLogoff(diceRoller: DiceRoller): LogoffResult {
     if (trackPenalty > 0) logger.info { "[$name] gracefulLogoff: Track penalty +$trackPenalty applied to TN" }
     val outcome = SystemTestResolver.resolve(this, SystemOperation.GRACEFUL_LOGOFF, effectiveTn, securityValue, diceRoller)
     return if (outcome.deckerWins) {
-        LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet())).also {
+        LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet(), analyzedIcNames = emptySet())).also {
             logger.info { "[$name] gracefulLogoff succeeded: traces cleared, no dump shock" }
         }
     } else {
         val shock = !cyberdeck.isCyberterminal
-        LogoffResult.JackOut(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet()), dumpShock = shock).also {
+        LogoffResult.JackOut(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet(), analyzedIcNames = emptySet()), dumpShock = shock).also {
             logger.warn { "[$name] gracefulLogoff failed: falling back to jack-out (dumpShock=$shock)" }
         }
     }

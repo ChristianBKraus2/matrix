@@ -386,7 +386,7 @@ class DeckerOperationsTest {
         // Start at 4; winRoller gives 6+ successes → jumps past 5
         val h = host(secValue = 2, index = 2)
         val d = decker(host = h).copy(interrogationStates = mapOf(
-            SystemOperation.LOCATE_ACCESS_NODE to InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, "", 4)
+            "LOCATE_ACCESS_NODE@HOST" to InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, "", 4)
         ))
         val (_, locate) = d.locateAccessNode(h, "", QueryPrecision.NORMAL, winRoller)
         assertIs<LocateResult.Located>(locate)
@@ -396,7 +396,7 @@ class DeckerOperationsTest {
     fun `locateAccessNode returns NotFound when query does not match any node`() {
         val h = host(secValue = 2, index = 2)
         val d = decker(host = h).copy(interrogationStates = mapOf(
-            SystemOperation.LOCATE_ACCESS_NODE to InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, "XYZNOTANODE", 4)
+            "LOCATE_ACCESS_NODE@HOST" to InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, "XYZNOTANODE", 4)
         ))
         val (_, locate) = d.locateAccessNode(h, "XYZNOTANODE", QueryPrecision.NORMAL, winRoller)
         assertIs<LocateResult.NotFound>(locate)

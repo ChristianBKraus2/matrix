@@ -313,7 +313,7 @@ class SystemOperationsTest {
         val h = host(dataFiles = listOf(file), secValue = 2, control = 2, index = 2)
         // Start at 4, need 1 more; winRoller gives 6 successes → jumps past 5
         val d2 = decker(jackedIn = true, host = h).copy(interrogationStates = mapOf(
-            SystemOperation.LOCATE_FILE to InterrogationState(SystemOperation.LOCATE_FILE, "", 4)
+            "LOCATE_FILE@HOST" to InterrogationState(SystemOperation.LOCATE_FILE, "", 4)
         ))
         val (_, locate) = d2.locateFile(h, "", QueryPrecision.NORMAL, winRoller)
         assertIs<LocateResult.Located>(locate)
@@ -323,7 +323,7 @@ class SystemOperationsTest {
     fun `locateFile returns NotFound when data absent and 3 successes accumulated`() {
         val h = host(secValue = 2, index = 2)
         val d2 = decker(jackedIn = true, host = h).copy(interrogationStates = mapOf(
-            SystemOperation.LOCATE_FILE to InterrogationState(SystemOperation.LOCATE_FILE, "", 2)
+            "LOCATE_FILE@HOST" to InterrogationState(SystemOperation.LOCATE_FILE, "", 2)
         ))
         val (_, locate) = d2.locateFile(h, "", QueryPrecision.NORMAL, winRoller)
         assertIs<LocateResult.NotFound>(locate)
@@ -334,7 +334,7 @@ class SystemOperationsTest {
         val device = RemoteDevice("camera-3", "SLAVE-003")
         val h = host(dataFiles = emptyList(), remoteDevices = listOf(device), secValue = 2, index = 2)
         val d2 = decker(jackedIn = true, host = h).copy(interrogationStates = mapOf(
-            SystemOperation.LOCATE_SLAVE to InterrogationState(SystemOperation.LOCATE_SLAVE, "", 2)
+            "LOCATE_SLAVE@HOST" to InterrogationState(SystemOperation.LOCATE_SLAVE, "", 2)
         ))
         val (_, locate) = d2.locateSlave(h, "", QueryPrecision.NORMAL, winRoller)
         assertIs<LocateResult.Located>(locate)

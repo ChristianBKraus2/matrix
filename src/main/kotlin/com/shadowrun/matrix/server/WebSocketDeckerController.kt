@@ -1,6 +1,10 @@
 package com.shadowrun.matrix.server
 
 import com.shadowrun.matrix.common.SubsystemType
+import com.shadowrun.matrix.combat.CombatResolver
+import com.shadowrun.matrix.common.SecurityCode
+import com.shadowrun.matrix.ic.LethalBlackIC
+import com.shadowrun.matrix.ic.NonLethalBlackIC
 import com.shadowrun.matrix.decker.*import com.shadowrun.matrix.game.ActionResult
 import com.shadowrun.matrix.game.GameContext
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -144,12 +148,31 @@ class WebSocketDeckerController(
             is AvailableAction.LogonToLtg     -> decker.logonToLtg(action.ltg, diceRoller).toDispatch()
             is AvailableAction.LogonToPltg    -> decker.logonToPltg(action.pltg, diceRoller).toDispatch()
             is AvailableAction.LogonToHost    -> decker.logonToHost(action.host, diceRoller).toDispatch()
-            is AvailableAction.GracefulLogoff -> decker.gracefulLogoff(diceRoller).toDispatch()
+            is AvailableAction.GracefulLogoff -> {
+                val preLogoffHost = (decker.currentLocation as? MatrixLocation.OnHost)?.host
+                decker.gracefulLogoff(diceRoller).toDispatch(preLogoffHost, diceRoller)
+            }
             is AvailableAction.JackOut        -> {
-                if (decker.isPinnedByBlackIc)
-                    DispatchResult(decker, false, 0, 0, "Pinned by Black IC — cannot jack out")
-                else
-                    decker.jackOut().toDispatch()
+                if (decker.isPinnedByBlackIc) {
+                    val pin = requireNotNull(decker.blackIcPin)
+                    val pinResult = CombatResolver.resolveJackOutWithPin(decker, diceRoller)
+                    if (!pinResult.succeeded) {
+                        DispatchResult(decker, false, 0, 0, "Willpower test failed — Black IC maintains the pin")
+                    } else {
+                        val preLogoffHost = (decker.currentLocation as? MatrixLocation.OnHost)?.host
+                        val securityCode = preLogoffHost?.securityRating?.code ?: SecurityCode.GREEN
+                        val postAttackDecker = if (pinResult.finalIcAttackTriggered) {
+                            when (val ic = pin.pinningIc) {
+                                is LethalBlackIC    -> CombatResolver.resolveLethalBlackIc(decker, ic, securityCode, diceRoller).updatedDecker
+                                is NonLethalBlackIC -> CombatResolver.resolveNonLethalBlackIc(decker, ic, securityCode, diceRoller).updatedDecker
+                            }
+                        } else decker
+                        postAttackDecker.copy(blackIcPin = null).jackOut().toDispatch(preLogoffHost, diceRoller)
+                    }
+                } else {
+                    val preLogoffHost = (decker.currentLocation as? MatrixLocation.OnHost)?.host
+                    decker.jackOut().toDispatch(preLogoffHost, diceRoller)
+                }
             }
             is AvailableAction.Operation -> {
                 if (host == null) dispatchGridOperation(action, cmd, diceRoller)
@@ -171,7 +194,7 @@ class WebSocketDeckerController(
         }
         val p = cmd.params
         return when (action.operation) {
-            SystemOperation.NULL_OPERATION -> DispatchResult(decker, true, 0, 0, "Turn passed")
+            SystemOperation.NULL_OPERATION -> decker.nullOperation(grid, p?.inactivitySeconds?.coerceIn(0, 3600) ?: 0, diceRoller).toDispatch()
             SystemOperation.RELOCATE_ICON  -> DispatchResult(decker, false, 0, 0, "RELOCATE_ICON requires a host context")
             SystemOperation.LOCATE_ACCESS_NODE -> {
                 val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateAccessNode(grid, q, prec, diceRoller) }
@@ -379,9 +402,14 @@ class WebSocketDeckerController(
         is LogonResult.Failure -> DispatchResult(decker, false, deckerSuccesses, hostSuccesses, "Logon failed")
     }
 
-    private fun LogoffResult.toDispatch() = when (this) {
+    private fun LogoffResult.toDispatch(preLogoffHost: Host?, diceRoller: DiceRoller) = when (this) {
         is LogoffResult.GracefulSuccess -> DispatchResult(decker, true, 0, 0, "Graceful logoff")
-        is LogoffResult.JackOut         -> DispatchResult(decker, true, 0, 0, if (dumpShock) "Jacked out (dump shock!)" else "Jacked out")
+        is LogoffResult.JackOut -> {
+            val finalDecker = if (dumpShock && preLogoffHost != null) {
+                CombatResolver.resolveDumpShock(decker, preLogoffHost, diceRoller)
+            } else decker
+            DispatchResult(finalDecker, true, 0, 0, if (dumpShock) "Jacked out (dump shock!)" else "Jacked out")
+        }
     }
 
     private fun OperationResult.toDispatch(extra: String = ""): DispatchResult {

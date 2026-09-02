@@ -115,7 +115,7 @@ fun Decker.analyzeIc(ic: IC, host: Host, diceRoller: DiceRoller): OperationResul
     requireJackedIn()
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_IC, host.subsystemRatings.control, host.securityRating.value, diceRoller)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
-    return if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome)
+    return if (outcome.deckerWins) OperationResult.Success(updatedDecker.copy(analyzedIcNames = analyzedIcNames + ic.name), outcome)
     else OperationResult.Failure(updatedDecker, outcome).also {
         logger.info { "[$name] analyzeIc: ${if (outcome.deckerWins) "success" else "failure"}" }
     }
@@ -128,8 +128,10 @@ fun Decker.analyzeIcon(icon: Icon, host: Host, diceRoller: DiceRoller): Operatio
     val tn = maxOf(2, host.subsystemRatings.control - sensorRating)
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_ICON, tn, host.securityRating.value, diceRoller)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
-    return if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome)
-    else OperationResult.Failure(updatedDecker, outcome)
+    return if (outcome.deckerWins) {
+        val withAnalysis = if (icon is Icon.IcIcon) updatedDecker.copy(analyzedIcNames = analyzedIcNames + icon.ic.name) else updatedDecker
+        OperationResult.Success(withAnalysis, outcome)
+    } else OperationResult.Failure(updatedDecker, outcome)
 }
 
 fun Decker.analyzeSecurity(host: Host, diceRoller: DiceRoller): AnalyzeSecurityResult {
@@ -198,7 +200,7 @@ fun Decker.decryptSlave(host: Host, diceRoller: DiceRoller): OperationResult {
 // ── Interrogation operations ───────────────────────────────────────────────────
 
 fun Decker.locateFile(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
-    val existingState = interrogationStates[SystemOperation.LOCATE_FILE]
+    val existingState = interrogationStates["LOCATE_FILE@HOST"]
     require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
     val state = existingState ?: InterrogationState(SystemOperation.LOCATE_FILE, query)
     logger.info { "[$name] locateFile on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
@@ -216,8 +218,8 @@ fun Decker.locateFile(host: Host, query: String = "", precision: QueryPrecision,
     }
     logger.info { "[$name] locateFile result: $locateResult" }
     val newStates = when (locateResult) {
-        is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_FILE to newState)
-        else -> interrogationStates - SystemOperation.LOCATE_FILE
+        is LocateResult.Ongoing -> interrogationStates + ("LOCATE_FILE@HOST" to newState)
+        else -> interrogationStates - "LOCATE_FILE@HOST"
     }
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
     val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)
@@ -225,7 +227,7 @@ fun Decker.locateFile(host: Host, query: String = "", precision: QueryPrecision,
 }
 
 fun Decker.locateSlave(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
-    val existingState = interrogationStates[SystemOperation.LOCATE_SLAVE]
+    val existingState = interrogationStates["LOCATE_SLAVE@HOST"]
     require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
     val state = existingState ?: InterrogationState(SystemOperation.LOCATE_SLAVE, query)
     logger.info { "[$name] locateSlave on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
@@ -241,8 +243,8 @@ fun Decker.locateSlave(host: Host, query: String = "", precision: QueryPrecision
     }
     logger.info { "[$name] locateSlave result: $locateResult" }
     val newStates = when (locateResult) {
-        is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_SLAVE to newState)
-        else -> interrogationStates - SystemOperation.LOCATE_SLAVE
+        is LocateResult.Ongoing -> interrogationStates + ("LOCATE_SLAVE@HOST" to newState)
+        else -> interrogationStates - "LOCATE_SLAVE@HOST"
     }
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
     val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)
@@ -250,7 +252,7 @@ fun Decker.locateSlave(host: Host, query: String = "", precision: QueryPrecision
 }
 
 fun Decker.locateAccessNode(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
-    val existingState = interrogationStates[SystemOperation.LOCATE_ACCESS_NODE]
+    val existingState = interrogationStates["LOCATE_ACCESS_NODE@HOST"]
     require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
     val state = existingState ?: InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, query)
     logger.info { "[$name] locateAccessNode on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
@@ -269,8 +271,8 @@ fun Decker.locateAccessNode(host: Host, query: String = "", precision: QueryPrec
         else -> LocateResult.Ongoing(newState.accumulatedSuccesses)
     }
     val newStates = when (locateResult) {
-        is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_ACCESS_NODE to newState)
-        else -> interrogationStates - SystemOperation.LOCATE_ACCESS_NODE
+        is LocateResult.Ongoing -> interrogationStates + ("LOCATE_ACCESS_NODE@HOST" to newState)
+        else -> interrogationStates - "LOCATE_ACCESS_NODE@HOST"
     }
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
     val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)
@@ -278,7 +280,9 @@ fun Decker.locateAccessNode(host: Host, query: String = "", precision: QueryPrec
 }
 
 fun Decker.locateAccessNode(grid: Grid, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
-    val existingState = interrogationStates[SystemOperation.LOCATE_ACCESS_NODE]
+    val contextTag = when (grid) { is LTG -> "LTG"; is RTG -> "RTG"; is PLTG -> "PLTG" }
+    val stateKey = "LOCATE_ACCESS_NODE@$contextTag"
+    val existingState = interrogationStates[stateKey]
     require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
     val state = existingState ?: InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, query)
     logger.info { "[$name] locateAccessNode on ${grid.name} (accumulated=${state.accumulatedSuccesses})" }
@@ -299,8 +303,8 @@ fun Decker.locateAccessNode(grid: Grid, query: String = "", precision: QueryPrec
         else -> LocateResult.Ongoing(newState.accumulatedSuccesses)
     }
     val newStates = when (locateResult) {
-        is LocateResult.Ongoing -> interrogationStates + (SystemOperation.LOCATE_ACCESS_NODE to newState)
-        else -> interrogationStates - SystemOperation.LOCATE_ACCESS_NODE
+        is LocateResult.Ongoing -> interrogationStates + (stateKey to newState)
+        else -> interrogationStates - stateKey
     }
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
     val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)
@@ -312,7 +316,7 @@ fun Decker.analyzeIc(ic: IC, grid: Grid, diceRoller: DiceRoller): OperationResul
     requireJackedIn()
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_IC, grid.subsystemRatings.control, grid.securityRating.value, diceRoller)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
-    return if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome)
+    return if (outcome.deckerWins) OperationResult.Success(updatedDecker.copy(analyzedIcNames = analyzedIcNames + ic.name), outcome)
     else OperationResult.Failure(updatedDecker, outcome)
 }
 

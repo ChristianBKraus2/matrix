@@ -56,7 +56,7 @@ class FileOperationsTest : IntegrationTestBase() {
         // Give partial successes by using a roller that wins narrowly (face 5 = 1 success per die most of the time)
         val state = InterrogationState(SystemOperation.LOCATE_FILE, "Project", accumulatedSuccesses = 1)
         val seedDecker = icon.currentDecker().copy(interrogationStates = mapOf(
-            SystemOperation.LOCATE_FILE to InterrogationState(SystemOperation.LOCATE_FILE, "", 1)
+            "LOCATE_FILE@HOST" to InterrogationState(SystemOperation.LOCATE_FILE, "", 1)
         ))
         val result = seedDecker.locateFile(host, "", QueryPrecision.VAGUE, failRoller())
 
