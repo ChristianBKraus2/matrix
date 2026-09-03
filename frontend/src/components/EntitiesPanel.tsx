@@ -40,8 +40,8 @@ function EntityCard({
           <div className="entity-name">
             {obj.name}
             {obj.analyzed
-              ? <span className="badge badge-green">ANALYZED</span>
-              : <span className="badge badge-gray">UNKNOWN</span>}
+              ? <span className="badge badge-green">[ANALYZED]</span>
+              : <span className="badge badge-gray">[UNKNOWN]</span>}
           </div>
           {obj.analyzed && <EF label="RATING" value={obj.rating} />}
           {obj.analyzed && <EF label="BEHAVIOR" value={obj.behavior} />}

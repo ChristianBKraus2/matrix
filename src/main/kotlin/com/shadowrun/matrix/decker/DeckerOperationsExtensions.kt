@@ -165,6 +165,14 @@ fun Decker.decryptAccess(host: Host, diceRoller: DiceRoller): OperationResult {
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
 }
 
+fun Decker.decryptAccess(grid: Grid, diceRoller: DiceRoller): OperationResult {
+    logger.info { "[$name] decryptAccess on ${grid.name}" }
+    requireJackedIn()
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_ACCESS, grid.subsystemRatings.access, grid.securityRating.value, diceRoller, hackingPoolDice = hackingPool)
+    val updated = withUpdatedTally(outcome.hostSuccesses)
+    return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
+}
+
 fun Decker.decryptFile(file: DataFile, host: Host, diceRoller: DiceRoller): Pair<OperationResult, ScrambleDestructResult?> {
     logger.info { "[$name] decryptFile → ${file.name}" }
     requireJackedIn()
@@ -309,15 +317,6 @@ fun Decker.locateAccessNode(grid: Grid, query: String = "", precision: QueryPrec
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
     val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)
     return Pair(opResult, locateResult)
-}
-
-fun Decker.analyzeIc(ic: IC, grid: Grid, diceRoller: DiceRoller): OperationResult {
-    logger.info { "[$name] analyzeIc on ${grid.name}: IC=${ic.name} rating=${ic.rating}" }
-    requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_IC, grid.subsystemRatings.control, grid.securityRating.value, diceRoller, hackingPoolDice = hackingPool)
-    val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
-    return if (outcome.deckerWins) OperationResult.Success(updatedDecker.copy(analyzedIcNames = analyzedIcNames + ic.name), outcome)
-    else OperationResult.Failure(updatedDecker, outcome)
 }
 
 fun Decker.analyzeSecurity(grid: Grid, diceRoller: DiceRoller): AnalyzeSecurityResult {

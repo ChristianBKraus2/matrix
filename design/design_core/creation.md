@@ -295,6 +295,8 @@ cyberdeck:
 
 ### Decker Initialization Sequence
 
+> **Superseded.** The canonical 10-step sequence is in `design_core/cyberdeck_and_program_mechanics.md` — see the *Updated Decker Initialization Sequence* section there. The 7-step sequence below is retained for historical reference only; follow the 10-step sequence for all implementation work.
+
 1. Parse `<decker_name>.yaml`.
 2. Instantiate the `Decker` with physical stats.
 3. Instantiate the `Cyberdeck` with hardware values.

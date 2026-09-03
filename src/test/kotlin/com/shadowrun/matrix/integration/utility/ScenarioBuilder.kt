@@ -14,6 +14,7 @@ import com.shadowrun.matrix.operations.HostInfoItem
 import com.shadowrun.matrix.operations.MatrixObject
 import com.shadowrun.matrix.operations.OperationResult
 import com.shadowrun.matrix.operations.SystemOperation
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue

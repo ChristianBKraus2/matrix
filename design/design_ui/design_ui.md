@@ -326,7 +326,7 @@ Only callable when `role === "active_controller"`. Sends `ActionCommand` over th
 
 Sections (top to bottom):
 
-1. **Identity header** — decker name in large font. If `isPinnedByBlackIc`, show a blinking `⚠ PINNED` badge in red below the name.
+1. **Identity header** — decker name in large font. If `isPinnedByBlackIc`, show a blinking `⚠ PINNED BY BLACK IC` badge in red below the name.
 2. **Condition monitors** — two rows of boxes:
    ```
    PHYS  [■][■][□][□][□][□][□][□][□][□]   2/10

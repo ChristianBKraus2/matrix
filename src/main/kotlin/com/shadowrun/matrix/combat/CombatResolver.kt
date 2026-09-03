@@ -91,7 +91,7 @@ object CombatResolver {
         val persona = requireNotNull(decker.persona) { "applyIcDamage: decker has no active persona" }
         val newCm = persona.conditionMonitor.applyDamage(attack.stagedDamageLevel)
         var updatedDecker = decker.copy(persona = persona.copy(conditionMonitor = newCm))
-        updatedDecker = degradeArmor(updatedDecker, damageBledThrough = attack.power > 0) // CD-19
+        updatedDecker = degradeArmor(updatedDecker, damageBledThrough = attack.effectivePower > 0) // CD-19
 
         var dumpShockTriggered = false
         var simsense: SimsenseOverloadResult? = null
@@ -548,3 +548,4 @@ object CombatResolver {
         return decker.copy(cyberdeck = decker.cyberdeck.copy(activeUtilities = updatedUtilities))
     }
 }
+

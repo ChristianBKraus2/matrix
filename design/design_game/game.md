@@ -425,7 +425,7 @@ This extension lives in `src/main/kotlin/com/shadowrun/matrix/game/DeckerExtensi
 `Decker.availableActions()` must filter the returned list by the decker's current location context. Two operation sets apply:
 
 - **Host context** (`currentLocation is MatrixLocation.OnHost`): full system operation table — `ANALYZE_HOST`, `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_IC`, `ANALYZE_IC`, `DOWNLOAD_DATA`, `EDIT_FILE`, `CONTROL_SLAVE`, `DECRYPT_*`, etc.
-- **Grid context** (`currentLocation is OnLTG / OnRTG / OnPLTG`): only the subset valid on a grid — `NULL_OPERATION`, `LOCATE_ACCESS_NODE` (M-07: available from RTG), `ANALYZE_SECURITY`, `LOCATE_IC`, `ANALYZE_IC`.
+- **Grid context** (`currentLocation is OnLTG / OnRTG / OnPLTG`): only the subset valid on a grid — `NULL_OPERATION`, `LOCATE_ACCESS_NODE` (M-07: available from RTG), `ANALYZE_SECURITY`, `LOCATE_IC`, `DECRYPT_ACCESS`.
 
 Operations requiring host context must not appear in `availableActions` when the decker is on a grid node. The filter is applied inside `Decker.availableActions()`, not at the server dispatch point — offering an action and returning a failure is confusing to the player.
 

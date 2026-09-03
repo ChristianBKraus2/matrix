@@ -85,7 +85,7 @@ Entity-type objects from `visibleObjects` are displayed as cards in the Right pa
 | Kind | Displayed fields |
 |---|---|
 | `HostSubsystem` | `subsystemType`, `description` |
-| `IcProgram` | `name`, `rating`, `behavior`, `guardedNodeType`; when analyzed (name in decker's `analyzedIcNames`): additionally display IC type badge |
+| `IcProgram` | `name`, `rating`, `behavior`, `guardedNodeType`; when `analyzed === true`: additionally display IC type badge |
 | `File` | `name`, `isScrambleProtected`, `isPointer`, `sizeMp` |
 | `Device` | `name`, `systemAddress` |
 

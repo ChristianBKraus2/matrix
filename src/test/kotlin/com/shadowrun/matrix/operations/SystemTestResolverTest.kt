@@ -167,7 +167,7 @@ class SystemTestResolverTest {
         val state = InterrogationState(SystemOperation.LOCATE_FILE, "q")
         // Should not throw even with extreme modifier
         val (outcome, _) = SystemTestResolver.resolveInterrogation(d, SystemOperation.LOCATE_FILE, h, state, QueryPrecision.VERY_SPECIFIC, fixedRoller(5))
-        assertTrue(outcome.deckerSuccesses >= 0)
+        assertTrue(outcome.deckerSuccesses > 0)
     }
 
     // ── QueryPrecision ────────────────────────────────────────────────────────────

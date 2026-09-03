@@ -355,7 +355,7 @@ class CombatResolverTest {
         val defender = DefenderParticipant(bod = 4, armorCurrentRating = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
-        assertEquals(3, result.power)  // effectivePower stored as power
+        assertEquals(3, result.effectivePower)  // effectivePower = max(0, rawWeaponPower - armorRating)
     }
 
     @Test
@@ -415,7 +415,7 @@ class CombatResolverTest {
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
-        assertEquals(6, result.power)
+        assertEquals(6, result.effectivePower)
     }
 
     // ── applyIcDamage – White/Gray IC ─────────────────────────────────────────────
@@ -695,7 +695,7 @@ class CombatResolverTest {
     // ── resolveRipper ─────────────────────────────────────────────────────────────
 
     @Test
-    fun `resolveRipper allows attribute to reach 0 (caller triggers MPCP test)`() {
+    fun `resolveRipper reduces attribute by net-successes divided by 2 and does not floor at 1`() {
         // 10 net IC successes → reduction=5; evasion=6 → max(0, 1) = 1; wait, reduction=5 → 6-5=1
         // Actually need net/2=5 → net=10; SV for RED=6, need 6+extra dice to get 10 successes
         // Let's keep it simple: 4 dice succeed, 0 decker → net=4 → reduction=2 → evasion=4
@@ -1356,3 +1356,4 @@ class CombatResolverTest {
         assertEquals(3, p.withAttribute(PersonaAttributeType.SENSORS, 3).sensor)
     }
 }
+

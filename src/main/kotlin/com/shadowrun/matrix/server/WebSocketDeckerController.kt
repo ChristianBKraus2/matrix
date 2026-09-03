@@ -203,6 +203,7 @@ class WebSocketDeckerController(
             }
             SystemOperation.ANALYZE_SECURITY -> decker.analyzeSecurity(grid, diceRoller).toDispatch()
             SystemOperation.LOCATE_IC        -> decker.locateIc(grid, diceRoller).toDispatch()
+            SystemOperation.DECRYPT_ACCESS   -> decker.decryptAccess(grid, diceRoller).toDispatch()
             SystemOperation.INVOKE_MEDIC -> decker.invokeMedic(diceRoller).toDispatch()
             else -> DispatchResult(decker, false, 0, 0, "${action.operation} not supported on grid")
         }

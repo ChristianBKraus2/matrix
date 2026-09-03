@@ -834,8 +834,12 @@ Returns the grid's current `SecurityRating`, the accumulated tally after this te
 
 ### `analyzeIc(ic: IC, grid: Grid, diceRoller: DiceRoller): OperationResult`
 
-Uses `grid.subsystemRatings.control` as TN and `grid.securityRating.value` as Security Value.
-Resolves `ANALYZE_IC` against the grid rather than a host subsystem.
+> **Removed.** Per M-08a, IC programs are host-resident; `ANALYZE_IC` is not available from grid context. This overload has been deleted.
+
+### `decryptAccess(grid: Grid, diceRoller: DiceRoller): OperationResult`
+
+Uses `grid.subsystemRatings.access` as TN and `grid.securityRating.value` as Security Value.
+Resolves `DECRYPT_ACCESS` against the grid's access subsystem.
 
 ### `locateAccessNode(grid: Grid, query: String, precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult>`
 

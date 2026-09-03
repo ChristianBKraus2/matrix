@@ -8,8 +8,10 @@ sealed class AttackResult {
         val rawDamageLevel: DamageLevel,
         val stagedDamageLevel: DamageLevel,
         val rawWeaponPower: Int,
-        val power: Int
+        val effectivePower: Int
     ) : AttackResult()
 
     data object Miss : AttackResult()
 }
+
+

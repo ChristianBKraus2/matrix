@@ -34,7 +34,7 @@ class DeckerCombatTest : IntegrationTestBase() {
             rawDamageLevel = DamageLevel.SERIOUS,
             stagedDamageLevel = DamageLevel.SERIOUS,
             rawWeaponPower = 6,
-            power = 6
+            effectivePower = 6
         )
         val result = CombatResolver.resolveBlackHammer(decker, attack, hitRoller())
 
@@ -56,7 +56,7 @@ class DeckerCombatTest : IntegrationTestBase() {
             rawDamageLevel = DamageLevel.LIGHT,
             stagedDamageLevel = DamageLevel.LIGHT,
             rawWeaponPower = 6,
-            power = 6
+            effectivePower = 6
         )
         val result = CombatResolver.resolveBlackHammer(decker, attack, hitRoller())
 
@@ -78,7 +78,7 @@ class DeckerCombatTest : IntegrationTestBase() {
             rawDamageLevel = DamageLevel.SERIOUS,
             stagedDamageLevel = DamageLevel.SERIOUS,
             rawWeaponPower = 6,
-            power = 6
+            effectivePower = 6
         )
         val result = CombatResolver.resolveKilljoy(decker, attack, hitRoller())
 
@@ -100,7 +100,7 @@ class DeckerCombatTest : IntegrationTestBase() {
             rawDamageLevel = DamageLevel.SERIOUS,
             stagedDamageLevel = DamageLevel.SERIOUS,
             rawWeaponPower = 6,
-            power = 6
+            effectivePower = 6
         )
         val result = CombatResolver.resolveKilljoy(decker, attack, hitRoller())
 
@@ -182,7 +182,7 @@ class DeckerCombatTest : IntegrationTestBase() {
             rawDamageLevel = DamageLevel.LIGHT,
             stagedDamageLevel = DamageLevel.LIGHT,
             rawWeaponPower = 4,
-            power = 4
+            effectivePower = 4
         )
         val trackState = CombatResolver.resolveTrackLock(attack, decker, trackRating = 6, diceRoller = failRoller())
 
@@ -205,7 +205,7 @@ class DeckerCombatTest : IntegrationTestBase() {
             rawDamageLevel = DamageLevel.LIGHT,
             stagedDamageLevel = DamageLevel.LIGHT,
             rawWeaponPower = 4,
-            power = 4
+            effectivePower = 4
         )
         val trackState = CombatResolver.resolveTrackLock(attack, decker, trackRating = 1, diceRoller = hitRoller())
 
@@ -241,3 +241,4 @@ class DeckerCombatTest : IntegrationTestBase() {
         assertEquals(false, result.icInert, "Reactive IC is never made inert by Slow")
     }
 }
+

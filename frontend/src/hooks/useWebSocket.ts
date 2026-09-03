@@ -27,13 +27,16 @@ type WsAction =
   | { type: 'STATE'; msg: StateMessage }
   | { type: 'RESULT'; msg: ResultMessage }
   | { type: 'ERROR'; msg: ErrorMessage }
+  | { type: 'CLEAR_EVENTS' }
 
 function reducer(state: WsState, action: WsAction): WsState {
   switch (action.type) {
     case 'CONNECTED':
       return { ...state, connected: true }
     case 'DISCONNECTED':
-      return { ...state, connected: false, role: null, gameState: null }
+      return { ...state, connected: false, role: null, gameState: null, events: [] }
+    case 'CLEAR_EVENTS':
+      return { ...state, events: [] }
     case 'CONTROL':
       return {
         ...state,
@@ -96,6 +99,7 @@ export function useWebSocket() {
             if (msg.reconnectToken) reconnectTokenRef.current = msg.reconnectToken
             if (msg.deckerName) registeredNameRef.current = msg.deckerName
             if (msg.role === 'observer') {
+              dispatch({ type: 'CLEAR_EVENTS' })
               const nameToSend = pendingNameRef.current ?? registeredNameRef.current
               if (nameToSend) {
                 const join: JoinMessage = {

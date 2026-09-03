@@ -158,7 +158,7 @@ class IcBehaviorTest {
             rawDamageLevel = DamageLevel.LIGHT,
             stagedDamageLevel = DamageLevel.LIGHT,
             rawWeaponPower = 5,
-            power = 5
+            effectivePower = 5
         )
         // allFaces(5) → willpower test (TN=2 for LIGHT): 5>=2 → passes → dumpShockTriggered=false
         val result = CombatResolver.applyIcDamage(d, hit, blaster, allFaces(5))
@@ -180,7 +180,7 @@ class IcBehaviorTest {
             rawDamageLevel = DamageLevel.LIGHT,
             stagedDamageLevel = DamageLevel.LIGHT,
             rawWeaponPower = 5,
-            power = 5
+            effectivePower = 5
         )
         // allFaces(5) → willpower test (TN=2 for LIGHT): 5>=2 → passes → dumpShockTriggered=false
         val result = CombatResolver.applyIcDamage(d, hit, sparky, allFaces(5))
@@ -191,3 +191,4 @@ class IcBehaviorTest {
         assertEquals(originalMcp, result.updatedDecker.cyberdeck.mcpRating, "MPCP must not be reduced when dump shock is not triggered")
     }
 }
+

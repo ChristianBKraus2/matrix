@@ -75,9 +75,13 @@ PRD ICC-10: if a companion at the jackpoint manually pulls the plug while Black 
 `GameContext` does not spawn or manage security deckers as NPC opponents. The PRD anticipates that a host's security response could include deploying a counter-intrusion decker, but the NPC AI design (action selection, target priority, logon sequencing) is not yet specified. Until that design exists, only IC programs act as automated defenders. Belongs in a future `npc_ai.md` design document.
 
 
+## 12. detectedIcons persistence wiring (MP-01 – MP-10)
+
 **Source:** [design_core/ord.md](design_core/ord.md) · PRD MP-01 through MP-10
 
 `Decker.detectedIcons: Set<Icon>` is declared and cleared on logoff, but never populated in production code. `noticeIcon()` and `noticeTriggeredIc()` in `DeckerOperationsExtensions.kt` return detection results that no call site persists. `visibleObjects()` shows all IC unconditionally rather than filtering through `detectedIcons`. Full wiring requires: (a) IC `action()` methods calling `noticeIcon()` before targeting and updating the decker's `detectedIcons`; (b) `visibleObjects()` filtering IC through `detectedIcons`. Deferred until the IC action-callback design (entry 1) is settled.
+
+## 13. Scramble IC reactive trigger
 
 **Source:** [discrepancies_without_prd.md](discrepancies_without_prd.md) (SAN-1)
 
