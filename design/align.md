@@ -5,6 +5,35 @@ Completeness must be **provable by artifact**, not by assertion.
 
 ---
 
+## Scope — a complete audit, not a sampled review
+
+This is a **design-vs-code conformance audit**, not a classical code review. The goal is to
+prove, file by file, that the code matches every field name, default, formula, and enum
+variant the design docs / PRDs specify. Two consequences are non-negotiable:
+
+- **Every file is read in full**, and the full Per-File Checklist is applied to all of them.
+- There is **no risk-based skipping and no risk-based depth-scaling.** The one file with the
+  wrong `@SerialName` is invisible to any risk ranking, so ranking cannot be trusted to
+  decide what to read deeply. Completeness is the whole point.
+
+Generic large-codebase review advice (e.g. `.info/large_reviews.md`) optimises the opposite
+way — by *sampling*. The following ideas from it are **deliberately rejected**; do not
+reintroduce them under the guise of efficiency:
+
+- Risk-weighted review depth, dynamic context allocation, dependency-graph-driven loading.
+- "Follow data, not files" as a *substitute* for reading every file.
+- Multiple specialist reviewer passes (security / performance / concurrency / reliability).
+- Tests as "context compression" — reading tests *instead of* implementation.
+
+Only the parts of that advice that **support completeness at scale** are adopted here: a
+persistent spec baseline and coverage ledger (so a complete audit can span many context
+windows), the toolchain as a free conformance-break detector, end-to-end field-propagation
+checks layered *on top of* full file coverage, and root-cause consolidation of the complete
+finding set. These appear as Iteration 0, the cross-session subsection, and the Completion
+Gate below.
+
+---
+
 ## Prerequisites
 
 | Artifact | Typical location | Role |
@@ -184,17 +213,42 @@ pattern — especially conditional guards of the form `if (x != null) callResolv
 enumerate all code paths that should trigger the resolver and verify each one. A fix that
 covers the host case but not the grid case is a new finding, not a closed one.
 
+### Rule 12 — Trace each wire field end-to-end (additive to full file coverage)
+
+After the per-file passes are complete, add one more coverage layer: for every field that
+crosses the wire, follow its name and shape through **every hop** and confirm it survives
+unchanged. This is *additional* coverage layered on top of reading every file — never a
+substitute for it. A concrete decker-operation path in this repo:
+
+```
+client action
+  → WebSocketDeckerController (dispatch + DTO mapping)
+  → DeckerOperationsExtensions (operation)
+  → resolver
+  → domain mutation
+  → DTO @SerialName
+  → frontend/src/types/messages.ts
+  → component render
+```
+
+A field can pass the per-file checklist at every individual hop yet still be renamed or
+dropped *between* hops — that is exactly the "grid vs host overload" and "DTO field order /
+name differs" failure mode this catches. Record each traced field in the manifest so the
+claim is falsifiable.
+
 ---
 
 ## Iteration Structure
 
 | Iteration | What to read | Against what |
 |---|---|---|
+| 0 | Run the toolchain first; distill a spec baseline from the Iter 1–2 reads | → `design/audit/spec_baseline.md` |
 | 1 | PRDs in full | Nothing yet — establish ground truth |
 | 2 | Design docs (domain core) | PRDs |
 | 3 | Domain model source (data classes, enums, sealed classes) | Design docs |
 | 4 | Business logic (resolvers, extensions, game loop) | Design doc algorithms |
 | 5 | Server / controller layer + DTOs | Design docs + protocol doc |
+| 5b | Wire fields traced end-to-end (field-propagation, see below) | Protocol doc |
 | 6 | Frontend types + components | design_ui spec |
 | 7 | Config loaders | Design doc field names |
 | 8 | Test files | Design docs |
@@ -202,11 +256,50 @@ covers the host case but not the grid case is a new finding, not a closed one.
 Iterations can be merged when the project is small. **No iteration may be
 declared complete until every file assigned to it has a ✓ in the manifest.**
 
+### Iteration 0 — Extract the spec baseline and run the toolchain
+
+Two setup steps that make a *complete* audit cheaper without cutting any coverage:
+
+1. **Distill the spec baseline.** After reading the PRDs and design docs (Iterations 1–2),
+   write the comparison baseline to `design/audit/spec_baseline.md`: invariants, TN / dice
+   formulas, the field list per domain type, enum / sealed-variant sets, and wire field
+   names. This is the single artifact every later session reads first, so the spec is not
+   re-derived each time. It **supplements, never replaces** reading the actual PRDs and
+   design docs in each session — Rule 3 and the Prohibited Patterns still forbid citing a
+   PRD or design clause you have not read in full this session.
+
+2. **Run the toolchain first.** Before deep reading, run the build, type-checker, and tests:
+
+   ```
+   gradlew.bat test integrationTest      # Kotlin
+   cd frontend && npx tsc --noEmit        # frontend types
+   ```
+
+   A compile error, a type mismatch, or a DTO ↔ `messages.ts` disagreement is a conformance
+   finding the toolchain hands you for free — log it like any other. This **supplements the
+   complete read; it never substitutes for it.** Test files are still read and audited in
+   full in Iteration 8 (Rule 6).
+
+### Running the audit across sessions
+
+A complete audit of a large codebase will not fit one context window. Treat the context
+window as working memory and the on-disk artifacts as long-term memory:
+
+- Each iteration (or subsystem within one) is a **session**.
+- Every session **begins by reading** the coverage manifest, `spec_baseline.md`, and the
+  discrepancies log, then continues only with manifest rows not yet ✓.
+- The manifest is the **completeness ledger** that survives context resets — it, not memory,
+  is what proves the audit reached every file.
+
+This does not relax any rule: a row becomes ✓ only after a full `Read` **in the current
+session** (Rule 2 and the Prohibited Patterns are unchanged — a reused excerpt from a prior
+session is not a ✓).
+
 ---
 
 ## Completion Gate
 
-Before declaring the audit complete, verify all three conditions:
+Before declaring the audit complete, verify all five conditions:
 
 1. **Count match** — count of files returned by `find` equals count of
    ✓ + justified Skip rows in the manifest. State both counts explicitly.
@@ -218,8 +311,14 @@ Before declaring the audit complete, verify all three conditions:
    that the corresponding `deferred.md` entry still matches the current code state.
    A deferred entry that no longer reflects reality is a DS- finding, not a valid
    skip reason.
+5. **Root-cause consolidation** — group the complete set of confirmed findings into the
+   underlying design causes that explain them (e.g. "design doc draft never updated after
+   the `sleaze` → `sleazeRating` rename," "protocol.md predates the grid/host split"). This
+   drops no finding — every discrepancy still stands in the log — but it turns a long flat
+   list into a few actionable causes and often exposes sibling discrepancies the flat pass
+   missed.
 
-Do not write "audit complete" until all four are satisfied.
+Do not write "audit complete" until all five are satisfied.
 
 ---
 
