@@ -41,7 +41,7 @@ Gate below.
 | Design docs | `design/design_core/`, `design/design_game/`, `design/design_ui/` | Specification |
 | PRDs | `design/prd_*.md` | Authoritative rule source — consulted when design and code disagree |
 | Protocol doc | `design/protocol.md` | Wire format spec |
-| Discrepancies log | `design/discrepancies_without_prd.md` | Accumulates unresolved findings |
+| Discrepancies log | `design/discrepancies_without_prd.md` | Accumulates unresolved findings + the run's prompt log (see Step 0.5) |
 | Deferred list | `design/deferred.md` | Explicitly out-of-scope items — do not flag these |
 
 ---
@@ -69,6 +69,49 @@ The manifest is a living artifact updated throughout the audit.
 - Skip:infra — build / tooling file with no design-doc coverage (state why)
 
 No other skip reason is valid. "File looks unimportant" is not a valid reason.
+
+---
+
+## Step 0.5 — Capture the run context (prompt log)
+
+As the **first action of the run** — before reading any file — open the run's discrepancies log
+(`design/discrepancies_without_prd.md`) and create an **Audit Run Context** section at the very
+top of the file, immediately after the title and before the prefix conventions. This log records
+the prompts that drove the audit so two runs (and the context each was given) can be compared
+later.
+
+Rules for the prompt log:
+
+- Record the **initiating user prompt verbatim**, dated. This is the first message that started
+  the alignment.
+- **Append every subsequent user instruction verbatim**, in the order received, as the run
+  proceeds — scope changes, clarifications, files to ignore, deferred-list pointers, etc.
+- **Quote exactly. Never paraphrase.** The point is faithful run-to-run comparison; a summary
+  loses the exact wording that may differ between runs.
+- Stop at the **audit → correction boundary**: the first user message that directs code changes /
+  fixes / corrections (as opposed to audit scope, findings, or their classification). Mark that
+  boundary explicitly. Prompts after it are correction-phase and are **not** recorded in this log.
+
+Copy-paste template:
+
+```markdown
+## Audit Run Context (prompt log)
+
+Verbatim record of the prompts that drove this audit — the initiating request plus every
+subsequent user instruction, up to (not including) the point where correction/fixes began.
+Purpose: compare audit runs and the context each was run in. Quote exactly; do not paraphrase.
+
+### Initiating prompt — <YYYY-MM-DD>
+> <verbatim first user message that started the alignment>
+
+### Additional context / clarifications (in order received)
+- <YYYY-MM-DD> — > <verbatim user message>
+
+### Audit → correction boundary
+Correction phase began <YYYY-MM-DD> with:
+> <verbatim user message that first directed fixes/corrections>
+(Prompts after this line are correction-phase and are NOT recorded in this log.)
+```
 
 ---
 
@@ -290,6 +333,9 @@ window as working memory and the on-disk artifacts as long-term memory:
   discrepancies log, then continues only with manifest rows not yet ✓.
 - The manifest is the **completeness ledger** that survives context resets — it, not memory,
   is what proves the audit reached every file.
+- Before continuing each session, **append any new user instructions to the Audit Run Context
+  prompt log verbatim** (Step 0.5), until the correction phase begins — so the run's driving
+  context survives context resets alongside the manifest and findings.
 
 This does not relax any rule: a row becomes ✓ only after a full `Read` **in the current
 session** (Rule 2 and the Prohibited Patterns are unchanged — a reused excerpt from a prior
@@ -299,7 +345,7 @@ session is not a ✓).
 
 ## Completion Gate
 
-Before declaring the audit complete, verify all five conditions:
+Before declaring the audit complete, verify all six conditions:
 
 1. **Count match** — count of files returned by `find` equals count of
    ✓ + justified Skip rows in the manifest. State both counts explicitly.
@@ -317,8 +363,11 @@ Before declaring the audit complete, verify all five conditions:
    drops no finding — every discrepancy still stands in the log — but it turns a long flat
    list into a few actionable causes and often exposes sibling discrepancies the flat pass
    missed.
+6. **Run context recorded** — the Audit Run Context prompt log (Step 0.5) exists at the top of
+   the discrepancies log, records the initiating prompt and every subsequent user instruction
+   verbatim (not paraphrased), and marks the audit→correction boundary.
 
-Do not write "audit complete" until all five are satisfied.
+Do not write "audit complete" until all six are satisfied.
 
 ---
 
