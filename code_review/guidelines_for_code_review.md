@@ -66,7 +66,15 @@ Ktor types, etc.) is an architecture violation.
    ```
    Log every failure as a finding before proceeding.
 
-2. **Build the Coverage Manifest.** Run the following and record every result:
+2. **Run static analysis.**
+   ```
+   powershell -Command "cd 'C:\VSCode\private\matrix'; .\gradlew.bat detekt"
+   cd frontend && npx eslint src --ext .ts,.tsx
+   ```
+   Log every complexity, naming, or rule violation above detekt's thresholds (see section 5).
+   Static analysis finds mechanical issues so the human review can focus on semantic ones.
+
+3. **Build the Coverage Manifest.** Run the following and record every result:
    ```
    find src -name "*.kt"
    find frontend/src \( -name "*.ts" -o -name "*.tsx" \)
@@ -74,7 +82,7 @@ Ktor types, etc.) is an architecture violation.
    The manifest is a living artifact updated throughout the review. An audit is not complete
    until every row is ✓ or has a justified Skip.
 
-3. **Identify deferred items.** Read `design/deferred.md` in full. Any file whose feature is
+4. **Identify deferred items.** Read `design/deferred.md` in full. Any file whose feature is
    explicitly deferred may be marked `Skip:deferred` — cite the entry.
 
 ### Phase 1 — Architecture Pass (all files, broad view)
@@ -157,26 +165,66 @@ Apply to **every method** in every file, not to the file as a whole.
 - [ ] No hardcoded success flags (`success = true`) that ignore actual computation results
 
 ### Kotlin-specific
-- [ ] `!!` usage justified by a provable invariant; otherwise replaced by safe call or early return
-- [ ] `lateinit` property is always initialized before first read
+
+**Nullability and `!!`**
+- [ ] `!!` avoided — prefer `requireNotNull(x) { "message" }` (throws with context) or `?: return`/`?: error()`
+      over the generic `NullPointerException` that `!!` produces
+- [ ] `requireNotNull` / `checkNotNull` used at call sites instead of silent `?.` chains where
+      null is an unexpected error, not a valid absence
+- [ ] Platform types from Java eliminated immediately — specify explicit Kotlin type on assignment
+      (`val x: Foo = javaObj.foo`, not `val x = javaObj.foo`) so NPE occurs at assignment, not later
+- [ ] Platform types never propagated through interfaces or public APIs — return type inferred from
+      platform type becomes `Foo!` (unknown nullability) for all callers
+
+**Mutability**
 - [ ] `val` used instead of `var` where reassignment is not required
-- [ ] Mutable collections not exposed through public APIs
-- [ ] `when` on a sealed type is exhaustive (no `else -> Unit` swallowing new variants)
+- [ ] No dual mutation point: `var list = mutableListOf()` avoids single-point reasoning;
+      choose either `val list = mutableListOf()` (mutate the collection) or
+      `var list: List<T> = listOf()` (reassign the property), never both on the same field
+- [ ] Read-only collections not downcast to mutable (`list as MutableList` may throw
+      `UnsupportedOperationException` — use `list.toMutableList()` instead)
+- [ ] Mutable collections not exposed through public APIs — return `List<T>`, not `MutableList<T>`
+- [ ] Mutable data class fields not placed in `HashSet` / `HashMap` — mutation after insertion
+      makes the element unreachable (hash repositioning)
+- [ ] `copy()` used to produce modified instances of data classes rather than `var` fields
+
+**Sealed classes**
+- [ ] `when` on a sealed type has no `else` branch — lets the compiler catch missing cases when
+      new variants are added; `else -> Unit` silently swallows unhandled variants
+- [ ] `when` used as an expression (assigned to a value) to enforce exhaustiveness at compile time
+- [ ] Stateless sealed subclasses declared as `object`, not `class` — one instance for all usages
+- [ ] Adding new subtypes to a **public** sealed hierarchy is a breaking change — document stability
+
+**General Kotlin idioms**
 - [ ] `data class` fields are `val` unless mutation is genuinely needed
 - [ ] No sensitive data in a `data class` that generates `toString()` (e.g. tokens, secrets)
+- [ ] Custom `equals()` implementations respect the five contracts: reflexive, symmetric, transitive,
+      consistent, and never-equal-to-null; dynamic state (e.g. `System.currentTimeMillis()`) in
+      `equals()` breaks consistency
 - [ ] Scope functions (`let`, `apply`, `also`, `run`, `with`) improve readability, not obscure it
-- [ ] No deeply nested scope functions where explicit control flow is clearer
+- [ ] No deeply nested scope functions (> 1 level) — replace with explicit control flow
+- [ ] `lateinit` property is always initialized before first read
 
 ### Coroutines
 - [ ] No `GlobalScope.launch` — coroutines tied to a lifecycle scope
 - [ ] No `runBlocking` in production code (acceptable in tests and `main()`)
-- [ ] `CancellationException` is never swallowed in a `catch (e: Exception)` block
+- [ ] `CancellationException` is never swallowed in a `catch (e: Exception)` block — it is
+      transparent and must propagate; catching it breaks structured cancellation semantics
 - [ ] Dispatcher is appropriate: `Dispatchers.IO` for blocking I/O, `Dispatchers.Default` for CPU
 - [ ] Blocking calls (`Thread.sleep`, raw JDBC) never run on the wrong dispatcher
-- [ ] Long-running loops inside coroutines check for cancellation (`isActive`)
-- [ ] `async { }` has a corresponding `await` or error handler — no silent fire-and-forget
+- [ ] Long-running loops inside coroutines call `ensureActive()` or check `isActive` each iteration
+- [ ] `async { }` has a corresponding `await` — exceptions inside `async` only surface at `await()`;
+      a fire-and-forget `async` that never calls `await` silently discards all failures
+- [ ] `CoroutineExceptionHandler` installed on root coroutines only, not child coroutines
+      (children delegate exception handling up the hierarchy; a handler on a child has no effect)
+- [ ] `supervisorScope` used instead of `coroutineScope` when child failures must not cancel siblings
 - [ ] `Flow` collection is lifecycle-safe; collector disappears cleanly when the owner is gone
-- [ ] Shared mutable state accessed from coroutines is protected by `Mutex` or `ConcurrentHashMap`
+- [ ] Shared mutable state: `@Volatile` is not a concurrency fix — it guarantees visibility only;
+      compound operations (check-then-act, read-modify-write) still require `Mutex` or `AtomicXxx`
+- [ ] Prefer coarse-grained confinement (`withContext(singleThreadCtx) { massiveRun {} }`) over
+      per-operation `Mutex.withLock {}` for high-frequency state mutation
+- [ ] `ConcurrentHashMap` for session registry; `Mutex` for domain objects requiring atomic
+      multi-field updates
 - [ ] `CompletableFuture.get()` inside a coroutine replaced by `CompletableDeferred.await()`
 
 ### Error Handling
@@ -184,7 +232,12 @@ Apply to **every method** in every file, not to the file as a whole.
 - [ ] No `catch (e: Exception)` at a low level that returns `null` and loses context
 - [ ] `runCatching { }` has an `.onFailure` handler that at minimum logs the exception
 - [ ] Unchecked casts (`as SomeType`) replaced by safe casts (`as? SomeType`) with a fallback
-- [ ] Preconditions use `require()`; state invariants use `check()`; unreachable branches use `error()`
+- [ ] Argument preconditions use `require(condition) { "message" }` at the top of the function —
+      placed first so state is not partially modified before the check fires; smart-cast to
+      non-null type after `require(x != null)` without needing `!!`
+- [ ] Object state invariants use `check(condition) { "message" }` — throws `IllegalStateException`
+- [ ] Unreachable branches use `error("message")` — self-documenting intent
+- [ ] `requireNotNull(x) { "message" }` preferred over `x!!` — throws with context, not a generic NPE
 - [ ] `finally` blocks run cleanup even on unexpected exceptions (especially: session deregistration,
       controller demotion, resource release)
 
@@ -195,6 +248,11 @@ Apply to **every method** in every file, not to the file as a whole.
 - [ ] No client-supplied booleans that bypass server-side authorization or game-state checks
 - [ ] No raw exception messages returned to clients (leaks internals)
 - [ ] Sensitive data excluded from logs, `toString()`, and error messages
+- [ ] WebSocket endpoint: authentication verified before the upgrade completes (reject early,
+      before the connection is established — sending a close frame after upgrade is less safe)
+- [ ] `Origin` header validated to prevent cross-site WebSocket hijacking (browser clients send it;
+      if a client from an unexpected origin connects, reject the upgrade)
+- [ ] Production deployment uses WSS (TLS) — plain WS is unacceptable for authenticated sessions
 
 ### Architecture
 - [ ] Class has one responsibility; dependencies flow in the intended direction
@@ -203,25 +261,71 @@ Apply to **every method** in every file, not to the file as a whole.
 - [ ] WebSocket controller implements a thin port, not a game participant
 - [ ] Per-session state (interrogation accumulators, turn state) lives in the game engine, not in
       the WebSocket session object
+- [ ] Inheritance used only for genuine "is-a" relationships where Liskov substitution holds;
+      code reuse via `by` delegation preferred (inheriting from a class and overriding behaviour
+      can break encapsulation because superclass methods may call each other internally)
+- [ ] `open` on a class or method is a deliberate API decision, not a default — all classes
+      and methods are `final` unless explicitly opened for extension
 
 ### API Design
-- [ ] Visibility is intentional — `internal` where appropriate
-- [ ] Public methods have explicit return types
+- [ ] Visibility is intentional — `internal` where appropriate; no accidentally-public helpers
+- [ ] All public functions have explicit return types (prevents unintended API changes during refactoring)
+- [ ] All public properties have explicit types
 - [ ] Nullable types are meaningful, not a convenience shortcut
-- [ ] Parameters cannot be accidentally omitted to change behavior (no `fun foo(pin: Boolean = false)` 
+- [ ] Parameters cannot be accidentally omitted to change behavior (no `fun foo(pin: Boolean = false)`
       where the default bypasses a safety check)
+- [ ] Functions with multiple `Boolean` parameters or multiple parameters of the same primitive type
+      require named arguments at call sites to prevent accidental reordering:
+      `drawSquare(x = 10, y = 10, width = 100, height = 100)` not `drawSquare(10, 10, 100, 100)`
+- [ ] Public functions accept `Set<T>` where semantics require uniqueness, `List<T>` where order matters
+- [ ] Factory functions preferred over multiple overloaded constructors when constructors would not
+      call different superclass constructors
+- [ ] `infix` functions only for operations between objects of similar roles (`and`, `to`, `zip`);
+      never on mutating functions
 
 ### Performance
 - [ ] No accidental O(n²) patterns (`.contains()` on a `List` inside a loop — use a `Set`)
 - [ ] No unnecessary repeated collection materialization in hot paths
 - [ ] No blocking I/O on the main/UI dispatcher
+- [ ] Collection pipelines (`filter().map().filter()`) not over-materalized — use `Sequence`
+      only when the data volume genuinely warrants it and only when it actually improves performance;
+      do not introduce `asSequence()` purely for appearance
+
+### Maintainability and complexity
+
+The following thresholds are detekt defaults; findings above them warrant extraction or simplification:
+
+| Metric | Threshold | Action |
+|---|---|---|
+| Cyclomatic complexity per method | > 14 | Extract sub-methods |
+| Method length | > 60 lines | Extract sub-methods |
+| Class length | > 600 lines | Split responsibilities |
+| Parameter count | > 5 (fun) / 6 (constructor) | Introduce parameter object |
+| Nesting depth | > 4 levels | Flatten with early returns or extracted functions |
+| Functions per class/file | > 11 | Split responsibilities |
+| Scope function nesting | > 1 level | Replace with explicit control flow |
+
+Additional checks:
+- [ ] No magic numbers — extract named constants
+- [ ] No `@Suppress` annotations without an explanatory comment
+- [ ] No `TODO`/`FIXME` left in code that the design treats as complete
+- [ ] No duplicated logic across similar classes (e.g. two IC types sharing an identical formula
+      that is not extracted to a shared resolver)
 
 ### Testing
 - [ ] Tests assert on changed game state, not just on message type or string content
-- [ ] No `Thread.sleep` in coroutine tests — use `kotlinx.coroutines.test`
+- [ ] Coroutine tests use `runTest { }` — delays are automatically skipped; no `Thread.sleep`
+- [ ] `StandardTestDispatcher` when precise dispatch ordering matters;
+      `UnconfinedTestDispatcher` when ordering is irrelevant and eager execution is preferable
+- [ ] `Dispatchers.setMain(testDispatcher)` in `@Before` / `resetMain()` in `@After` for UI-layer tests
+- [ ] Continuous background work launched in `backgroundScope` — cancelled automatically at test end
+- [ ] `kotlinx-coroutines-test` is a test-only dependency; it must not appear in main sources
 - [ ] Test helpers (dice rollers) do not return values that trigger infinite dice-explosion loops
 - [ ] Happy paths, failure paths, and boundary cases are covered
-- [ ] Tests do not pass trivially by construction (e.g. `assertEquals(0, x.coerceAtMost(0))`)
+- [ ] Tests do not pass trivially by construction (e.g. `assertEquals(0, x.coerceAtMost(0))`,
+      `assertTrue(n >= 0)` for a value guaranteed non-negative by construction)
+- [ ] After each IC action with an all-success roller, assert the specific domain field changed
+      (not just the message type or return class)
 
 ---
 
@@ -290,13 +394,20 @@ In addition to the per-file checklist, apply these to `game_logic` files.
 - Every `@SerialName` matches the protocol doc field name exactly
 - All DTO fields are present and non-null where the protocol specifies a required field
 - No raw exception messages or internal stack traces in `ErrorMessage` content
-- `maxFrameSize` configured on the Ktor `WebSockets` plugin to prevent memory exhaustion
+- Ktor `WebSockets` plugin configured with all three safety parameters:
+  - `pingPeriod` — keep-alive; 15 s is a reasonable default; without it zombie connections accumulate
+  - `timeout` — close idle connections; 15 s pairs well with `pingPeriod`
+  - `maxFrameSize` — hard cap on inbound frame size; prevents memory exhaustion from a single large message
 
 ### Concurrency (`SessionRegistry.kt`)
 
 - Session registry backed by `ConcurrentHashMap` or `Mutex`-guarded `Map`
 - `send()` not called while holding a lock (can deadlock if send suspends)
 - Full read-authorize-act sequence under a single lock (not split across volatile reads + synchronized blocks)
+- Broadcast loops use `SharedFlow` or a snapshot copy of the session collection rather than
+  iterating the live registry map — prevents concurrent modification during broadcast
+- `@Volatile` on `pendingAction` is not sufficient for compound operations; check-then-act
+  sequences must be protected by the same `lock` used for `activeController`
 
 ---
 
@@ -307,10 +418,23 @@ In addition to the per-file checklist, apply these to `game_logic` files.
 - `useEffect` cleanup closes the WebSocket and nulls `onclose`/`onerror` before closing
   (prevents ghost reconnect loop on unmount)
 - Reconnect guard includes `WebSocket.CONNECTING` state (prevents duplicate sockets during
-  React StrictMode double-mount)
+  React StrictMode double-mount — Strict Mode intentionally mounts, unmounts, and remounts
+  every component to verify cleanup works; a guard missing `CONNECTING` creates a second socket
+  before the first cleanup fires)
 - `gameState` reset to `null` in the `DISCONNECTED` reducer case (prevents stale data from a
   prior session rendering as current after reconnect)
 - Reducer handles all message types exhaustively — no implicit `else` that silently drops new messages
+- Async operations inside `useEffect` use an `ignore` flag or `AbortController` to prevent
+  stale responses from updating state after cleanup:
+  ```ts
+  useEffect(() => {
+    let ignore = false;
+    fetchData().then(r => { if (!ignore) setData(r); });
+    return () => { ignore = true; };
+  }, [dep]);
+  ```
+- `useEffect` is not used for: state initialization (do during render), state derived from other
+  state (compute inline), or business-logic events like submitting an action (use event handlers)
 
 ### Components
 
@@ -328,6 +452,17 @@ In addition to the per-file checklist, apply these to `game_logic` files.
 - Required fields are non-optional — remove `?` where the server always provides the field
 - No fields that the server derives internally (authorization flags, possession booleans) in
   the `ActionParams` type — the server ignores them at best, is bypassed by them at worst
+- Complex multi-field state modelled as discriminated unions, not as a flat object with nullable
+  fields that can represent impossible combinations:
+  ```ts
+  // Bad: loading=true and data present simultaneously is representable
+  type State = { loading: boolean; error?: string; data?: GameState }
+  // Good: invalid combinations are unrepresentable
+  type State = { status: 'idle' } | { status: 'loading' }
+             | { status: 'success'; data: GameState } | { status: 'error'; message: string }
+  ```
+- `children` props typed as `React.ReactNode` (accepts strings, numbers, JSX elements) unless
+  JSX-only children are explicitly intended (`React.ReactElement`)
 
 ### `useEffect` discipline
 
@@ -525,3 +660,17 @@ code_review/correctness_complete.md
 - `design/design_core/`, `design/design_game/`, `design/design_ui/` — spec against which correctness is judged
 - `design/prd_core.md`, `design/prd_game.md`, `design/prd_ui.md` — authoritative rule source
 - `design/protocol.md` — wire format spec for cross-layer checks
+
+Web references consulted during authoring of this guide:
+- [Effective Kotlin (kt.academy)](https://kt.academy/book/effectivekotlin) — 51 best-practice items covering safety, readability, class design, and efficiency; key items: limit mutability, platform types, expectations/contracts, sealed classes, equals/hashCode, composition over inheritance
+- [Kotlin Coroutines Guide](https://kotlinlang.org/docs/coroutines-guide.html) — structured concurrency, dispatchers, cancellation, Flow
+- [Kotlin Coroutine Exception Handling](https://kotlinlang.org/docs/exception-handling.html) — `async` vs `launch` propagation, `SupervisorJob`, `CoroutineExceptionHandler`
+- [Kotlin Shared Mutable State](https://kotlinlang.org/docs/shared-mutable-state-and-concurrency.html) — `@Volatile` limits, `Mutex`, thread confinement patterns
+- [Kotlin Coding Conventions](https://kotlinlang.org/docs/coding-conventions.html) — naming, API visibility, explicit types, named arguments
+- [Kotlin API Guidelines](https://kotlinlang.org/docs/api-guidelines-introduction.html) — minimising mental complexity, backward compatibility
+- [kotlinx.coroutines.test](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-test/) — `runTest`, `StandardTestDispatcher`, `UnconfinedTestDispatcher`, virtual time
+- [detekt Complexity Rules](https://detekt.dev/docs/rules/complexity) — cyclomatic complexity, method length, class size thresholds
+- [Ktor WebSockets](https://ktor.io/docs/server-websockets.html) — `pingPeriod`, `timeout`, `maxFrameSize`, `SharedFlow` for broadcast
+- [React – Synchronizing with Effects](https://react.dev/learn/synchronizing-with-effects) — cleanup, stale closures, `ignore` flag, when not to use `useEffect`
+- [React – TypeScript](https://react.dev/learn/typescript) — prop typing, event handlers, discriminated unions, `React.ReactNode`
+- [React – Rules of Hooks](https://react.dev/reference/rules) — purity, immutability, Strict Mode double-mount
