@@ -70,9 +70,8 @@ data class Cyberdeck(
         }
 
         // Active memory capacity
-        val activeMp = activeUtilities.sumOf { it.mpSize } + pendingUploads.sumOf { it.utility.mpSize }
-        require(activeMp <= activeMemoryMp) {
-            "Active utilities + pending uploads (${activeMp}Mp) exceed active memory (${activeMemoryMp}Mp)"
+        require(usedActiveMemoryMp <= activeMemoryMp) {
+            "Active utilities + pending uploads (${usedActiveMemoryMp}Mp) exceed active memory (${activeMemoryMp}Mp)"
         }
 
         // Storage memory capacity (covers stored utilities; downloads are not modelled here)

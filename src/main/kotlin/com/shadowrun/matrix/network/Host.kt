@@ -27,6 +27,9 @@ data class Host(
     val icPrograms: List<IC> = emptyList(),
     val dataFiles: List<DataFile> = emptyList(),
     val remoteDevices: List<RemoteDevice> = emptyList(),
+    // Dataline scanners on the host's comm lines (PRD: Tap Comcall, Rating 1–10). One or more;
+    // only the highest is used when a decker taps a comcall. Empty = no scanner.
+    val datalineScannerRatings: List<Int> = emptyList(),
     // Hosts directly linked to this host (tiered / host-host topologies)
     val connectedHosts: List<Host> = emptyList()
 ) {
@@ -34,6 +37,9 @@ data class Host(
         val coveredTypes = nodes.map { it.subsystemType }.toSet()
         require(coveredTypes == SubsystemType.entries.toSet()) {
             "Host must have at least one node per subsystem type"
+        }
+        require(datalineScannerRatings.all { it in 1..10 }) {
+            "dataline scanner ratings must be in 1..10"
         }
     }
 

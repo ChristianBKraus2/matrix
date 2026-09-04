@@ -11,8 +11,6 @@ export interface ActionParams {
   precision?: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'
   query?: string
   inactivitySeconds?: number
-  hasValidPasscode?: boolean
-  scannerDeviceRating?: number
   dataSize?: number
 }
 
@@ -41,6 +39,7 @@ export interface ActiveUtility {
 export interface DeckerStateDto {
   name: string
   location: string
+  jackedIn: boolean
   locationIndex: number | null
   isPinnedByBlackIc: boolean
   physicalDamage: number
@@ -91,7 +90,7 @@ export type AvailableActionDto =
   | { kind: 'LogonToHost'; index: number; actionType: ActionType; hostName: string }
   | { kind: 'GracefulLogoff'; index: number; actionType: ActionType }
   | { kind: 'JackOut'; index: number; actionType: ActionType }
-  | { kind: 'Operation'; index: number; actionType: ActionType; operation: SystemOperation; paramKind: 'precision' | 'hasValidPasscode' | 'scannerDeviceRating' | 'newContent' | 'dataSize' | null; targetKind: string | null; targetName: string | null }
+  | { kind: 'Operation'; index: number; actionType: ActionType; operation: SystemOperation; paramKind: 'precision' | 'newContent' | 'dataSize' | null; targetKind: string | null; targetName: string | null }
 
 export interface StateMessage {
   type: 'state'
@@ -128,5 +127,5 @@ export type ErrorCode =
 export type ServerMessage = ControlMessage | StateMessage | ResultMessage | ErrorMessage
 
 export type GameEvent =
-  | { kind: 'result'; msg: ResultMessage }
-  | { kind: 'error'; msg: ErrorMessage }
+  | { kind: 'result'; id: number; msg: ResultMessage }
+  | { kind: 'error'; id: number; msg: ErrorMessage }

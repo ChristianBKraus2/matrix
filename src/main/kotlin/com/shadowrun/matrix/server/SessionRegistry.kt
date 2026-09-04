@@ -116,10 +116,13 @@ class SessionRegistry {
 
     suspend fun promoteForTurn(deckerName: String): Boolean {
         val session = mutex.withLock { deckerSessions[deckerName] } ?: return false
+        // Set the active controller BEFORE announcing it, so a client that acts the instant it
+        // receives ACTIVE_CONTROLLER is never rejected NOT_YOUR_TURN by a not-yet-set controller
+        // (S-6). claimAction gates on the pending action too, which conductTurn sets before this.
+        turns.setActive(session)
         session.send(Frame.Text(MatrixJson.encodeToString(
             ControlMessage(role = SessionRole.ACTIVE_CONTROLLER, deckerName = deckerName)
         )))
-        turns.setActive(session)
         return true
     }
 

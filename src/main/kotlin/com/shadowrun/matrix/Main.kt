@@ -11,10 +11,15 @@ import com.shadowrun.matrix.server.WebSocketDeckerController
 import com.shadowrun.matrix.server.startMatrixServer
 import com.shadowrun.matrix.utility.DiceRoller
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 
 private val logger = KotlinLogging.logger {}
+
+// Demo game loop: after this many consecutive failed turns, give up rather than busy-loop the log.
+private const val MAX_CONSECUTIVE_ERRORS = 10
+private const val ERROR_BACKOFF_MS = 500L
 
 fun main() {
     val classLoader = Thread.currentThread().contextClassLoader
@@ -43,14 +48,25 @@ fun main() {
     val controller = WebSocketDeckerController(registry, decker)
     val diceRoller = DiceRoller()
 
-    while (true) {
-        try {
-            runBlocking { controller.conductTurn(context, diceRoller) }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            logger.error(e) { "Game loop error" }
-            Thread.sleep(500)
+    // Single event loop for the whole demo (one runBlocking, not one per turn). A run of
+    // consecutive failures backs off and eventually aborts instead of spinning forever.
+    runBlocking {
+        var consecutiveErrors = 0
+        while (true) {
+            try {
+                controller.conductTurn(context, diceRoller)
+                consecutiveErrors = 0
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                consecutiveErrors++
+                logger.error(e) { "Game loop error ($consecutiveErrors/$MAX_CONSECUTIVE_ERRORS)" }
+                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                    logger.error { "Aborting game loop after $MAX_CONSECUTIVE_ERRORS consecutive errors" }
+                    break
+                }
+                delay(ERROR_BACKOFF_MS)
+            }
         }
     }
 }

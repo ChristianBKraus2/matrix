@@ -6,6 +6,11 @@ import kotlinx.serialization.json.Json
 
 val MatrixJson = Json { encodeDefaults = true }
 
+// Inbound decoder for client frames. Lenient about unknown keys so a newer client that adds a
+// field does not break an older server (forward compatibility, S-9). Type mismatches and missing
+// required fields still fail — and are reported as a generic bad_request (S-4).
+val MatrixJsonIn = Json { ignoreUnknownKeys = true }
+
 @Serializable
 enum class SessionRole {
     @SerialName("observer") OBSERVER,
@@ -54,8 +59,6 @@ data class ActionParams(
     val inactivitySeconds: Int? = null,
     val precision: String? = null,
     val query: String? = null,
-    val hasValidPasscode: Boolean? = null,
-    val scannerDeviceRating: Int? = null,
     val dataSize: Int? = null
 )
 

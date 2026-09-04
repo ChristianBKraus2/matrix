@@ -159,8 +159,7 @@ class SystemOperationsTest {
         val ic = Probe(rating = 2)
         val d = decker(jackedIn = true)
         val result = d.noticeIcon(Icon.IcIcon(ic), winRoller)
-        val detected = result as? SensorTestResult.Detected
-        assertNotNull(detected)
+        val detected = assertIs<SensorTestResult.Detected>(result)
         assertTrue(detected.successes >= 2)
     }
 
@@ -266,10 +265,11 @@ class SystemOperationsTest {
         val h = host(secValue = 8, control = 8)
         val d = decker(jackedIn = true, host = h)
         val result = d.analyzeHost(h, listOf(HostInfoItem.SecurityRating), loseRoller)
-        if (result.outcome.deckerSuccesses - result.outcome.hostSuccesses <= 0) {
-            assertNull(result.revealedSecurityRating)
-            assertTrue(result.revealedSubsystemRatings.isEmpty())
-        }
+        // loseRoller (face=3) is deterministic: decker fails every TN≥4 while the host scores at DF=3,
+        // so net successes are always ≤ 0 and the "reveals nothing" branch is always taken (T-7).
+        assertTrue(result.outcome.deckerSuccesses - result.outcome.hostSuccesses <= 0)
+        assertNull(result.revealedSecurityRating)
+        assertTrue(result.revealedSubsystemRatings.isEmpty())
     }
 
     @Test
@@ -382,9 +382,10 @@ class SystemOperationsTest {
         val h = host(secValue = 2, files = 2, control = 2)
         val d = decker(jackedIn = true, host = h)
         val result = d.editFile(file, h, byteArrayOf(1, 2, 3), winRoller, attemptAuthentication = true)
-        if (result.outcome.deckerWins) {
-            assertNotNull(result.authenticationSuccesses)
-        }
+        // winRoller (face=5) is deterministic against these low ratings, so the decker always wins and
+        // the authentication-successes count is always populated (T-7 — no conditional guard needed).
+        assertTrue(result.outcome.deckerWins)
+        assertNotNull(result.authenticationSuccesses)
     }
 
     // ── Slave operations ──────────────────────────────────────────────────────────
@@ -408,7 +409,8 @@ class SystemOperationsTest {
         val d = decker(jackedIn = true, host = h)
         // effectiveSkill=4 (avg of Computer 5 + Biotech 3, floored)
         val (result, _) = d.controlSlave(device, h, winRoller, effectiveSkill = 4)
-        assertNotNull(result)
+        // 4 skill dice at face=5 clear the low TN, so the override still yields a Success (T-7).
+        assertIs<OperationResult.Success>(result)
     }
 
     @Test
@@ -455,6 +457,10 @@ class SystemOperationsTest {
         // Tally updated by host successes; decker copy reflects new tally
         val updatedLocation = result.decker.currentLocation as? MatrixLocation.OnHost
         assertNotNull(updatedLocation)
+        // winRoller gives the host (6 dice, face=5 vs DF=3) positive successes, so the tally rises above
+        // its initial 0 — the point the test name claims but previously left unchecked (T-7).
+        assertTrue(updatedLocation.host.securityTally > 0,
+            "nullOperation must fold the host's successes into the security tally")
     }
 
     // ── resolvePointerChain ───────────────────────────────────────────────────────
@@ -480,6 +486,30 @@ class SystemOperationsTest {
         val chain = d.resolvePointerChain(pointerFile, winRoller)
         assertTrue(chain.links.isNotEmpty())
         assertNotNull(chain.finalFile)
+    }
+
+    @Test
+    fun `resolvePointerChain length tracks the flat 1D6 roll (E-1)`() {
+        val targetFile = DataFile("paydata.dat", sizeMp = 100)
+        val targetHost = host(dataFiles = listOf(targetFile))
+        val pointerFile = DataFile("ptr.dat", pointerToHost = targetHost)
+        val d = decker()
+        // Pin the flat roll: fixedRoller(n).flat(1,6) == n, so the chain has exactly n links.
+        assertEquals(1, d.resolvePointerChain(pointerFile, fixedRoller(1)).links.size)
+        assertEquals(3, d.resolvePointerChain(pointerFile, fixedRoller(3)).links.size)
+    }
+
+    @Test
+    fun `resolvePointerChain uses a non-exploding die and caps at 6 links (E-1)`() {
+        val targetFile = DataFile("paydata.dat", sizeMp = 100)
+        val targetHost = host(dataFiles = listOf(targetFile))
+        val pointerFile = DataFile("ptr.dat", pointerToHost = targetHost)
+        val d = decker()
+        // A 6-face roller: the flat roll caps at 6 and terminates. Under the old exploding
+        // roll(1,6) this stub would infinite-loop (face==6 re-rolls forever), so this test both
+        // proves the fix and would have hung the previous implementation.
+        val chain = d.resolvePointerChain(pointerFile, fixedRoller(6))
+        assertEquals(6, chain.links.size)
     }
 
     // ── DataFile.isPointer ────────────────────────────────────────────────────────

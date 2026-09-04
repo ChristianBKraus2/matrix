@@ -32,4 +32,16 @@ class DiceRoller(private val random: Random = Random.Default) {
         } while (face == 6)
         return total
     }
+
+    /**
+     * A single **non-exploding** uniform value in `[min, max]` (both inclusive).
+     *
+     * Use this for flat die values (e.g. a "1D6" length/count) where the exploding [roll] semantics
+     * would distort the distribution and can produce values well above `max`. Unlike [roll], this
+     * never re-rolls on a 6, so the result is bounded and terminates for any [Random].
+     */
+    fun flat(min: Int, max: Int): Int {
+        require(min <= max) { "min ($min) must be <= max ($max)" }
+        return random.nextInt(min, max + 1)
+    }
 }

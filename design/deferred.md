@@ -32,6 +32,13 @@ Fix when wiring the loop: capture `action()`'s result and, on `IcMoved`, replace
 
 `LOCATE_DECKER` is excluded from `availableActions`. It requires a passcode-ledger design that does not yet exist in any PRD.
 
+**Passcode key format (RTG vs host) — resolved by descoping.** This was previously deferred because
+`operations.md`/`prd_core.md` keyed the Make Comcall passcode by **RTG** while `movement.md` and the
+code keyed by **host**. The Make Comcall licensed-decker (RTG-passcode) exception has since been
+**descoped** and its RTG references removed, so the only remaining passcode usage is logon legitimacy /
+devalidation, which is consistently keyed by **host** (`Decker.knownPasscodes`, matching the
+`performLogon` convention). No divergence remains.
+
 ---
 
 ## 4. `locationIndex` proper lookup by object identity
@@ -109,3 +116,18 @@ Scramble IC is designed as a reactive IC that triggers when a decker destructs a
 - No entry in `grid.yaml` declares a grid `security_sheaf`, so there is no example to validate against and no test would exercise new loader code.
 
 Before implementing: define the grid `security_sheaf` schema and semantics in `ord.md`, add at least one `grid.yaml` example, then adapt the parser (it cannot simply be lifted from `HostLoader`).
+
+## 15. WebSocket transport authentication / handshake token (S-5)
+
+**Source:** [protocol.md](protocol.md) · code review `review_1` finding S-5
+
+The `/decker/ws` endpoint now enforces a same-origin allow-list (CSWSH mitigation, shipped in Step 1)
+but performs **no client authentication** — any same-origin connection may join. A real
+authentication/handshake token (e.g. a shared secret or per-session token presented on `join`) is
+deferred. This is **not a PRD requirement**: the PRD specifies no transport-security or connection-auth
+model (its only "authentication" is the in-game Edit-File header mechanic and the passcode ledger, both
+game mechanics unrelated to the WS transport). The current posture assumes a trusted-LAN / localhost
+single-session deployment. Before implementing: decide the deployment threat model and token scheme
+(shared secret vs. per-session), then document it in `protocol.md` and wire a check into
+`matrixModule`'s WS handler alongside the existing Origin guard.
+

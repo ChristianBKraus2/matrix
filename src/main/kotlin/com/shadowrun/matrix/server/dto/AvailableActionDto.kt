@@ -71,8 +71,6 @@ fun AvailableAction.toDto(index: Int): AvailableActionDto = when (this) {
             SystemOperation.LOCATE_FILE,
             SystemOperation.LOCATE_SLAVE,
             SystemOperation.LOCATE_ACCESS_NODE -> "precision"
-            SystemOperation.MAKE_COMCALL       -> "hasValidPasscode"
-            SystemOperation.TAP_COMCALL        -> "scannerDeviceRating"
             SystemOperation.EDIT_FILE          -> "newContent"
             SystemOperation.UPLOAD_DATA        -> "dataSize"
             else                               -> null

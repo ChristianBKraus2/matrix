@@ -85,7 +85,8 @@ class DeckerOperationsTest {
         access: Int = 8, control: Int = 8, index: Int = 8, files: Int = 8, slave: Int = 8,
         alertStatus: AlertStatus = AlertStatus.NO_ALERT,
         dataFiles: List<DataFile> = emptyList(),
-        remoteDevices: List<RemoteDevice> = emptyList()
+        remoteDevices: List<RemoteDevice> = emptyList(),
+        datalineScannerRatings: List<Int> = emptyList()
     ) = Host(
         name = "TestHost",
         securityRating = SecurityRating(SecurityCode.GREEN, secValue),
@@ -94,7 +95,8 @@ class DeckerOperationsTest {
         topologyType = TopologyType.OPEN_ACCESS,
         alertStatus = alertStatus,
         dataFiles = dataFiles,
-        remoteDevices = remoteDevices
+        remoteDevices = remoteDevices,
+        datalineScannerRatings = datalineScannerRatings
     )
 
     /** Every die shows [face]. */
@@ -405,35 +407,20 @@ class DeckerOperationsTest {
     // ── makeComcall ───────────────────────────────────────────────────────────────
 
     @Test
-    fun `makeComcall with valid passcode skips System Test and returns Success`() {
-        val h = host()
-        val d = decker(host = h)
-        // Roller that throws if called — proves the test is skipped
-        val neverCalledRoller = DiceRoller(object : Random() {
-            override fun nextBits(bitCount: Int) = 0
-            override fun nextInt(from: Int, until: Int) = error("System Test should not fire with valid passcode")
-        })
-        val (result, handle) = d.makeComcall(h, neverCalledRoller, hasValidPasscode = true)
-        assertIs<OperationResult.Success>(result)
-        assertNotNull(handle)
-        assertTrue(handle!!.active)
-    }
-
-    @Test
-    fun `makeComcall without passcode runs System Test on Files subsystem`() {
+    fun `makeComcall runs System Test on Files subsystem`() {
         val h = host(secValue = 2, files = 2)
         val d = decker(host = h)
-        val (result, handle) = d.makeComcall(h, winRoller, hasValidPasscode = false)
+        val (result, handle) = d.makeComcall(h, winRoller)
         assertIs<OperationResult.Success>(result)
         assertNotNull(handle)
         assertEquals(SystemOperation.MAKE_COMCALL, handle!!.operation)
     }
 
     @Test
-    fun `makeComcall without passcode returns Failure on loss`() {
+    fun `makeComcall returns Failure on loss`() {
         val h = host(secValue = 8, files = 12)
         val d = decker(host = h)
-        val (result, handle) = d.makeComcall(h, loseRoller, hasValidPasscode = false)
+        val (result, handle) = d.makeComcall(h, loseRoller)
         assertIs<OperationResult.Failure>(result)
         assertNull(handle)
     }
@@ -444,7 +431,7 @@ class DeckerOperationsTest {
     fun `tapComcall returns Success and handle on win with no scanner`() {
         val h = host(secValue = 2, files = 2)
         val d = decker(host = h)
-        val (result, handle) = d.tapComcall(h, scannerDeviceRating = 0, winRoller)
+        val (result, handle) = d.tapComcall(h, winRoller)
         assertIs<OperationResult.Success>(result)
         assertNotNull(handle)
         assertEquals(SystemOperation.TAP_COMCALL, handle!!.operation)
@@ -454,7 +441,7 @@ class DeckerOperationsTest {
     fun `tapComcall returns Failure on System Test loss`() {
         val h = host(secValue = 8, files = 12)
         val d = decker(host = h)
-        val (result, handle) = d.tapComcall(h, scannerDeviceRating = 0, loseRoller)
+        val (result, handle) = d.tapComcall(h, loseRoller)
         assertIs<OperationResult.Failure>(result)
         assertNull(handle)
     }
@@ -462,9 +449,9 @@ class DeckerOperationsTest {
     @Test
     fun `tapComcall with scanner passes when decker defeats it`() {
         // System Test wins (face=5, files=2); scanner TN = max(2, 4-0) = 4; face=5 ≥ 4 → passes
-        val h = host(secValue = 2, files = 2)
+        val h = host(secValue = 2, files = 2, datalineScannerRatings = listOf(4))
         val d = decker(host = h)
-        val (result, handle) = d.tapComcall(h, scannerDeviceRating = 4, winRoller)
+        val (result, handle) = d.tapComcall(h, winRoller)
         assertIs<OperationResult.Success>(result)
         assertNotNull(handle)
     }
@@ -472,9 +459,19 @@ class DeckerOperationsTest {
     @Test
     fun `tapComcall with scanner fails when scanner detects the tap`() {
         // System Test wins (files=2); scanner TN = max(2, 8-0) = 8; face=3 < 8 → tap detected
-        val h = host(secValue = 2, files = 2)
+        val h = host(secValue = 2, files = 2, datalineScannerRatings = listOf(8))
         val d = decker(host = h)
-        val (result, handle) = d.tapComcall(h, scannerDeviceRating = 8, loseRoller)
+        val (result, handle) = d.tapComcall(h, loseRoller)
+        assertIs<OperationResult.Failure>(result)
+        assertNull(handle)
+    }
+
+    @Test
+    fun `tapComcall uses only the highest of multiple dataline scanners`() {
+        // PRD: multiple scanners → use highest (7). Scanner TN = max(2, 7-0) = 7; face=3 < 7 → detected
+        val h = host(secValue = 2, files = 2, datalineScannerRatings = listOf(4, 6, 7))
+        val d = decker(host = h)
+        val (result, handle) = d.tapComcall(h, loseRoller)
         assertIs<OperationResult.Failure>(result)
         assertNull(handle)
     }
@@ -483,10 +480,10 @@ class DeckerOperationsTest {
     fun `tapComcall scanner TN is reduced by Commlink utility`() {
         // scanner=4, commlink=3 → scannerTn = max(2, 4-3) = 2; face=2 succeeds
         val commlink = Utility(UtilityType.COMMLINK, rating = 3)
-        val h = host(secValue = 2, files = 2)
+        val h = host(secValue = 2, files = 2, datalineScannerRatings = listOf(4))
         val d = decker(cyberdeck = deck(activeUtilities = listOf(commlink), storedUtilities = listOf(commlink)),
             host = h)
-        val (result, handle) = d.tapComcall(h, scannerDeviceRating = 4, fixedRoller(2))
+        val (result, handle) = d.tapComcall(h, fixedRoller(2))
         assertIs<OperationResult.Success>(result)
         assertNotNull(handle)
     }

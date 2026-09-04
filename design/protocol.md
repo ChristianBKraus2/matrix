@@ -6,6 +6,18 @@ Single WebSocket endpoint: `ws://<host>/decker/ws`
 
 All messages are JSON objects. Every message has a `"type"` discriminator field.
 
+### Origin guard (CSWSH mitigation)
+
+The WebSocket upgrade rejects a **present-and-disallowed** `Origin` header, closing the connection
+with close code `VIOLATED_POLICY`. A **missing** `Origin` is allowed (non-browser clients, tests);
+browsers always send `Origin` on a WS handshake, so this is the standard cross-site-hijacking guard.
+The allow-list is `http://localhost:8080` and `http://127.0.0.1:8080` — the UI is served same-origin
+from `/`, so these cover the local/production case. Running the Vite dev server (a different port)
+requires adding its origin to the allow-list.
+
+This is the Origin-check portion of the client-trust hardening only; a real authentication/handshake
+token on join remains deferred.
+
 ---
 
 ## Message Types
@@ -84,10 +96,12 @@ All messages are JSON objects. Every message has a `"type"` discriminator field.
 |---|---|
 | `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE` | `precision` (QueryPrecision), `query` (string — required on first call, ignored on continuation) |
 | `EDIT_FILE` | `newContent` (string or null to erase) |
-| `TAP_COMCALL` | `scannerDeviceRating` (int, 0–10) |
-| `MAKE_COMCALL` | `hasValidPasscode` (boolean, default false) |
 | `UPLOAD_DATA` | `dataSize` (int Mp, default 100) |
 | `NULL_OPERATION` | `inactivitySeconds` (int seconds of inactivity, default 0) |
+
+`MAKE_COMCALL` and `TAP_COMCALL` take **no** client params. `MAKE_COMCALL` simply runs a System Test.
+For `TAP_COMCALL`, the target's dataline-scanner rating is derived from server-side state — never from
+a client-supplied flag — so the client cannot disable scanner detection.
 
 ---
 
@@ -161,6 +175,7 @@ The `decker` object within `StateMessage` has the following key fields:
 |---|---|---|
 | `name` | string | Decker name |
 | `location` | string | Human-readable location string (e.g. `"Host: Mitsuhama Pagoda"`) |
+| `jackedIn` | bool | True iff the persona is jacked in (`currentLocation != null`). Typed jack-in flag; clients use this rather than string-comparing `location` against `"not jacked in"`. |
 | `locationIndex` | int? | Index into `visibleObjects` identifying the current location object; null if not jacked in or object not visible. **Stub:** currently always 0 when jacked in; proper lookup by object identity is deferred. |
 | `isPinnedByBlackIc` | bool | True if a Black IC pin is active |
 | `mcpRating` | int | Current MPCP rating |
@@ -187,7 +202,7 @@ Sealed by `"kind"` field (not `"type"`):
 | `LogonToHost` | `hostName` |
 | `GracefulLogoff` | — |
 | `JackOut` | — |
-| `Operation` | `operation` (SystemOperation), `targetKind`, `targetName`, `paramKind` (`"precision"` / `"hasValidPasscode"` / `"scannerDeviceRating"` / `"newContent"` / `"dataSize"` / null) |
+| `Operation` | `operation` (SystemOperation), `targetKind`, `targetName`, `paramKind` (`"precision"` / `"newContent"` / `"dataSize"` / null) |
 
 **Deferred operations** — never appear in `availableActions`:
 

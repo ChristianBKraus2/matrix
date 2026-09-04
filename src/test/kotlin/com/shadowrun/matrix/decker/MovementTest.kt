@@ -101,11 +101,19 @@ class MovementTest {
         persona = persona
     )
 
-    /** DiceRoller that always returns the maximum value (6) on every die — decker always wins. */
-    private fun alwaysWinRoller() = DiceRoller(Random(seed = 0L).also {
-        // Override: use a fixed random that reliably gives successes at low TNs.
-        // We construct a seeded roller and pair it with very low target numbers (access = 4)
-        // so the decker gets successes and the host (TN = detectionFactor ≥ 3) gets few.
+    /**
+     * Deterministic roller where the decker always wins: the first 6 dice (computerSkill) roll a
+     * non-exploding face 5 (a success at the low access TNs used here), and every subsequent die —
+     * the host's — rolls face 1 (never a success). Face 5 is used rather than 6 so the die never
+     * explodes and the decker/host call boundary stays fixed.
+     */
+    private fun deckerWinsRoller() = DiceRoller(object : Random() {
+        private var call = 0
+        override fun nextBits(bitCount: Int) = 0
+        override fun nextInt(from: Int, until: Int): Int {
+            call++
+            return if (call <= 6) 5 else 0 // decker: face=5 (success), host: face=1 (no success)
+        }
     })
 
     /** Deterministic roller: decker gets [deckerDice] dice all rolling [deckerValue], host gets [hostValue]. */
@@ -151,19 +159,13 @@ class MovementTest {
         val jp = Jackpoint(JackpointType.ILLEGAL_ACCESS, connectsToLtg = targetLtg)
         val d = decker(jackpoint = jp)
 
-        // Use seeded roller: decker skill 6 dice at TN 4 (access rating) — likely successes
-        val result = d.jackInToLtg(targetLtg, DiceRoller(Random(42)))
+        // Deterministic decker-wins roller so a "succeeds" test actually asserts success (T-6).
+        val result = d.jackInToLtg(targetLtg, deckerWinsRoller())
 
-        if (result is LogonResult.Success) {
-            assertNotNull(result.decker.persona)
-            assertIs<MatrixLocation.OnLTG>(result.location)
-            assertEquals(targetLtg.name, (result.location as MatrixLocation.OnLTG).ltg.name)
-        } else {
-            // Failure is also valid for the random seed; just verify state is consistent.
-            val failed = result as LogonResult.Failure
-            assertNull(failed.decker.persona)
-            assertNull(failed.decker.currentLocation)
-        }
+        assertIs<LogonResult.Success>(result)
+        assertNotNull(result.decker.persona)
+        assertIs<MatrixLocation.OnLTG>(result.location)
+        assertEquals(targetLtg.name, (result.location as MatrixLocation.OnLTG).ltg.name)
     }
 
     @Test
@@ -242,11 +244,10 @@ class MovementTest {
         val h = host()
         val jp = Jackpoint(JackpointType.WORKSTATION, connectsToHost = h)
         val d = decker(jackpoint = jp)
-        val result = d.jackInToHost(h, DiceRoller(Random(42)))
-        if (result is LogonResult.Success) {
-            assertNotNull(result.decker.persona)
-            assertIs<MatrixLocation.OnHost>(result.location)
-        }
+        val result = d.jackInToHost(h, deckerWinsRoller())
+        assertIs<LogonResult.Success>(result)
+        assertNotNull(result.decker.persona)
+        assertIs<MatrixLocation.OnHost>(result.location)
     }
 
     @Test
@@ -254,8 +255,10 @@ class MovementTest {
         val h = host()
         val jp = Jackpoint(JackpointType.ILLEGAL_JUNCTION_BOX, connectsToHost = h)
         val d = decker(jackpoint = jp)
-        val result = d.jackInToHost(h, DiceRoller(Random(42)))
-        assertIs<LogonResult>(result)
+        // ILLEGAL_JUNCTION_BOX is an allowed host jackpoint (unlike TELECOM which throws); with a
+        // decker-wins roller the logon resolves to Success rather than merely "some LogonResult".
+        val result = d.jackInToHost(h, deckerWinsRoller())
+        assertIs<LogonResult.Success>(result)
     }
 
     @Test
@@ -288,11 +291,10 @@ class MovementTest {
             currentLocation = MatrixLocation.OnLTG(l),
             persona = persona
         )
-        val result = d.logonToRtg(r, DiceRoller(Random(42)))
-        if (result is LogonResult.Success) {
-            assertIs<MatrixLocation.OnRTG>(result.location)
-            assertEquals("UCAS", (result.location as MatrixLocation.OnRTG).rtg.name)
-        }
+        val result = d.logonToRtg(r, deckerWinsRoller())
+        assertIs<LogonResult.Success>(result)
+        assertIs<MatrixLocation.OnRTG>(result.location)
+        assertEquals("UCAS", (result.location as MatrixLocation.OnRTG).rtg.name)
     }
 
     @Test
@@ -348,10 +350,9 @@ class MovementTest {
         val r = rtg(ltgs = listOf(l))
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
         val d = decker(currentLocation = MatrixLocation.OnRTG(r), persona = persona)
-        val result = d.logonToLtg(l, DiceRoller(Random(42)))
-        if (result is LogonResult.Success) {
-            assertIs<MatrixLocation.OnLTG>(result.location)
-        }
+        val result = d.logonToLtg(l, deckerWinsRoller())
+        assertIs<LogonResult.Success>(result)
+        assertIs<MatrixLocation.OnLTG>(result.location)
     }
 
     @Test
@@ -439,10 +440,9 @@ class MovementTest {
         val l = ltg().copy(hosts = listOf(h))
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
         val d = decker(currentLocation = MatrixLocation.OnLTG(l), persona = persona)
-        val result = d.logonToHost(h, DiceRoller(Random(42)))
-        if (result is LogonResult.Success) {
-            assertIs<MatrixLocation.OnHost>(result.location)
-        }
+        val result = d.logonToHost(h, deckerWinsRoller())
+        assertIs<LogonResult.Success>(result)
+        assertIs<MatrixLocation.OnHost>(result.location)
     }
 
     @Test
@@ -480,10 +480,9 @@ class MovementTest {
         val midHost = host("Mid").copy(connectedHosts = listOf(deepHost))
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
         val d = decker(currentLocation = MatrixLocation.OnHost(midHost), persona = persona)
-        val result = d.logonToHost(deepHost, DiceRoller(Random(42)))
-        if (result is LogonResult.Success) {
-            assertEquals("Deep", (result.location as MatrixLocation.OnHost).host.name)
-        }
+        val result = d.logonToHost(deepHost, deckerWinsRoller())
+        assertIs<LogonResult.Success>(result)
+        assertEquals("Deep", (result.location as MatrixLocation.OnHost).host.name)
     }
 
     // ── gracefulLogoff ───────────────────────────────────────────────────────────

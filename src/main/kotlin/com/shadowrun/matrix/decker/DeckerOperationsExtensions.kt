@@ -32,7 +32,6 @@ import com.shadowrun.matrix.operations.QueryPrecision
 import com.shadowrun.matrix.operations.ScrambleDestructResult
 import com.shadowrun.matrix.operations.SensorTestResult
 import com.shadowrun.matrix.operations.SystemOperation
-import com.shadowrun.matrix.operations.SystemTestOutcome
 import com.shadowrun.matrix.operations.SystemTestResolver
 import com.shadowrun.matrix.operations.UploadHandle
 import com.shadowrun.matrix.programs.Utility
@@ -544,7 +543,7 @@ fun Decker.invokeMedic(diceRoller: DiceRoller): MedicResult {
 /** PRD: SO-03, SO-04 */
 fun Decker.resolvePointerChain(file: DataFile, diceRoller: DiceRoller): PointerChain {
     require(file.isPointer) { "resolvePointerChain called on a non-pointer DataFile" }
-    val chainLength = diceRoller.roll(1, 6).dice.firstOrNull() ?: error("DiceRoller.roll(1, 6) returned empty dice list") // 1D6
+    val chainLength = diceRoller.flat(1, 6) // 1D6, non-exploding (a flat length, not a success test)
     val links = buildList {
         var current = requireNotNull(file.pointerToHost) { "resolvePointerChain: DataFile has null pointerToHost" }
         repeat(chainLength - 1) {
@@ -592,21 +591,18 @@ fun Decker.locateIc(host: Host, diceRoller: DiceRoller): OperationResult {
 
 // ── Comcall operations ─────────────────────────────────────────────────────────
 
-fun Decker.makeComcall(host: Host, diceRoller: DiceRoller, hasValidPasscode: Boolean = false): Pair<OperationResult, MonitoredOperationHandle?> {
-    logger.info { "[$name] makeComcall on ${host.name} (hasValidPasscode=$hasValidPasscode)" }
+fun Decker.makeComcall(host: Host, diceRoller: DiceRoller): Pair<OperationResult, MonitoredOperationHandle?> {
+    logger.info { "[$name] makeComcall on ${host.name}" }
     requireJackedIn()
-    if (hasValidPasscode) {
-        logger.info { "[$name] makeComcall: licensed decker with valid passcode — System Test skipped" }
-        val syntheticOutcome = SystemTestOutcome(1, 0, true)
-        return Pair(OperationResult.Success(this, syntheticOutcome), MonitoredOperationHandle(SystemOperation.MAKE_COMCALL, MonitoredTarget.ComcallHost(host)))
-    }
     val outcome = SystemTestResolver.resolve(this, SystemOperation.MAKE_COMCALL, host.subsystemRatings.files, host.securityRating.value, diceRoller)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.MAKE_COMCALL, MonitoredTarget.ComcallHost(host)))
     else Pair(OperationResult.Failure(updated, outcome), null)
 }
 
-fun Decker.tapComcall(host: Host, scannerDeviceRating: Int = 0, diceRoller: DiceRoller): Pair<OperationResult, MonitoredOperationHandle?> {
+fun Decker.tapComcall(host: Host, diceRoller: DiceRoller): Pair<OperationResult, MonitoredOperationHandle?> {
+    // Server-side source of truth: the target's own dataline scanners (PRD: use the highest rating).
+    val scannerDeviceRating = host.datalineScannerRatings.maxOrNull() ?: 0
     logger.info { "[$name] tapComcall on ${host.name} (scannerRating=$scannerDeviceRating)" }
     requireJackedIn()
     val outcome = SystemTestResolver.resolve(this, SystemOperation.TAP_COMCALL, host.subsystemRatings.files, host.securityRating.value, diceRoller)

@@ -326,23 +326,20 @@ class CyberdeckAndProgramMechanicsTest {
         val d = decker(
             cyberdeck = deck(activeUtilities = listOf(deception), storedUtilities = listOf(deception))
         )
-        // Only way to observe is via SystemTestResolver
-        // base TN = 10; Deception-4 → effective TN = max(2, 10-4) = 6
-        var deckerRolls = 0
-        var effectiveTnUsed = -1
+        // base TN = 10; Deception-4 fully active → effective TN = max(2, 10-4) = 6.
+        // Observe the reduction through the resulting successes: a [6,1] exploding sequence makes every
+        // die total exactly 7. At the reduced TN 6 all 6 computer-skill dice succeed; at the *unreduced*
+        // TN 10 a total of 7 would score ZERO successes. Positive successes therefore prove the TN was cut.
+        // (Constant face=6 is avoided — it would infinite-loop on the exploding die; [6,1] terminates.)
         val roller = DiceRoller(object : Random() {
+            private val seq = intArrayOf(6, 1)
             private var call = 0
             override fun nextBits(bitCount: Int) = 0
-            override fun nextInt(from: Int, until: Int): Int {
-                call++
-                if (call == 1) effectiveTnUsed = until // from=1, until=TN+1
-                return 5 // face=5
-            }
+            override fun nextInt(from: Int, until: Int): Int = seq[call++ % seq.size]
         })
-        SystemTestResolver.resolve(d, SystemOperation.LOGON_TO_HOST, 10, 1, roller)
-        // until = TN+1 for the first roll, so TN = until-1; but DiceRoller uses nextInt(1,7) for open-ended
-        // Instead assert on the decker object to confirm Deception is present and currentRating=4
-        assertEquals(4, d.cyberdeck.activeUtilities.first { it.type == UtilityType.DECEPTION }.currentRating)
+        val outcome = SystemTestResolver.resolve(d, SystemOperation.LOGON_TO_HOST, 10, 1, roller)
+        assertEquals(6, outcome.deckerSuccesses,
+            "All 6 dice (total 7 each) beat the reduced TN 6; at the unreduced TN 10 none would have")
     }
 
     @Test

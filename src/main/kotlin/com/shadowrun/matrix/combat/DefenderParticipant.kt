@@ -8,4 +8,9 @@ data class DefenderParticipant(
     val armorCurrentRating: Int = 0,
     val personaStatus: PersonaStatus,
     val securityCode: SecurityCode
-)
+) {
+    init {
+        require(bod >= 0) { "bod must be >= 0, was $bod" }
+        require(armorCurrentRating >= 0) { "armorCurrentRating must be >= 0, was $armorCurrentRating" }
+    }
+}

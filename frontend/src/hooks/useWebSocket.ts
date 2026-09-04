@@ -18,6 +18,7 @@ interface WsState {
   deckerName: string | null
   gameState: StateMessage | null
   events: GameEvent[]
+  eventSeq: number
 }
 
 type WsAction =
@@ -48,12 +49,14 @@ function reducer(state: WsState, action: WsAction): WsState {
     case 'RESULT':
       return {
         ...state,
-        events: [...state.events.slice(-19), { kind: 'result', msg: action.msg }],
+        eventSeq: state.eventSeq + 1,
+        events: [...state.events.slice(-19), { kind: 'result', id: state.eventSeq, msg: action.msg }],
       }
     case 'ERROR':
       return {
         ...state,
-        events: [...state.events.slice(-19), { kind: 'error', msg: action.msg }],
+        eventSeq: state.eventSeq + 1,
+        events: [...state.events.slice(-19), { kind: 'error', id: state.eventSeq, msg: action.msg }],
       }
   }
 }
@@ -64,6 +67,7 @@ const initialState: WsState = {
   deckerName: null,
   gameState: null,
   events: [],
+  eventSeq: 0,
 }
 
 export function useWebSocket() {
@@ -113,7 +117,7 @@ export function useWebSocket() {
             }
             break
           case 'state': {
-            const isJackedIn = msg.decker.location !== 'not jacked in'
+            const isJackedIn = msg.decker.jackedIn
             if (!isJackedIn && wasJackedInRef.current) {
               reconnectTokenRef.current = null
               suppressReconnectRef.current = true

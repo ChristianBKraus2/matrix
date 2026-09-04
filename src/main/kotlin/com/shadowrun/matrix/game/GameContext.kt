@@ -77,10 +77,12 @@ class GameContext(
         val oldTally = host.securityTally
         val newTally = (new.currentLocation as? MatrixLocation.OnHost)?.host?.securityTally ?: oldTally
         updateDecker(old, new)
-        if (newTally > oldTally) {
+        if (newTally != oldTally) {
             val newHost = (new.currentLocation as? MatrixLocation.OnHost)?.host ?: host.copy(securityTally = newTally)
             updateHost(newHost)
-            checkTriggers(oldTally, newTally)
+            // Triggers are upward threshold crossings only; a tally decrease (e.g. IC-suppression
+            // accounting) still updates host state but must not re-fire or unfire triggers.
+            if (newTally > oldTally) checkTriggers(oldTally, newTally)
         }
     }
 

@@ -27,7 +27,7 @@ class SessionRegistryTest {
     private fun makeStateBase() = StateMessage(
         role = SessionRole.OBSERVER,
         decker = DeckerStateDto(
-            name = "Test", location = "not jacked in",
+            name = "Test", location = "not jacked in", jackedIn = false,
             isPinnedByBlackIc = false,
             physicalDamage = 0, physicalMaxBoxes = 10,
             mentalDamage = 0, mentalMaxBoxes = 10,

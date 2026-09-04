@@ -124,30 +124,23 @@ The following actions are fully determined by pressing the card alone:
 
 - **Navigation** (excluded from general analysis — handled separately): `LogonToRtg`, `LogonToLtg`, `LogonToPltg`, `LogonToHost`
 - **Exit actions**: `GracefulLogoff`, `JackOut`
-- **All `Operation` actions** where `params` is ignored by the server — this covers the majority of operations: `ANALYZE_HOST`, `ANALYZE_IC`, `ANALYZE_ICON`, `ANALYZE_SECURITY`, `ANALYZE_SUBSYSTEM`, `CONTROL_SLAVE`, `DECRYPT_ACCESS`, `DECRYPT_FILE`, `DECRYPT_SLAVE`, `DOWNLOAD_DATA`, `EDIT_SLAVE`, `GRACEFUL_LOGOFF`, `INVOKE_MEDIC`, `LOCATE_IC`, `MAKE_COMCALL`, `MONITOR_SLAVE`, `RELOCATE_ICON`
+- **All `Operation` actions** where `params` is ignored by the server — this covers the majority of operations: `ANALYZE_HOST`, `ANALYZE_IC`, `ANALYZE_ICON`, `ANALYZE_SECURITY`, `ANALYZE_SUBSYSTEM`, `CONTROL_SLAVE`, `DECRYPT_ACCESS`, `DECRYPT_FILE`, `DECRYPT_SLAVE`, `DOWNLOAD_DATA`, `EDIT_SLAVE`, `GRACEFUL_LOGOFF`, `INVOKE_MEDIC`, `LOCATE_IC`, `MAKE_COMCALL`, `MONITOR_SLAVE`, `RELOCATE_ICON`, `TAP_COMCALL`
 - **`NULL_OPERATION`**: uses `inactivitySeconds` (default `0`) — the default is sufficient; no extra input required
 
 ## Actions that require inline parameter input
 
-Four operation types need additional input that is not derivable from the card, the decker panel, or the entity panel. For each, the required input is provided by an inline control shown on the card itself:
+Some operations need additional input that is not derivable from the card, the decker panel, or the entity panel. For each, the required input is provided by an inline control shown on the card itself.
+
+`MAKE_COMCALL` and `TAP_COMCALL` require **no** inline control. `MAKE_COMCALL` takes no client params
+at all — it simply runs a System Test. For `TAP_COMCALL`, the target's dataline-scanner rating is
+resolved from server-side state (the host's dataline scanners), never from client input, so no toggle
+or stepper is shown.
 
 ### `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`
 
 Param: `precision` — one of `"VERY_VAGUE"`, `"VAGUE"`, `"NORMAL"`, `"SPECIFIC"`, `"VERY_SPECIFIC"` (default `"NORMAL"`)
 
 **UI control:** A 5-position selector on the card. The selected value is sent with the `ActionCommand`.
-
-### `MAKE_COMCALL`
-
-Param: `hasValidPasscode` — boolean (default `false`)
-
-**UI control:** A yes/no toggle or checkbox on the card indicating whether the decker has a valid passcode for the call.
-
-### `TAP_COMCALL`
-
-Param: `scannerDeviceRating` — number (default `0`)
-
-**UI control:** A numeric stepper on the card. The Device entity shown in the Right panel has no `rating` field, so this value must be entered manually. Default `0` means no scanner device is used.
 
 ### `EDIT_FILE`
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useWebSocket } from './hooks/useWebSocket'
 import DeckerPanel from './components/DeckerPanel'
 import LocationPanel from './components/LocationPanel'
@@ -28,18 +28,20 @@ function JoinScreen({
   onJoin: (name: string) => void
 }) {
   const [name, setName] = useState('')
-  const [error, setError] = useState('')
+  // Suppress errors that predate the most recent join attempt: an error is shown only when the
+  // latest event is an error that arrived after the last submit (F-5). Derived during render — no
+  // effect, no stale error left dangling after a subsequent non-error event.
+  const [ackedEventCount, setAckedEventCount] = useState(0)
 
-  useEffect(() => {
-    const last = events[events.length - 1]
-    if (last?.kind === 'error') {
-      setError(ERROR_LABELS[last.msg.message] ?? last.msg.message)
-    }
-  }, [events])
+  const last = events[events.length - 1]
+  const error =
+    last?.kind === 'error' && events.length > ackedEventCount
+      ? ERROR_LABELS[last.msg.message] ?? last.msg.message
+      : ''
 
   const handleSubmit = () => {
     if (!name.trim()) return
-    setError('')
+    setAckedEventCount(events.length)
     onJoin(name.trim())
   }
 

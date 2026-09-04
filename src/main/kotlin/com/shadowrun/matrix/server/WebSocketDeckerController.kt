@@ -36,6 +36,8 @@ import com.shadowrun.matrix.server.dto.StateMessage
 import com.shadowrun.matrix.server.dto.toDto
 import com.shadowrun.matrix.utility.DiceRoller
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.encodeToString
 
@@ -72,76 +74,88 @@ class WebSocketDeckerController(
             return ActionResult.DeckerAction
         }
 
-        val stateBase = StateMessage(
-            role = SessionRole.OBSERVER,
-            decker = decker.toDto(),
-            visibleObjects = visibleObjects.toDto(),
-            availableActions = availableActions.toDto()
-        )
-        registry.broadcastWithRoles(stateBase)
-
-        val cmd = try {
-            withTimeoutOrNull(actionTimeoutSeconds * 1000L) { deferred.await() }
-        } catch (_: DeckerDisconnectedException) {
-            broadcastFail("Decker disconnected — turn forfeit")
-            registry.demoteAfterTurn(decker.name)
-            return ActionResult.DeckerAction
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            broadcastFail("Unexpected error — turn aborted")
-            registry.demoteAfterTurn(decker.name)
-            return ActionResult.DeckerAction
-        } finally {
-            registry.setPendingAction(null)
+        // Demote exactly once per turn. The success path demotes explicitly before its final
+        // broadcast (so the post-turn state shows the decker as REGISTERED, not ACTIVE); every
+        // other exit — including CancellationException — is covered by the finally below (S-7).
+        var demoted = false
+        suspend fun demoteOnce() {
+            if (!demoted) {
+                demoted = true
+                registry.demoteAfterTurn(decker.name)
+            }
         }
 
-        if (cmd == null) {
-            broadcastFail("Action timed out")
-            registry.demoteAfterTurn(decker.name)
-            return ActionResult.DeckerAction
-        }
-
-        val chosen = availableActions.getOrNull(cmd.actionIndex)
-        if (chosen == null) {
-            broadcastFail("Invalid action index ${cmd.actionIndex}")
-            registry.demoteAfterTurn(decker.name)
-            return ActionResult.DeckerAction
-        }
-
-        val oldDecker = decker
         try {
-            val result = dispatch(chosen, cmd, diceRoller)
-            decker = result.decker
-            context.applyDeckerOperationResult(oldDecker, decker)
-            // Re-read from context: applyDeckerOperationResult may have replaced the decker
-            // reference (e.g. alert transition updates the embedded host object).
-            decker = context.deckers.firstOrNull { it.name == decker.name } ?: decker
-            if (chosen is AvailableAction.GracefulLogoff) registry.clearReconnectToken(decker.name)
-            registry.broadcast(MatrixJson.encodeToString(ResultMessage(
-                success = result.success,
-                deckerSuccesses = result.deckerSuccesses,
-                hostSuccesses = result.hostSuccesses,
-                details = result.details
-            )))
-            registry.demoteAfterTurn(decker.name)
-            val postVisible = decker.visibleObjects()
-            val postActions = decker.availableActions()
-            registry.broadcastWithRoles(StateMessage(
+            val stateBase = StateMessage(
                 role = SessionRole.OBSERVER,
                 decker = decker.toDto(),
-                visibleObjects = postVisible.toDto(),
-                availableActions = postActions.toDto()
-            ))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            logger.error(e) { "dispatch failed for decker ${decker.name}, action $chosen" }
-            broadcastFail("Internal error — turn aborted")
-            registry.demoteAfterTurn(decker.name)
-        }
+                visibleObjects = visibleObjects.toDto(),
+                availableActions = availableActions.toDto()
+            )
+            registry.broadcastWithRoles(stateBase)
 
-        return ActionResult.DeckerAction
+            val cmd = try {
+                withTimeoutOrNull(actionTimeoutSeconds * 1000L) { deferred.await() }
+            } catch (_: DeckerDisconnectedException) {
+                broadcastFail("Decker disconnected — turn forfeit")
+                return ActionResult.DeckerAction
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                broadcastFail("Unexpected error — turn aborted")
+                return ActionResult.DeckerAction
+            } finally {
+                registry.setPendingAction(null)
+            }
+
+            if (cmd == null) {
+                broadcastFail("Action timed out")
+                return ActionResult.DeckerAction
+            }
+
+            val chosen = availableActions.getOrNull(cmd.actionIndex)
+            if (chosen == null) {
+                broadcastFail("Invalid action index ${cmd.actionIndex}")
+                return ActionResult.DeckerAction
+            }
+
+            val oldDecker = decker
+            try {
+                val result = dispatch(chosen, cmd, diceRoller)
+                decker = result.decker
+                context.applyDeckerOperationResult(oldDecker, decker)
+                // Re-read from context: applyDeckerOperationResult may have replaced the decker
+                // reference (e.g. alert transition updates the embedded host object).
+                decker = context.deckers.firstOrNull { it.name == decker.name } ?: decker
+                if (chosen is AvailableAction.GracefulLogoff) registry.clearReconnectToken(decker.name)
+                registry.broadcast(MatrixJson.encodeToString(ResultMessage(
+                    success = result.success,
+                    deckerSuccesses = result.deckerSuccesses,
+                    hostSuccesses = result.hostSuccesses,
+                    details = result.details
+                )))
+                demoteOnce()
+                val postVisible = decker.visibleObjects()
+                val postActions = decker.availableActions()
+                registry.broadcastWithRoles(StateMessage(
+                    role = SessionRole.OBSERVER,
+                    decker = decker.toDto(),
+                    visibleObjects = postVisible.toDto(),
+                    availableActions = postActions.toDto()
+                ))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logger.error(e) { "dispatch failed for decker ${decker.name}, action $chosen" }
+                broadcastFail("Internal error — turn aborted")
+            }
+
+            return ActionResult.DeckerAction
+        } finally {
+            // Guaranteed cleanup on every exit path (including cancellation); NonCancellable so
+            // the setActive(null) + REGISTERED_DECKER frame still complete while unwinding.
+            withContext(NonCancellable) { demoteOnce() }
+        }
     }
 
     private fun dispatch(action: AvailableAction, cmd: ActionCommand, diceRoller: DiceRoller): DispatchResult {
@@ -386,14 +400,14 @@ class WebSocketDeckerController(
     private fun dispatchCommsOp(action: AvailableAction.Operation, cmd: ActionCommand, host: Host, diceRoller: DiceRoller): DispatchResult {
         return when (action.operation) {
             SystemOperation.MAKE_COMCALL -> {
-                val (opResult, handle) = decker.makeComcall(host, diceRoller, cmd.params?.hasValidPasscode ?: false)
+                val (opResult, handle) = decker.makeComcall(host, diceRoller)
                 val dispatch = opResult.toDispatch()
                 if (handle != null && dispatch.success)
                     dispatch.copy(decker = dispatch.decker.copy(activeMonitoredOperations = dispatch.decker.activeMonitoredOperations + handle))
                 else dispatch
             }
             SystemOperation.TAP_COMCALL -> {
-                val (opResult, handle) = decker.tapComcall(host, (cmd.params?.scannerDeviceRating ?: 0).coerceIn(0..10), diceRoller)
+                val (opResult, handle) = decker.tapComcall(host, diceRoller)
                 val dispatch = opResult.toDispatch()
                 if (handle != null && dispatch.success)
                     dispatch.copy(decker = dispatch.decker.copy(activeMonitoredOperations = dispatch.decker.activeMonitoredOperations + handle))

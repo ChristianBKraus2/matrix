@@ -27,6 +27,19 @@ sealed class IC(
 
     abstract fun withConditionMonitor(cm: ConditionMonitor): IC
 
+    /**
+     * Identity match that survives condition-monitor copies: every damage application produces a
+     * NEW IC instance via [withConditionMonitor], so reference identity is not stable. Matches on
+     * concrete type + name + rating + guarded node, deliberately ignoring the mutable condition
+     * monitor. This is intentionally NOT an equals() override — active-IC list membership
+     * (addIc/removeIc) still relies on reference identity.
+     */
+    fun matchesIdentity(other: IC): Boolean =
+        this::class == other::class &&
+            name == other.name &&
+            rating == other.rating &&
+            guardedNode == other.guardedNode
+
     abstract override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult
 
     override fun initiative(context: GameContext, diceRoller: DiceRoller): CombatInitiative =

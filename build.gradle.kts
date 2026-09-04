@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm") version "2.2.0"
     kotlin("plugin.serialization") version "2.2.0"
+    id("io.gitlab.arturbosch.detekt") version "1.23.8"
     jacoco
     application
 }
@@ -63,6 +64,15 @@ jacoco {
 
 kotlin {
     jvmToolchain(21)
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(files("config/detekt/detekt.yml"))
+    // Pre-existing findings are grandfathered via the baseline; new findings fail the build.
+    baseline = file("config/detekt/baseline.xml")
+    // Lint main + test sources; the generated frontend copy is not Kotlin.
+    source.setFrom(files("src/main/kotlin", "src/test/kotlin"))
 }
 
 tasks.register<Exec>("buildFrontend") {

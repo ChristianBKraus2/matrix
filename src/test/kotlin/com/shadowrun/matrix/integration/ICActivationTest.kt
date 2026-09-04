@@ -9,8 +9,6 @@ import com.shadowrun.matrix.operations.HostInfoItem
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ICActivationTest : IntegrationTestBase() {
@@ -131,13 +129,13 @@ class ICActivationTest : IntegrationTestBase() {
     // --- Group: analyzeHost ---
 
     @Test
-    fun `successful analyzeHost reveals security rating`() {
-        // With winRoller all dice roll face 1 → net = 0 → deckerWins (ties go to decker) but net=0 so nothing revealed.
-        // Use a roller that gives decker 2 net successes by making decker succeed and host fail partially.
-        // Easiest: winRoller gives 0 to both → deckerSuccesses=0 hostSuccesses=0 → deckerWins=true, net=0, nothing revealed.
-        // We need a positive net to reveal something. Use a custom approach: decker wins with exactly 1 net success.
-        // Since winRoller returns 0 (face 1 = success vs any TN ≥2) for both pools → decker 8 successes, host 6 successes → net = 2 → reveals 2 items.
-        // Actually: face 1 beats TN 6 and TN 3 both → 8 decker successes, 6 host successes → net = 2 → reveals 2 items.
+    fun `successful analyzeHost wins the test and activates no IC`() {
+        // T-8: this scenario-level test verifies the end-to-end wiring of a winning analyzeHost —
+        // the decker wins the System Test (asserted inside the DSL step via succeed = true) and no IC
+        // activates. It does NOT assert the revealed items: the harness's winRoller wins by the 0-0
+        // tie rule (0 net successes), and Quicksilver carries no ANALYZE utility (TN 8), so a reveal
+        // is structurally unreachable here. The net-successes → revealedSecurityRating mechanic is
+        // covered deterministically by the unit tests in SystemOperationsTest.
         val icon = scenario {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")

@@ -10,6 +10,13 @@ result was clean (1 LOW + 4 INFO; see below).
 
 ## 🟠 E-1 (MEDIUM) — `resolvePointerChain` treats an exploding die as a flat 1D6
 
+> ✅ **RESOLVED (Step 3, 2026-09-04).** Added `DiceRoller.flat(min, max)` — a single non-exploding
+> uniform draw (`random.nextInt(min, max+1)`, no re-roll on 6). `resolvePointerChain` now calls
+> `diceRoller.flat(1, 6)` instead of `roll(1, 6).dice.first()`, so chain length is a bounded 1–6.
+> Covered by new tests (T-2): a pinned-length test (`fixedRoller(n)` ⇒ exactly `n` links) and a
+> non-exploding cap test (`fixedRoller(6)` ⇒ exactly 6 links; the old exploding `roll()` would have
+> infinite-looped on that stub), plus `DiceRollerTest` unit tests for `flat`.
+
 **Category:** Correctness
 **Where:** [DeckerOperationsExtensions.kt:547](../../src/main/kotlin/com/shadowrun/matrix/decker/DeckerOperationsExtensions.kt#L547),
 [DiceRoller.kt](../../src/main/kotlin/com/shadowrun/matrix/utility/DiceRoller.kt)
@@ -34,6 +41,11 @@ guideline §12 warns about, applied to the production code rather than a test st
 
 ## 🟡 E-2 (LOW) — `persona!!` in navigation extension
 
+> ✅ **RESOLVED (2026-09-04).** [DeckerNavigationExtensions.kt:95](../../src/main/kotlin/com/shadowrun/matrix/decker/DeckerNavigationExtensions.kt#L95)
+> now reads `requireNotNull(result.decker.persona) { "jackInToHost: logon succeeded but decker has no
+> active persona" }`, matching the `requireNotNull` convention used everywhere else. No bare `!!` on
+> `persona` remains in the codebase.
+
 **Category:** Maintainability / Correctness (defensive)
 **Where:** [DeckerNavigationExtensions.kt:95](../../src/main/kotlin/com/shadowrun/matrix/decker/DeckerNavigationExtensions.kt#L95)
 
@@ -50,6 +62,13 @@ useful failure message.
 ---
 
 ## 🟡 E-3 (LOW) — Tally *decrease* not propagated
+
+> ✅ **RESOLVED (2026-09-04).** `applyDeckerOperationResult`
+> ([GameContext.kt:76-85](../../src/main/kotlin/com/shadowrun/matrix/game/GameContext.kt#L76-L85))
+> now propagates the host-state change on `if (newTally != oldTally)`, so a *decrease* updates the
+> embedded host object like an increase. Trigger evaluation (`checkTriggers`) remains correctly gated
+> to `if (newTally > oldTally)` — security-sheaf steps fire only when the tally rises, per the ruleset —
+> so the change fixes the state-propagation gap without spuriously re-firing triggers on a decrease.
 
 **Category:** Correctness
 **Where:** [GameContext.kt](../../src/main/kotlin/com/shadowrun/matrix/game/GameContext.kt) — `applyDeckerOperationResult`
@@ -91,9 +110,21 @@ contract in `resolveLethalBlackIc`/`resolveNonLethalBlackIc` relies on **callers
 `attackerSuccesses` for cycling. `resolveTrackLock` uses `attack.attackerSuccesses` — verify it is never
 fed a Black-IC-sourced `AttackResult.Hit`.
 
+> ✅ **Closed by E-7 (2026-09-04).** This is no longer a caller-discipline obligation: `resolveTrackLock`
+> now hard-`require`s `attackerSuccessesMeaningful`, so a Black-IC sentinel hit throws rather than
+> silently cycling. See E-7 above.
+
 ---
 
 ## 🔵 E-6 (INFO) — Static-analysis tooling not configured
+
+> **✅ RESOLVED (2026-09-04) — Step 5.** detekt is now configured (`io.gitlab.arturbosch.detekt`
+> 1.23.8 in `build.gradle.kts`; `config/detekt/detekt.yml` extends the default rule set;
+> `config/detekt/baseline.xml` grandfathers the 142 pre-existing findings so only NEW findings fail).
+> eslint is configured for the frontend (flat `frontend/eslint.config.js` with the recommended
+> TypeScript + react-hooks rules; `npm run lint`). Both run in GitHub Actions
+> (`.github/workflows/ci.yml`): `gradlew.bat test integrationTest detekt` on Windows + `npm ci`/lint/
+> build for the UI. `detekt` green against baseline, `npm run lint` clean.
 
 `./gradlew.bat detekt` → task not found. No detekt config in the build. `tsc --noEmit` on the frontend
 passed clean; `eslint` has no config file. Recommend wiring detekt + an eslint config into CI so the
@@ -107,6 +138,16 @@ All 27 value/result/holder types read in full. The layer is clean — **no corre
 concurrency defect**; everything is `val`-only + `copy()`, no exposed mutable collections. Notable items:
 
 ### 🟡 E-7 (LOW) — `AttackResult.Hit.attackerSuccesses` sentinel contract is undocumented on the type
+
+> ✅ **RESOLVED (2026-09-04).** `AttackResult.Hit` now carries an explicit
+> `attackerSuccessesMeaningful: Boolean = true` flag
+> ([AttackResult.kt:19](../../src/main/kotlin/com/shadowrun/matrix/combat/AttackResult.kt#L19)); the
+> Black-IC resolvers set it `false` when `attackerSuccesses = 1` is a sentinel. `resolveTrackLock`
+> opens with `require(attack.attackerSuccessesMeaningful) { … }`
+> ([CombatResolver.kt:421-424](../../src/main/kotlin/com/shadowrun/matrix/combat/CombatResolver.kt#L421-L424)),
+> so a sentinel hit can no longer be cycled on — the type/guard now prevents the misuse instead of a
+> kdoc warning. New unit test `resolveTrackLock throws on a Black-IC sentinel hit (E-7)` pins the guard.
+
 **Where:** [AttackResult.kt:7](../../src/main/kotlin/com/shadowrun/matrix/combat/AttackResult.kt#L7),
 [CombatResolver.kt:302,362,423-424](../../src/main/kotlin/com/shadowrun/matrix/combat/CombatResolver.kt#L302)
 
@@ -120,6 +161,17 @@ wiring feeding a Black-IC `Hit` into track-lock cycling → wrong `cycleTurns`.
 Int?` or a `BlackIcHit` variant) so the type prevents the misuse.
 
 ### 🟡 E-8 (LOW) — `IcSuppressionState` matches IC by reference identity
+
+> ✅ **RESOLVED (2026-09-04).** `unsuppressIc`
+> ([CombatResolver.kt:458-465](../../src/main/kotlin/com/shadowrun/matrix/combat/CombatResolver.kt#L458-L465))
+> now matches with `it.ic.matchesIdentity(ic)` instead of `==`. `IC.matchesIdentity`
+> ([IC.kt:37-41](../../src/main/kotlin/com/shadowrun/matrix/ic/IC.kt#L37-L41)) compares concrete
+> type + name + rating + guarded node, deliberately ignoring the mutable condition monitor — so a
+> re-created instance (any `withConditionMonitor` copy) still releases the suppression and fires the
+> tally callback. Left as a helper, not an `equals()` override, because active-IC list membership
+> (`addIc`/`removeIc`) still relies on reference identity. New unit test `unsuppressIc matches a
+> condition-monitor copy by identity (E-8)` pins the behavior.
+
 **Where:** [IcSuppressionState.kt:10](../../src/main/kotlin/com/shadowrun/matrix/combat/IcSuppressionState.kt#L10),
 [CombatResolver.kt:455](../../src/main/kotlin/com/shadowrun/matrix/combat/CombatResolver.kt#L455)
 
@@ -132,6 +184,16 @@ state` removal itself is correct (exact element).
 exact suppressed instance.
 
 ### 🔵 E-9 (INFO) — Minor holder items
+
+> ✅ **RESOLVED (2026-09-04).** The two correctness-relevant items are fixed:
+> `require(... >= 0)` validation added to the rating/pool holders (`CombatInitiative`,
+> `ManeuverParticipant`, `DefenderParticipant`, `AttackParticipant`, `TrackState`, and `Persona`'s
+> attribute ratings), matching the `Cyberdeck`/`GameContext` precedent; and
+> `AttackParticipant.weaponPower` is now a **required** constructor parameter (no longer defaulted to
+> `attackDicePool`), with all call sites updated. The two cosmetic items (`DownloadDestination` `object`
+> vs `data object`, `Cyberdeck.init` inlined formula) were left as-is — purely stylistic, no behavioral
+> impact. `test integrationTest detekt` green.
+
 - Rating/pool holders (`CombatInitiative`, `ManeuverParticipant`, `DefenderParticipant`,
   `AttackParticipant`, `TrackState`, `Persona`) lack `require(... >= 0)` validation, unlike the
   `Cyberdeck`/`GameContext` precedent — negatives would flow silently into `max(2, …)`/`net/2` math.
@@ -148,6 +210,23 @@ silent default); condition-monitor box counts match `DamageLevel.boxes` (1/3/6/1
 
 ## Subagent-reviewed packages (network / operations / programs / config)
 
-Completed cleanly. Reported: 1 LOW + 4 INFO (no HIGH/MEDIUM). These 37 files should be
-spot-re-verified when the review is finalized, but the completed agent found no correctness or security
-issues of note.
+Completed cleanly — no HIGH/MEDIUM. The 1 LOW + 4 INFO were re-verified at finalization and **all
+assessed as by-design or acceptable, requiring no code change** (changing them would risk violating the
+documented design/PRD). Itemized:
+
+- **LOW-1 — interrogation TN "double-floor".** `resolveInterrogationCore` clamps the base TN with
+  `maxOf(2, subsystemRating − utility)` and then, after applying the query-precision modifier, clamps
+  again. This double `maxOf(2, …)` is **by design**: `operations.md:273` specifies the base TN is
+  "clamped ≥ 2" before precision, and the System Test then re-applies the ≥ 2 floor. Consistent with the
+  documented algorithm — **no change**.
+- **LOW-2 — `checkGridTriggers` alert-transition guard.** [AlertTransitions.kt:84](../../src/main/kotlin/com/shadowrun/matrix/network/AlertTransitions.kt#L84)
+  boosts the alert only when `if (transition != updated.alertStatus)`, mirroring
+  `GameContext.checkTriggers`. This gives a single consistent boost per evaluation (matching the
+  host-side behavior); the raw `applyAlertTransition` stacking `+2` per call is intentional and only
+  reached through the guarded path. **Latent-consistent — no change.**
+- **INFO-3/4/5 — minor stylistic/observational notes** in the network/operations/config packages
+  (no correctness, security, or concurrency impact). Assessed acceptable as-is; documenting or "fixing"
+  them would churn faithful code with no behavioral benefit. **No change.**
+
+`test integrationTest detekt` remains green across these packages.
+

@@ -24,21 +24,17 @@ function formatEnum(s: string) { return s.replace(/_/g, ' ') }
 interface CardState {
   precision: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'
   query: string
-  scannerDeviceRating: number
   newContent: string
-  hasValidPasscode: boolean
   dataSize: number
 }
 
 function defaultCardState(): CardState {
-  return { precision: 'NORMAL', query: '', scannerDeviceRating: 0, newContent: '', hasValidPasscode: false, dataSize: 100 }
+  return { precision: 'NORMAL', query: '', newContent: '', dataSize: 100 }
 }
 
 function buildParams(paramKind: string | null, cs: CardState): ActionParams | undefined {
   if (paramKind === 'precision')           return { precision: cs.precision, query: cs.query }
   if (paramKind === 'newContent')          return { newContent: cs.newContent === '' ? null : cs.newContent }
-  if (paramKind === 'scannerDeviceRating') return { scannerDeviceRating: cs.scannerDeviceRating }
-  if (paramKind === 'hasValidPasscode')    return { hasValidPasscode: cs.hasValidPasscode }
   if (paramKind === 'dataSize')            return { dataSize: cs.dataSize }
   return undefined
 }
@@ -49,10 +45,17 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
   const [cardStates, setCardStates] = useState<Record<number, CardState>>({})
   const [focusedCards, setFocusedCards] = useState<Set<number>>(new Set())
 
+  // `actions` is a fresh array on every STATE broadcast, so depending on it directly would wipe
+  // in-progress input (search terms, edit content, stepper values) on any re-broadcast (F-1).
+  // Reset only when the action set *semantically* changes — its per-index identity signature.
+  const actionsSignature = actions
+    .map((a) => `${a.index}:${a.kind === 'Operation' ? a.operation : a.kind}`)
+    .join('|')
+
   useEffect(() => {
     setCardStates({})
     setFocusedCards(new Set())
-  }, [actions])
+  }, [actionsSignature])
 
   function getState(idx: number): CardState {
     return cardStates[idx] ?? defaultCardState()
@@ -95,7 +98,16 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
               <div
                 key={action.index}
                 className={`action-card ${disabled ? 'disabled' : ''}`}
+                role="button"
+                tabIndex={disabled ? -1 : 0}
+                aria-disabled={disabled}
                 onClick={() => handleClick(action)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    handleClick(action)
+                  }
+                }}
               >
                 <div className="action-card-header">
                   <span className="action-kind">{actionLabel(action)}</span>
@@ -133,24 +145,6 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                   </div>
                 )}
 
-                {paramKind === 'scannerDeviceRating' && (
-                  <div className="action-control" onClick={e => e.stopPropagation()}>
-                    <div className="ctrl-label">SCANNER RATING</div>
-                    <div className="stepper">
-                      <button
-                        className="stepper-btn"
-                        onClick={() => patchState(action.index, { scannerDeviceRating: Math.max(0, cs.scannerDeviceRating - 1) })}
-                      >−</button>
-                      <span>{cs.scannerDeviceRating}</span>
-                      <button
-                        className="stepper-btn"
-                        disabled={cs.scannerDeviceRating >= 10}
-                        onClick={() => patchState(action.index, { scannerDeviceRating: cs.scannerDeviceRating + 1 })}
-                      >+</button>
-                    </div>
-                  </div>
-                )}
-
                 {paramKind === 'newContent' && (
                   <div className="action-control" onClick={e => e.stopPropagation()}>
                     {focusedCards.has(action.index) ? (
@@ -176,18 +170,6 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                     ) : (
                       <div className="edit-placeholder">[ click to enter content ]</div>
                     )}
-                  </div>
-                )}
-
-                {paramKind === 'hasValidPasscode' && (
-                  <div className="action-control" onClick={e => e.stopPropagation()}>
-                    <div className="ctrl-label">VALID PASSCODE</div>
-                    <button
-                      className={`toggle-btn ${cs.hasValidPasscode ? 'active' : ''}`}
-                      onClick={() => patchState(action.index, { hasValidPasscode: !cs.hasValidPasscode })}
-                    >
-                      {cs.hasValidPasscode ? 'YES' : 'NO'}
-                    </button>
                   </div>
                 )}
 

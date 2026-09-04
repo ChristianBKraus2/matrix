@@ -1,6 +1,5 @@
 package com.shadowrun.matrix.game
 
-import com.shadowrun.matrix.combat.CombatInitiative
 import com.shadowrun.matrix.common.IcBehavior
 import com.shadowrun.matrix.common.IntrusionDifficulty
 import com.shadowrun.matrix.common.PersonaAttributeType
@@ -521,47 +520,6 @@ class GameTest {
         // without reordering, dropping, or re-adding any entry.
         assertEquals(listOf("A", "B"), ctx.deckers.map { it.name },
             "runOutOfCombatTurn must iterate all deckers in order without modifying the context")
-    }
-
-    // ── Game.runCombatTurn — initiative ordering ───────────────────────────────────
-
-    @Test
-    fun `runCombatTurn gives higher initiative icon more actions`() {
-        val actionOrder = mutableListOf<String>()
-
-        // Wrap two deckers in tracking ActiveIcons
-        val iconA = object : ActiveIcon {
-            override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
-                actionOrder += "A"
-                return ActionResult.DeckerAction
-            }
-            override fun initiative(context: GameContext, diceRoller: DiceRoller) = CombatInitiative(0, 1)
-        }
-        val iconB = object : ActiveIcon {
-            override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult {
-                actionOrder += "B"
-                return ActionResult.DeckerAction
-            }
-            override fun initiative(context: GameContext, diceRoller: DiceRoller) = CombatInitiative(0, 1)
-        }
-
-        // Build initial states directly: A=15, B=8
-        // Turn: A(15) → A(5) → B(8) → sorted each step by max → A, B, A
-        val states = mutableListOf(
-            ActiveIconState(iconA, 15),
-            ActiveIconState(iconB, 8)
-        )
-
-        // Drive the same loop logic as runCombatTurn to assert ordering
-        while (states.any { it.currentInitiative > 0 }) {
-            val state = states.filter { it.currentInitiative > 0 }.maxByOrNull { it.currentInitiative }!!
-            val idx = states.indexOf(state)
-            runBlocking { state.icon.action(GameContext(host(SecurityCode.ORANGE), SecurityCode.ORANGE, emptyList()), allFaces(1)) }
-            states[idx] = state.copy(currentInitiative = state.currentInitiative - 10)
-        }
-
-        // A=15, B=8, A=5 → order: A, B, A
-        assertEquals(listOf("A", "B", "A"), actionOrder)
     }
 
     // ── Game.runCombatTurn — combat ends when IC list empties ─────────────────────

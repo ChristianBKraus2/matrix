@@ -16,7 +16,10 @@ import com.shadowrun.matrix.integration.utility.IntegrationTestBase
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
+import io.ktor.client.request.header
+import io.ktor.http.HttpHeaders
 import io.ktor.server.testing.testApplication
+import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CompletableDeferred
@@ -164,6 +167,7 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
         DeckerStateDto(
             name = name,
             location = "not jacked in",
+            jackedIn = false,
             locationIndex = null,
             isPinnedByBlackIc = false,
             physicalDamage = 0,
@@ -182,6 +186,23 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
         val obj = receiveJson()
         assertEquals("error", obj["type"]?.jsonPrimitive?.content)
         assertEquals("unknown_message_type", obj["message"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `malformed action frame returns generic bad_request without leaking exception text`() = webSocketTest {
+        consumeObserver()
+        // Well-formed "action" type but a type-mismatched field: decodeFromString<ActionCommand>
+        // throws, hitting the frame-dispatch catch (S-4).
+        send(Frame.Text("""{"type":"action","actionIndex":"not-a-number"}"""))
+        val obj = receiveJson()
+        assertEquals("error", obj["type"]?.jsonPrimitive?.content)
+        assertEquals("bad_request", obj["message"]?.jsonPrimitive?.content)
+        val details = obj["details"]?.jsonPrimitive?.content
+        assertEquals("malformed request", details,
+            "details must be the generic message, not raw exception text")
+        // Guard against regressions that would re-leak serializer internals.
+        assertFalse(details?.contains("Exception") ?: false, "details must not contain exception class names")
+        assertFalse(details?.contains("JSON") ?: false, "details must not contain serializer diagnostics")
     }
 
     @Test
@@ -219,5 +240,30 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
         incoming.receive() // post-action StateMessage broadcast
         thread.join(5000)
         assertFalse(thread.isAlive, "background thread did not terminate")
+    }
+
+    // ── Origin guard (S-5) ────────────────────────────────────────────────────────
+
+    @Test
+    fun `connecting with allowed Origin receives observer ControlMessage`() = testApplication {
+        val registry = SessionRegistry()
+        application { matrixModule(registry) }
+        val client = createClient { install(WebSockets) }
+        client.webSocket("/decker/ws", request = { header(HttpHeaders.Origin, "http://localhost:8080") }) {
+            val obj = receiveJson()
+            assertEquals("observer", obj["role"]?.jsonPrimitive?.content)
+        }
+    }
+
+    @Test
+    fun `connecting with disallowed Origin is closed with policy violation`() = testApplication {
+        val registry = SessionRegistry()
+        application { matrixModule(registry) }
+        val client = createClient { install(WebSockets) }
+        client.webSocket("/decker/ws", request = { header(HttpHeaders.Origin, "http://evil.example.com") }) {
+            val reason = closeReason.await()
+            assertEquals(CloseReason.Codes.VIOLATED_POLICY.code, reason?.code,
+                "disallowed Origin must be rejected with VIOLATED_POLICY")
+        }
     }
 }

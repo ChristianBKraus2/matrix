@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
 data class DeckerStateDto(
     val name: String,
     val location: String,
+    val jackedIn: Boolean,
     val locationIndex: Int? = null,
     val isPinnedByBlackIc: Boolean,
     val physicalDamage: Int,
@@ -25,6 +26,7 @@ data class UtilityDto(val type: String, val rating: Int)
 fun Decker.toDto() = DeckerStateDto(
     name = name,
     location = currentLocation?.label() ?: "not jacked in",
+    jackedIn = currentLocation != null,
     locationIndex = if (currentLocation != null) 0 else null,
     isPinnedByBlackIc = isPinnedByBlackIc,
     physicalDamage = physicalConditionMonitor.damage,

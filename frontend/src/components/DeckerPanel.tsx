@@ -58,8 +58,8 @@ export default function DeckerPanel({ decker }: Props) {
           <>
             <div className="section-title">LOADED PROGRAMS</div>
             <div>
-              {decker.activeUtilities.map((u, i) => (
-                <div key={i} className="program-row">
+              {decker.activeUtilities.map((u) => (
+                <div key={u.type} className="program-row">
                   <span className="program-name">{u.type}</span>
                   <span className="program-rating">
                     {'●'.repeat(Math.min(Math.max(0, u.rating), 10))}

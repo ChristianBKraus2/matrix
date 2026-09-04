@@ -172,8 +172,6 @@ export interface JoinMessage {
 export interface ActionParams {
   newContent?: string | null;
   precision?: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC';
-  hasValidPasscode?: boolean;
-  scannerDeviceRating?: number;
   inactivitySeconds?: number;
   query?: string;  // search query string for LOCATE_ACCESS_NODE
 }
@@ -203,6 +201,7 @@ export interface ActiveUtility {
 export interface DeckerStateDto {
   name: string;
   location: string;
+  jackedIn: boolean;  // typed jack-in flag; true iff currentLocation != null. Preferred over parsing the `location` string for jack-in logic.
   isPinnedByBlackIc: boolean;
   physicalDamage: number;
   physicalMaxBoxes: number;
@@ -238,7 +237,7 @@ export type AvailableActionDto =
   | { kind: 'LogonToHost';   index: number; actionType: ActionType; hostName: string }
   | { kind: 'GracefulLogoff';index: number; actionType: ActionType }
   | { kind: 'JackOut';       index: number; actionType: ActionType }
-  | { kind: 'Operation';     index: number; actionType: ActionType; operation: SystemOperation; targetKind: string | null; targetName: string | null; paramKind: "precision" | "hasValidPasscode" | "scannerDeviceRating" | "newContent" | "dataSize" | null };
+  | { kind: 'Operation';     index: number; actionType: ActionType; operation: SystemOperation; targetKind: string | null; targetName: string | null; paramKind: "precision" | "newContent" | "dataSize" | null };
 
 export interface StateMessage {
   type: 'state';
@@ -388,8 +387,6 @@ The `paramKind` field on `Operation` actions declares which inline control (if a
 | `paramKind` | Control |
 |---|---|
 | `"precision"` | Text input (SEARCH TERM) + five-position selector |
-| `"hasValidPasscode"` | Checkbox / toggle |
-| `"scannerDeviceRating"` | Numeric stepper |
 | `"newContent"` | Text area |
 | `"dataSize"` | Numeric stepper (Mp) |
 | `null` | *(no inline control)* |
@@ -399,9 +396,11 @@ Full inline control specs per operation:
 | Operation | Control |
 |---|---|
 | `LOCATE_FILE` / `LOCATE_SLAVE` / `LOCATE_ACCESS_NODE` | Text input `[SEARCH TERM]` (blank on new operation, ignored on continuation) + five-position selector `[VERY VAGUE]` / `[VAGUE]` / `[NORMAL]` / `[SPECIFIC]` / `[VERY SPECIFIC]` — NORMAL selected by default |
-| `MAKE_COMCALL` | Checkbox / toggle `VALID PASSCODE: [ ]` |
-| `TAP_COMCALL` | Numeric stepper `SCANNER RATING: [−] 0 [+]` |
 | `EDIT_FILE` | Text area that expands when the card is focused; empty = erase file |
+
+`MAKE_COMCALL` and `TAP_COMCALL` render no inline control (`paramKind: null`): `MAKE_COMCALL` takes no
+params and just runs a System Test, and `TAP_COMCALL`'s dataline-scanner rating is resolved
+server-side, not entered by the client.
 
 Pressing any card (or a confirm button on `EDIT_FILE`) calls `sendAction(card.index, params)`.
 
@@ -471,5 +470,5 @@ On submit: send `JoinMessage`. On `ControlMessage(role="registered_decker")` dis
 4. Enter a decker name and jack in → game grid appears with all 5 panels.
 5. Verify: location panel shows current node, decker panel shows stats, actions panel shows available actions.
 6. Press an action card → result appears in the Middle panel.
-7. Test the 4 inline-param actions (LOCATE_FILE, MAKE_COMCALL, TAP_COMCALL, EDIT_FILE) render their controls correctly.
+7. Test the inline-param actions (LOCATE_FILE, EDIT_FILE) render their controls correctly.
 8. Open a second browser tab with a different decker name → verify observer/registered_decker role behaviour, blinking border only appears on the active controller tab.

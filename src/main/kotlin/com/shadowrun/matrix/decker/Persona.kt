@@ -22,6 +22,15 @@ data class Persona(
     // The node (or null when on a grid / not yet logged into a host) where this persona is currently located
     val currentNode: Node? = null
 ) {
+    init {
+        require(bod >= 0) { "bod must be >= 0, was $bod" }
+        require(evasion >= 0) { "evasion must be >= 0, was $evasion" }
+        require(masking >= 0) { "masking must be >= 0, was $masking" }
+        require(sensor >= 0) { "sensor must be >= 0, was $sensor" }
+        require(reaction >= 0) { "reaction must be >= 0, was $reaction" }
+        require(sleazeRating >= 0) { "sleazeRating must be >= 0, was $sleazeRating" }
+    }
+
     fun attribute(type: PersonaAttributeType): Int = when (type) {
         PersonaAttributeType.BOD     -> bod
         PersonaAttributeType.EVASION -> evasion

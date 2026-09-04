@@ -33,7 +33,18 @@ function EntityCard({
   const cls = `entity-card ${focused ? 'focused' : 'compact'} ${onClick ? 'clickable' : ''}`
 
   return (
-    <div className={cls} onClick={onClick}>
+    <div
+      className={cls}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      } : undefined}
+    >
       <div className="entity-kind">{obj.kind.toUpperCase()}</div>
       {obj.kind === 'IcProgram' && (
         <>
@@ -76,8 +87,11 @@ function EntityCard({
 
 export default function EntitiesPanel({ visibleObjects }: Props) {
   const entities = visibleObjects.filter(isEntity)
-  const [focusIdx, setFocusIdx] = useState(0)
-  const clamped = Math.min(focusIdx, Math.max(0, entities.length - 1))
+  // Track focus by the entity's stable DTO index, not its position in the re-derived array,
+  // so focus follows the same entity across state broadcasts (F-2). Falls back to the first
+  // entity when nothing is focused yet or the focused entity is no longer visible.
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
+  const focused = entities.find((e) => e.index === focusedIndex) ?? entities[0]
 
   return (
     <div className="panel entities-panel">
@@ -87,15 +101,15 @@ export default function EntitiesPanel({ visibleObjects }: Props) {
           <div className="no-data">[ NO ENTITIES VISIBLE ]</div>
         ) : (
           <>
-            <EntityCard obj={entities[clamped]} focused />
+            <EntityCard obj={focused} focused />
             {entities
-              .filter((_, i) => i !== clamped)
+              .filter((e) => e.index !== focused.index)
               .map((obj) => (
                 <EntityCard
                   key={obj.index}
                   obj={obj}
                   focused={false}
-                  onClick={() => setFocusIdx(entities.findIndex((e) => e.index === obj.index))}
+                  onClick={() => setFocusedIndex(obj.index)}
                 />
               ))}
           </>

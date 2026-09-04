@@ -1,0 +1,148 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:DeckerLoader.kt$DeckerLoader$@Suppress("UNCHECKED_CAST") private fun buildCyberdeck(data: Map&lt;String, Any&gt;, catalog: List&lt;DeckCatalogEntry&gt;): Cyberdeck</ID>
+    <ID>CyclomaticComplexMethod:DeckerNavigationExtensions.kt$private fun Decker.performLogon( operation: SystemOperation, accessRating: Int, securityValue: Int, diceRoller: DiceRoller, buildLocation: (Int) -&gt; MatrixLocation, targetName: String = "" ): LogonResult</ID>
+    <ID>CyclomaticComplexMethod:DeckerNavigationExtensions.kt$private fun Decker.withDestinationTallyEmbedded(destination: MatrixLocation): Decker</ID>
+    <ID>CyclomaticComplexMethod:GridLoader.kt$GridLoader$@Suppress("UNCHECKED_CAST") private fun collectDataFilePointerSpec(rtgData: List&lt;Map&lt;String, Any&gt;&gt;): List&lt;DataFilePointerEntry&gt;</ID>
+    <ID>CyclomaticComplexMethod:WebSocketDeckerController.kt$WebSocketDeckerController$private fun dispatchDataOp(action: AvailableAction.Operation, cmd: ActionCommand, host: Host, diceRoller: DiceRoller): DispatchResult</ID>
+    <ID>CyclomaticComplexMethod:WebSocketDeckerController.kt$WebSocketDeckerController$private fun dispatchGridOperation( action: AvailableAction.Operation, cmd: ActionCommand, diceRoller: DiceRoller ): DispatchResult</ID>
+    <ID>FunctionNaming:Cyberterminal.kt$fun Cyberterminal( name: String, mcpRating: Int, hardening: Int = 0, activeMemoryMp: Int, storageMemoryMp: Int, ioSpeedMpPerTurn: Int, costNuyen: Int, personaPrograms: List&lt;PersonaProgram&gt; = emptyList(), activeUtilities: List&lt;Utility&gt; = emptyList(), storedUtilities: List&lt;Utility&gt; = emptyList(), accessories: List&lt;Accessory&gt; = emptyList() ): Cyberdeck</ID>
+    <ID>FunctionOnlyReturningConstant:GridMock.kt$GridMock$fun getDefaultLTG() : String</ID>
+    <ID>InstanceOfCheckForException:Game.kt$Game$e is CancellationException</ID>
+    <ID>LargeClass:CombatResolverTest.kt$CombatResolverTest</ID>
+    <ID>LargeClass:CyberdeckAndProgramMechanicsTest.kt$CyberdeckAndProgramMechanicsTest</ID>
+    <ID>LoopWithTooManyJumpStatements:GridLoader.kt$GridLoader$for</ID>
+    <ID>MaxLineLength:AlertAndTallyTest.kt$AlertAndTallyTest$is com.shadowrun.matrix.decker.LogonResult.Failure -&gt; (result.decker.currentLocation as? MatrixLocation.OnRTG)?.rtg?.securityTally ?: 0</ID>
+    <ID>MaxLineLength:AlertAndTallyTest.kt$AlertAndTallyTest$is com.shadowrun.matrix.decker.LogonResult.Success -&gt; (result.decker.currentLocation as? MatrixLocation.OnRTG)?.rtg?.securityTally ?: 0</ID>
+    <ID>MaxLineLength:CombatResolver.kt$CombatResolver$updatedUtilities[armorIdx] = Utility(armorUtil.type, armorUtil.rating, armorUtil.attackDamageLevel, armorUtil.currentRating - 1, armorUtil.sourceCode)</ID>
+    <ID>MaxLineLength:CombatResolver.kt$CombatResolver$val noticed = diceRoller.roll(requireNotNull(decker.persona) { "$context: decker has no active persona" }.sensor, icRating).successes &gt;= 1</ID>
+    <ID>MaxLineLength:CombatResolverTest.kt$CombatResolverTest$// hardening=10 → effectivePower = max(0, 6-10) = 0 → body rolls at TN=2 but all dice show 1 → 0 successes → staged damage applied raw</ID>
+    <ID>MaxLineLength:CombatResolverTest.kt$CombatResolverTest$val defender = DefenderParticipant(bod = 4, armorCurrentRating = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)</ID>
+    <ID>MaxLineLength:CombatTest.kt$CombatTest$assertEquals(iconDamageBefore, icon.currentDecker().persona!!.conditionMonitor.damage, "TarBaby with no utilities should not deal icon damage")</ID>
+    <ID>MaxLineLength:DataFile.kt$DataFile$override fun toString()</ID>
+    <ID>MaxLineLength:Decker.kt$Decker$is MatrixLocation.OnHost -&gt; copy(currentLocation = MatrixLocation.OnHost(loc.host.copy(securityTally = loc.host.securityTally + hostSuccesses)))</ID>
+    <ID>MaxLineLength:Decker.kt$Decker$is MatrixLocation.OnLTG -&gt; copy(currentLocation = MatrixLocation.OnLTG(loc.ltg.copy(securityTally = loc.ltg.securityTally + hostSuccesses)))</ID>
+    <ID>MaxLineLength:Decker.kt$Decker$is MatrixLocation.OnPLTG -&gt; copy(currentLocation = MatrixLocation.OnPLTG(loc.pltg.copy(securityTally = loc.pltg.securityTally + hostSuccesses)))</ID>
+    <ID>MaxLineLength:Decker.kt$Decker$is MatrixLocation.OnRTG -&gt; copy(currentLocation = MatrixLocation.OnRTG(loc.rtg.copy(securityTally = loc.rtg.securityTally + hostSuccesses)))</ID>
+    <ID>MaxLineLength:DeckerCombatTest.kt$DeckerCombatTest$assertTrue(result.updatedDecker.persona!!.conditionMonitor.damage &gt;= 1, "Black Hammer should still deal icon damage even with minimal staging")</ID>
+    <ID>MaxLineLength:DeckerCombatTest.kt$DeckerCombatTest$val result = CombatResolver.resolveSlow(killer, slowRating = 4, securityValue = 5, icInitiative = icInitiative, diceRoller = winThenRoller(zeroCalls = 5, thenValue = 5))</ID>
+    <ID>MaxLineLength:DeckerCombatTest.kt$DeckerCombatTest$val result = CombatResolver.resolveSlow(probe, slowRating = 4, securityValue = 4, icInitiative = icInitiative, diceRoller = winRoller())</ID>
+    <ID>MaxLineLength:DeckerMemoryExtensions.kt$logger.warn { "[$name] loadUtility ${utility.type}: insufficient memory (need=${utility.mpSize}, free=${cyberdeck.freeActiveMemoryMp})" }</ID>
+    <ID>MaxLineLength:DeckerNavigationExtensions.kt$LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet(), analyzedIcNames = emptySet()))</ID>
+    <ID>MaxLineLength:DeckerNavigationExtensions.kt$LogoffResult.JackOut(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet(), analyzedIcNames = emptySet()), dumpShock = shock)</ID>
+    <ID>MaxLineLength:DeckerNavigationExtensions.kt$return</ID>
+    <ID>MaxLineLength:DeckerNavigationExtensions.kt$val bod = cyberdeck.personaPrograms.firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.BOD }?.rating ?: 0</ID>
+    <ID>MaxLineLength:DeckerNavigationExtensions.kt$val evasion = cyberdeck.personaPrograms.firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.EVASION }?.rating ?: 0</ID>
+    <ID>MaxLineLength:DeckerNavigationExtensions.kt$val masking = cyberdeck.personaPrograms.firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.MASKING }?.rating ?: 0</ID>
+    <ID>MaxLineLength:DeckerNavigationExtensions.kt$val sensor = cyberdeck.personaPrograms.firstOrNull { it.attributeType == com.shadowrun.matrix.common.PersonaAttributeType.SENSORS }?.rating ?: 0</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.CONTROL_SLAVE, MonitoredTarget.SlaveDevice(device)))</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$cyberdeck.activeUtilities.map { if (it.type == UtilityType.MEDIC) Utility(it.type, it.rating, currentRating = newMedicRating) else it }</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$fun</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$logger.info { "[$name] locateDecker: sensor vs TN=$sensorTn (masking=${targetPersona.masking} sleaze=${targetPersona.sleazeRating}) → ${sensorResult.successes} successes, located=$located" }</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$return</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$return Pair(OperationResult.Success(this, syntheticOutcome), MonitoredOperationHandle(SystemOperation.MAKE_COMCALL, MonitoredTarget.ComcallHost(host)))</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$return Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.TAP_COMCALL, MonitoredTarget.ComcallHost(host)))</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_ACCESS_NODE, grid, state, precision, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_ACCESS_NODE, host, state, precision, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_SLAVE, host, state, precision, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val handle = UploadHandle(file = DataFile(name = "upload to ${host.name}", sizeMp = dataSizeMp), totalMp = dataSizeMp, ioSpeedMpPerTurn = ioSpeed, turnsRemaining = turns)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(deckerForTest, SystemOperation.CONTROL_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_HOST, host.subsystemRatings.control, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_IC, host.subsystemRatings.control, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_SECURITY, grid.subsystemRatings.control, grid.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_SECURITY, host.subsystemRatings.control, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_ACCESS, grid.subsystemRatings.access, grid.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_ACCESS, host.subsystemRatings.access, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_FILE, host.subsystemRatings.files, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.DOWNLOAD_DATA, host.subsystemRatings.files, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.EDIT_FILE, host.subsystemRatings.files, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.EDIT_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.LOCATE_DECKER, host.subsystemRatings.index, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.LOCATE_IC, grid.subsystemRatings.index, grid.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.LOCATE_IC, host.subsystemRatings.index, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.MAKE_COMCALL, host.subsystemRatings.files, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.MONITOR_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.TAP_COMCALL, host.subsystemRatings.files, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:DeckerOperationsExtensions.kt$val outcome = SystemTestResolver.resolve(this, SystemOperation.UPLOAD_DATA, host.subsystemRatings.files, host.securityRating.value, diceRoller)</ID>
+    <ID>MaxLineLength:Grid.kt$RTG$override fun toString()</ID>
+    <ID>MaxLineLength:GridLoader.kt$GridLoader$require(rtgs.size == rtgById.size) { "Duplicate RTG IDs in grid.yaml: ${rtgs.map { it.name }.groupBy { it }.filter { it.value.size &gt; 1 }.keys}" }</ID>
+    <ID>MaxLineLength:Host.kt$Host$override fun toString()</ID>
+    <ID>MaxLineLength:IC.kt$Crippler$class</ID>
+    <ID>MaxLineLength:IC.kt$GrayIC$sealed</ID>
+    <ID>MaxLineLength:IC.kt$Ripper$class</ID>
+    <ID>MaxLineLength:IC.kt$TarBaby$class</ID>
+    <ID>MaxLineLength:IC.kt$TarPit$class</ID>
+    <ID>MaxLineLength:IC.kt$WhiteIC$sealed</ID>
+    <ID>MaxLineLength:ICActivationTest.kt$ICActivationTest$// Since winRoller returns 0 (face 1 = success vs any TN ≥2) for both pools → decker 8 successes, host 6 successes → net = 2 → reveals 2 items.</ID>
+    <ID>MaxLineLength:IntegrationTestBase.kt$IntegrationTestBase$assertEquals(count, context.activeIc.size, "Expected $count active IC but found ${context.activeIc.size}: ${context.activeIc.map { it.name }}")</ID>
+    <ID>MaxLineLength:IntegrationTestBase.kt$IntegrationTestBase$assertEquals(expected, currentDecker().cyberdeck.mcpRating, "Expected MCP rating $expected but was ${currentDecker().cyberdeck.mcpRating}")</ID>
+    <ID>MaxLineLength:IntegrationTestBase.kt$IntegrationTestBase$return requireNotNull(currentDecker().persona) { "decker persona must not be null in runCombatTurn" }.conditionMonitor.damage - damageBefore</ID>
+    <ID>MaxLineLength:IntegrationTestBase.kt$IntegrationTestBase$val damageBefore = requireNotNull(currentDecker().persona) { "decker persona must not be null in runCombatTurn" }.conditionMonitor.damage</ID>
+    <ID>MaxLineLength:Main.kt$val</ID>
+    <ID>MaxLineLength:ScenarioBuilder.kt$ScenarioBuilder$assertActionable({ it is AvailableAction.LogonToRtg &amp;&amp; it.rtg.name == currentLtg.parentRtg.name }, "LogonToRtg '${currentLtg.parentRtg.name}'")</ID>
+    <ID>MaxLineLength:ScenarioBuilder.kt$ScenarioBuilder$assertVisible({ it is MatrixObject.GridNode &amp;&amp; it.rtg.name == currentLtg.parentRtg.name }, "parent RTG '${currentLtg.parentRtg.name}'")</ID>
+    <ID>MaxLineLength:SessionRegistry.kt$SessionRegistry$session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = ErrorCode.BAD_REQUEST, details = "Name contains invalid characters"))))</ID>
+    <ID>MaxLineLength:SystemOperationsTest.kt$SystemOperationsTest$val d = decker(jackedIn = true, host = h, computerSkill = 9, intelligence = 0, cyberdeck = deck(mcpRating = 2, programs = programs(rating = 1)))</ID>
+    <ID>MaxLineLength:SystemOperationsTest.kt$SystemOperationsTest$val handle = MonitoredOperationHandle(SystemOperation.EDIT_SLAVE, MonitoredTarget.SlaveDevice(RemoteDevice("test", "test")), active = true)</ID>
+    <ID>MaxLineLength:SystemOperationsTest.kt$SystemOperationsTest$val handle = MonitoredOperationHandle(SystemOperation.MONITOR_SLAVE, MonitoredTarget.SlaveDevice(RemoteDevice("test", "test")), active = true)</ID>
+    <ID>MaxLineLength:SystemTestResolver.kt$SystemTestResolver$logger.info { "[${decker.name}] Decker rolls: $totalDeckerDice dice vs TN $effectiveTn (base=$accessRating, ${operation.name} modifier=$utilityRating, hackingPool=$hackingPoolDice) → ${deckerResult.successes} successes" }</ID>
+    <ID>MaxLineLength:SystemTestResolver.kt$SystemTestResolver$logger.info { "[${decker.name}] Host Security Test: $securityValue dice vs DF=${decker.effectiveDetectionFactor} → ${hostResult.successes} successes" }</ID>
+    <ID>MaxLineLength:SystemTestResolver.kt$SystemTestResolver$logger.info { "[${decker.name}] Interrogation ${operation.name}: TN=$adjustedTn (base=$baseSubsystemRating precision=${queryPrecision.modifier} utility=$utilityRating hackingPool=$hackingPoolDice) → ${deckerResult.successes} successes" }</ID>
+    <ID>MaxLineLength:SystemTestResolver.kt$SystemTestResolver$logger.info { "[${decker.name}] Null Operation: inactivity=${inactivitySeconds}s, SV bonus=+$bonus → effectiveSV=$effectiveSecurityValue" }</ID>
+    <ID>MaxLineLength:SystemTestResolver.kt$SystemTestResolver$logger.info { "[${decker.name}] System Test outcome: ${if (outcome.deckerWins) "decker wins" else "host wins"} (${outcome.deckerSuccesses} vs ${outcome.hostSuccesses})" }</ID>
+    <ID>MaxLineLength:SystemTestResolver.kt$SystemTestResolver$return resolve(decker, SystemOperation.NULL_OPERATION, grid.subsystemRatings.control, effectiveSecurityValue, diceRoller, hackingPoolDice)</ID>
+    <ID>MaxLineLength:SystemTestResolver.kt$SystemTestResolver$return resolve(decker, SystemOperation.NULL_OPERATION, host.subsystemRatings.control, effectiveSecurityValue, diceRoller, hackingPoolDice)</ID>
+    <ID>MaxLineLength:SystemTestResolver.kt$SystemTestResolver$val newState = state.copy(accumulatedSuccesses = state.accumulatedSuccesses + maxOf(0, deckerResult.successes - hostResult.successes))</ID>
+    <ID>MaxLineLength:SystemTestResolverTest.kt$SystemTestResolverTest$val (_, newStateSpecific) = SystemTestResolver.resolveInterrogation(d, SystemOperation.LOCATE_FILE, h, state, QueryPrecision.VERY_SPECIFIC, fixedRoller(5))</ID>
+    <ID>MaxLineLength:SystemTestResolverTest.kt$SystemTestResolverTest$val (_, newStateVague) = SystemTestResolver.resolveInterrogation(d, SystemOperation.LOCATE_FILE, h, state, QueryPrecision.VAGUE, fixedRoller(2))</ID>
+    <ID>MaxLineLength:SystemTestResolverTest.kt$SystemTestResolverTest$val (outcome, _) = SystemTestResolver.resolveInterrogation(d, SystemOperation.LOCATE_FILE, h, state, QueryPrecision.VERY_SPECIFIC, fixedRoller(5))</ID>
+    <ID>MaxLineLength:SystemTestResolverTest.kt$SystemTestResolverTest$val (outcome, newState) = SystemTestResolver.resolveInterrogation(d, SystemOperation.LOCATE_FILE, h, state, QueryPrecision.NORMAL, splitRoller)</ID>
+    <ID>MaxLineLength:WebSocketDeckerController.kt$WebSocketDeckerController$SystemOperation.NULL_OPERATION -&gt; decker.nullOperation(grid, p?.inactivitySeconds?.coerceAtLeast(0) ?: 0, diceRoller).toDispatch()</ID>
+    <ID>MaxLineLength:WebSocketDeckerController.kt$WebSocketDeckerController$SystemOperation.NULL_OPERATION -&gt; decker.nullOperation(host, p?.inactivitySeconds?.coerceAtLeast(0) ?: 0, diceRoller).toDispatch()</ID>
+    <ID>MaxLineLength:WebSocketDeckerController.kt$WebSocketDeckerController$dispatch.copy(decker = dispatch.decker.copy(activeMonitoredOperations = dispatch.decker.activeMonitoredOperations + handle))</ID>
+    <ID>MaxLineLength:WebSocketDeckerController.kt$WebSocketDeckerController$is LethalBlackIC -&gt; CombatResolver.resolveLethalBlackIc(decker, ic, securityCode, diceRoller).updatedDecker</ID>
+    <ID>MaxLineLength:WebSocketDeckerController.kt$WebSocketDeckerController$is NonLethalBlackIC -&gt; CombatResolver.resolveNonLethalBlackIc(decker, ic, securityCode, diceRoller).updatedDecker</ID>
+    <ID>MaxLineLength:WebSocketDeckerController.kt$WebSocketDeckerController$private</ID>
+    <ID>NestedBlockDepth:WebSocketDeckerController.kt$WebSocketDeckerController$private fun dispatch(action: AvailableAction, cmd: ActionCommand, diceRoller: DiceRoller): DispatchResult</ID>
+    <ID>NewLineAtEndOfFile:DeckerMock.kt$com.shadowrun.matrix.integration.utility.DeckerMock.kt</ID>
+    <ID>NewLineAtEndOfFile:GridMock.kt$com.shadowrun.matrix.integration.utility.GridMock.kt</ID>
+    <ID>NewLineAtEndOfFile:HostMock.kt$com.shadowrun.matrix.integration.utility.HostMock.kt</ID>
+    <ID>SwallowedException:WebSocketDeckerController.kt$WebSocketDeckerController$e: Exception</ID>
+    <ID>ThrowsCount:Game.kt$Game$suspend fun runCombatTurn()</ID>
+    <ID>TooGenericExceptionCaught:Game.kt$Game$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:Main.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:MatrixServer.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:WebSocketDeckerController.kt$WebSocketDeckerController$e: Exception</ID>
+    <ID>UnusedParameter:CombatResolver.kt$CombatResolver$maneuver: CombatManeuverType</ID>
+    <ID>UnusedParameter:DeckerOperationsExtensions.kt$file: DataFile</ID>
+    <ID>UnusedParameter:ScenarioBuilder.kt$ScenarioBuilder$name: String</ID>
+    <ID>UnusedParameter:WebSocketDeckerController.kt$WebSocketDeckerController$cmd: ActionCommand</ID>
+    <ID>UnusedPrivateMember:MovementTest.kt$MovementTest$private fun alwaysWinRoller()</ID>
+    <ID>UnusedPrivateMember:MovementTest.kt$MovementTest$private fun fixedRoller(deckerValue: Int, hostValue: Int): DiceRoller</ID>
+    <ID>UnusedPrivateMember:MovementTest.kt$MovementTest$private fun hardHost(name: String = "Secure Host")</ID>
+    <ID>UnusedPrivateProperty:CyberdeckAndProgramMechanicsTest.kt$CyberdeckAndProgramMechanicsTest$var deckerRolls = 0</ID>
+    <ID>UnusedPrivateProperty:FileOperationsTest.kt$FileOperationsTest$val state = InterrogationState(SystemOperation.LOCATE_FILE, "Personnel")</ID>
+    <ID>UnusedPrivateProperty:FileOperationsTest.kt$FileOperationsTest$val state = InterrogationState(SystemOperation.LOCATE_FILE, "Project", accumulatedSuccesses = 1)</ID>
+    <ID>UnusedPrivateProperty:MovementTest.kt$MovementTest$val values = mutableListOf&lt;Int&gt;()</ID>
+    <ID>UseCheckOrError:DeckerNavigationExtensions.kt$throw IllegalStateException("Cannot logon to LTG from $currentLocation")</ID>
+    <ID>UseCheckOrError:DeckerNavigationExtensions.kt$throw IllegalStateException("Cannot logon to PLTG from $currentLocation")</ID>
+    <ID>UseCheckOrError:DeckerNavigationExtensions.kt$throw IllegalStateException("Cannot logon to RTG from $currentLocation")</ID>
+    <ID>UseCheckOrError:DeckerNavigationExtensions.kt$throw IllegalStateException("Cannot logon to a host from $currentLocation")</ID>
+    <ID>UseCheckOrError:DeckerNavigationExtensions.kt$throw IllegalStateException("Decker is not jacked in")</ID>
+    <ID>WildcardImport:AlertAndTallyTest.kt$import com.shadowrun.matrix.decker.*</ID>
+    <ID>WildcardImport:CombatResolverTest.kt$import com.shadowrun.matrix.decker.*</ID>
+    <ID>WildcardImport:CombatTest.kt$import com.shadowrun.matrix.decker.*</ID>
+    <ID>WildcardImport:FileOperationsTest.kt$import com.shadowrun.matrix.decker.*</ID>
+    <ID>WildcardImport:MemoryManagementTest.kt$import com.shadowrun.matrix.decker.*</ID>
+    <ID>WildcardImport:ScenarioBuilder.kt$import com.shadowrun.matrix.decker.*</ID>
+    <ID>WildcardImport:SlaveOperationsTest.kt$import com.shadowrun.matrix.decker.*</ID>
+    <ID>WildcardImport:SystemOperationsTest.kt$import com.shadowrun.matrix.decker.*</ID>
+    <ID>WildcardImport:UploadDataAndScrambleTest.kt$import com.shadowrun.matrix.decker.*</ID>
+    <ID>WildcardImport:WebSocketDeckerController.kt$import com.shadowrun.matrix.decker.*</ID>
+    <ID>WildcardImport:WebSocketServerIntegrationTest.kt$import com.shadowrun.matrix.decker.*</ID>
+  </CurrentIssues>
+</SmellBaseline>

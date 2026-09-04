@@ -299,7 +299,7 @@ object CombatResolver {
             }
         }
 
-        val attack = AttackResult.Hit(1, rawLevel, iconStaged, power, power)
+        val attack = AttackResult.Hit(1, rawLevel, iconStaged, power, power, attackerSuccessesMeaningful = false)
         val personaOnlyCrashed = newCm.isCrashed && !newPhysicalCm.isCrashed
         return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered,
             mpcpReductionOnKill = mpcpReduction, personaOnlyCrashed = personaOnlyCrashed)
@@ -359,7 +359,7 @@ object CombatResolver {
             }
         }
 
-        val attack = AttackResult.Hit(1, rawLevel, iconStaged, power, power)
+        val attack = AttackResult.Hit(1, rawLevel, iconStaged, power, power, attackerSuccessesMeaningful = false)
         val personaOnlyCrashed = newCm.isCrashed && !newMentalCm.isCrashed
         return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered,
             mpcpReductionOnKill = mpcpReduction, personaOnlyCrashed = personaOnlyCrashed)
@@ -418,6 +418,10 @@ object CombatResolver {
     // ── Track Utility ─────────────────────────────────────────────────────────────
 
     fun resolveTrackLock(attack: AttackResult.Hit, targetDecker: Decker, trackRating: Int, diceRoller: DiceRoller): TrackState? {
+        require(attack.attackerSuccessesMeaningful) {
+            "resolveTrackLock needs a real attack success count; a Black-IC sentinel hit " +
+                "(attackerSuccesses = 1) must not be cycled on"
+        }
         val persona = requireNotNull(targetDecker.persona) { "resolveTrackLock: targetDecker has no persona" }
         val evadeSuccesses = diceRoller.roll(persona.evasion, max(2, trackRating)).successes
         if (evadeSuccesses >= attack.attackerSuccesses) return null
@@ -452,7 +456,9 @@ object CombatResolver {
      * Returns the updated Decker.
      */
     fun unsuppressIc(decker: Decker, ic: IC, onTallyIncrease: (Int) -> Unit): Decker {
-        val state = decker.suppressedIc.firstOrNull { it.ic == ic }
+        // Match by stable identity, not reference: the caller may hold a re-created IC instance
+        // (condition-monitor copies produce new objects), which would silently no-op a == match (E-8).
+        val state = decker.suppressedIc.firstOrNull { it.ic.matchesIdentity(ic) }
             ?: return decker
         onTallyIncrease(state.icRating)
         return decker.copy(suppressedIc = decker.suppressedIc - state)

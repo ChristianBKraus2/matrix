@@ -319,7 +319,7 @@ class CombatResolverTest {
     fun `resolveAttack returns Miss when no attacker successes`() {
         // TN for INTRUDING in BLUE = 6; all attacker dice show 1 → 0 successes
         val roller = allFaces(1)
-        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.MODERATE)
+        val attacker = AttackParticipant(attackDicePool = 4, weaponPower = 4, rawDamageLevel = DamageLevel.MODERATE)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.BLUE)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Miss>(result)
@@ -331,7 +331,7 @@ class CombatResolverTest {
         val attackDice = intArrayOf(6, 1, 6, 1, 6, 1, 6, 1)   // 4 dice each rolling (6,1) = 7
         val defendDice = IntArray(4) { 1 }
         val roller = DiceRoller(stubRandom(*attackDice, *defendDice))
-        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.MODERATE)
+        val attacker = AttackParticipant(attackDicePool = 4, weaponPower = 4, rawDamageLevel = DamageLevel.MODERATE)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.BLUE)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -341,7 +341,7 @@ class CombatResolverTest {
     @Test
     fun `resolveAttack Hit uses CC-24 table for Legitimate in Red TN=6`() {
         val roller = DiceRoller(stubRandom(*intArrayOf(6, 1, 6, 1, 6, 1, 6, 1), *IntArray(4) { 1 }))
-        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.MODERATE)
+        val attacker = AttackParticipant(attackDicePool = 4, weaponPower = 4, rawDamageLevel = DamageLevel.MODERATE)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.LEGITIMATE, securityCode = SecurityCode.RED)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -351,7 +351,7 @@ class CombatResolverTest {
     fun `resolveAttack Armor reduces effectivePower`() {
         // utilityRating=7, armor=4 → effectivePower=3; all attacker dice succeed at TN 5 (INTRUDING/GREEN)
         val roller = DiceRoller(stubRandom(*IntArray(7) { 5 }, *IntArray(4) { 1 }))
-        val attacker = AttackParticipant(attackDicePool = 7, rawDamageLevel = DamageLevel.MODERATE)
+        val attacker = AttackParticipant(attackDicePool = 7, weaponPower = 7, rawDamageLevel = DamageLevel.MODERATE)
         val defender = DefenderParticipant(bod = 4, armorCurrentRating = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -363,7 +363,7 @@ class CombatResolverTest {
         // attacker: 4 dice, all succeed (TN 5 for intruding/GREEN)
         // defender: 0 successes → net=4 → shift +2 from LIGHT → SERIOUS
         val roller = DiceRoller(stubRandom(*IntArray(4) { 5 }, *IntArray(4) { 1 }))
-        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.LIGHT)
+        val attacker = AttackParticipant(attackDicePool = 4, weaponPower = 4, rawDamageLevel = DamageLevel.LIGHT)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -377,7 +377,7 @@ class CombatResolverTest {
             5, 1, 1, 1,           // attacker 4 dice: 1 success at TN 5
             5, 5, 5, 5, 5         // defender 5 dice: all succeed
         ))
-        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.SERIOUS)
+        val attacker = AttackParticipant(attackDicePool = 4, weaponPower = 4, rawDamageLevel = DamageLevel.SERIOUS)
         val defender = DefenderParticipant(bod = 5, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -389,7 +389,7 @@ class CombatResolverTest {
         // TN for INTRUDING/GREEN = 5; parryBonus = 3 → effective TN = 8; all dice = 5 → 0 successes → Miss
         val roller = allFaces(5)
         val mods = CombatModifiers(parryAttackBonus = 3)
-        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.MODERATE, modifiers = mods)
+        val attacker = AttackParticipant(attackDicePool = 4, weaponPower = 4, rawDamageLevel = DamageLevel.MODERATE, modifiers = mods)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Miss>(result)
@@ -400,7 +400,7 @@ class CombatResolverTest {
         // TN for INTRUDING/BLUE = 6; positionTnBonus=4 → effective TN = max(2,2) = 2; all dice=3 → hit
         val roller = DiceRoller(stubRandom(*IntArray(4) { 3 }, *IntArray(4) { 1 }))
         val mods = CombatModifiers(positionAttackTnBonus = 4)
-        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.MODERATE, modifiers = mods)
+        val attacker = AttackParticipant(attackDicePool = 4, weaponPower = 4, rawDamageLevel = DamageLevel.MODERATE, modifiers = mods)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.BLUE)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -411,7 +411,7 @@ class CombatResolverTest {
         // utilityRating=4, powerBonus=2 → power=6; armor=0; effectivePower=6
         val roller = DiceRoller(stubRandom(*IntArray(4) { 5 }, *IntArray(4) { 1 }))
         val mods = CombatModifiers(positionAttackPowerBonus = 2)
-        val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.MODERATE, modifiers = mods)
+        val attacker = AttackParticipant(attackDicePool = 4, weaponPower = 4, rawDamageLevel = DamageLevel.MODERATE, modifiers = mods)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.INTRUDING, securityCode = SecurityCode.GREEN)
         val result = CombatResolver.resolveAttack(attacker, defender, roller)
         assertIs<AttackResult.Hit>(result)
@@ -1070,6 +1070,25 @@ class CombatResolverTest {
         assertNull(result)
     }
 
+    @Test
+    fun `resolveTrackLock throws on a Black-IC sentinel hit (E-7)`() {
+        // A Black-IC attack carries attackerSuccesses = 1 as a sentinel, not a real success count.
+        // Cycling location on it would fabricate a track lock, so resolveTrackLock must reject it.
+        val roller = DiceRoller(stubRandom(*IntArray(6) { 1 }))
+        val d = decker()
+        val sentinel = AttackResult.Hit(
+            attackerSuccesses = 1,
+            rawDamageLevel = DamageLevel.DEADLY,
+            stagedDamageLevel = DamageLevel.DEADLY,
+            rawWeaponPower = 0,
+            effectivePower = 0,
+            attackerSuccessesMeaningful = false
+        )
+        val result = runCatching { CombatResolver.resolveTrackLock(sentinel, d, trackRating = 4, diceRoller = roller) }
+        assertTrue(result.exceptionOrNull() is IllegalArgumentException,
+            "resolveTrackLock must reject a sentinel hit, was ${result.exceptionOrNull()}")
+    }
+
     // ── resolveSlow ───────────────────────────────────────────────────────────────
 
     @Test
@@ -1216,6 +1235,22 @@ class CombatResolverTest {
         val released = CombatResolver.unsuppressIc(d, ic1) {}
         assertEquals(1, released.suppressedIc.size)
         assertEquals(ic2, released.suppressedIc.first().ic)
+    }
+
+    @Test
+    fun `unsuppressIc matches a condition-monitor copy by identity (E-8)`() {
+        // Applying damage to an IC produces a NEW instance via withConditionMonitor, so the caller
+        // may hold a different object than the one that was suppressed. A reference == match would
+        // silently no-op; matchesIdentity must still release it and fire the tally callback.
+        val ic = Probe(rating = 5)
+        val h = host()
+        val withSuppressed = CombatResolver.suppressIc(decker().copy(currentLocation = MatrixLocation.OnHost(h)), ic, h)
+        val damagedCopy = ic.withConditionMonitor(ConditionMonitor(damage = 3))
+        assertFalse(ic === damagedCopy, "withConditionMonitor should produce a new instance")
+        var callbackRating = -1
+        val released = CombatResolver.unsuppressIc(withSuppressed, damagedCopy) { callbackRating = it }
+        assertEquals(0, released.suppressedIc.size, "the suppressed IC should be released via identity match")
+        assertEquals(5, callbackRating, "the stored rating should drive the tally callback")
     }
 
     // ── icAttackParticipant (CC-23) ───────────────────────────────────────────────

@@ -60,4 +60,26 @@ class DiceRollerTest {
             DiceRoller().roll(numberOfDice = 1, targetNumber = 1)
         }
     }
+
+    @Test
+    fun `flat returns the raw value without exploding on six`() {
+        // A 6 from the underlying Random must NOT re-roll: flat is uniform in [min, max].
+        val roller = DiceRoller(stubRandom(6))
+        assertEquals(6, roller.flat(1, 6))
+    }
+
+    @Test
+    fun `flat passes min and max plus one to the underlying Random`() {
+        // stubRandom ignores the bounds and returns its next value, so we only assert flat does
+        // not add/loop: a single draw is consumed and returned verbatim.
+        val roller = DiceRoller(stubRandom(3))
+        assertEquals(3, roller.flat(1, 6))
+    }
+
+    @Test
+    fun `flat rejects min greater than max`() {
+        assertFailsWith<IllegalArgumentException> {
+            DiceRoller().flat(6, 1)
+        }
+    }
 }

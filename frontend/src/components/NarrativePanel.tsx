@@ -33,11 +33,11 @@ export default function NarrativePanel({ events, isActiveTurn }: Props) {
           <div className="no-data">[ AWAITING EVENTS ]</div>
         ) : (
           <div className="event-list">
-            {events.map((ev, i) => {
+            {events.map((ev) => {
               if (ev.kind === 'result') {
                 const cls = ev.msg.success ? 'result-success' : 'result-failure'
                 return (
-                  <div key={i} className={`event-item ${cls}`}>
+                  <div key={ev.id} className={`event-item ${cls}`}>
                     <span className="event-badge">
                       {ev.msg.success ? '[✓ SUCCESS]' : '[✗ FAILURE]'}
                     </span>
@@ -49,7 +49,7 @@ export default function NarrativePanel({ events, isActiveTurn }: Props) {
                 )
               }
               return (
-                <div key={i} className="event-item error">
+                <div key={ev.id} className="event-item error">
                   <span className="event-badge">ERROR</span>
                   {' '}{ERROR_LABELS[ev.msg.message] ?? ev.msg.message}
                 </div>

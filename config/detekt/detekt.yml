@@ -1,0 +1,40 @@
+# detekt configuration for Matrix of Shadowrun.
+# Extends detekt's default rule set (buildUponDefaultConfig = true in build.gradle.kts);
+# only the deviations below are declared here. Pre-existing findings are captured in
+# config/detekt/baseline.xml so the build stays green and only NEW findings fail.
+
+build:
+  maxIssues: 0
+
+complexity:
+  # Game-rule resolvers and DTO mappers are legitimately long/branchy; keep the defaults
+  # from failing the build on the domain code while still surfacing them in reports.
+  LongMethod:
+    active: true
+    threshold: 80
+  LongParameterList:
+    active: true
+    functionThreshold: 12
+    constructorThreshold: 16
+  CyclomaticComplexMethod:
+    active: true
+    threshold: 20
+  TooManyFunctions:
+    active: false
+
+style:
+  MagicNumber:
+    # Shadowrun is saturated with rule-book constants (target numbers, ratings); flagging
+    # every literal is noise. Reviewers still read them per the manual checklist.
+    active: false
+  ReturnCount:
+    active: true
+    max: 6
+  MaxLineLength:
+    active: true
+    maxLineLength: 140
+
+naming:
+  FunctionNaming:
+    # Test methods use backtick sentence names; exclude test sources from function-name rules.
+    excludes: ['**/test/**']

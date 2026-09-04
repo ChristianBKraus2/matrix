@@ -74,7 +74,7 @@ export default function LocationPanel({ gameState }: Props) {
   const { decker, visibleObjects } = gameState
   const { prefix, name } = locKey(decker.location)
 
-  const locationObj = decker.location === 'not jacked in'
+  const locationObj = !decker.jackedIn
     ? null
     : decker.locationIndex != null
       ? (visibleObjects[decker.locationIndex] as MatrixObjectDto | undefined) ?? null
@@ -88,7 +88,7 @@ export default function LocationPanel({ gameState }: Props) {
     <div className="panel location-panel">
       <div className="panel-header">LOCATION</div>
       <div className="panel-body" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: '14px 24px', alignItems: 'flex-start' }}>
-        {decker.location === 'not jacked in' ? (
+        {!decker.jackedIn ? (
           <div className="loc-field">
             <div className="loc-field-value" style={{ color: 'var(--green-dim)', fontSize: 20 }}>
               [ NOT JACKED IN ]

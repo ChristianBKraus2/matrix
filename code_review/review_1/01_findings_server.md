@@ -8,6 +8,20 @@ Files reviewed in full: `MatrixServer.kt`, `SessionRegistry.kt`, `TurnCoordinato
 
 ## 🔴 S-1 (HIGH) — Client-supplied `hasValidPasscode` bypasses authentication
 
+> ✅ **RESOLVED (Step 1, 2026-09-04).** `hasValidPasscode` was removed from `ActionParams`
+> (Messages.kt / messages.ts), the DTO `paramKind`, and the UI. `makeComcall(host, diceRoller)` now
+> derives possession server-side via `Decker.hasValidPasscode(host)` against `knownPasscodes`. Secure
+> by default: `knownPasscodes` is empty until a scenario populates it, so the System Test always runs
+> unless server state grants the passcode. Design docs reconciled; see
+> [things_to_note.md](../things_to_note.md) for the deferred RTG-vs-host key divergence.
+>
+> **Superseded (2026-09-04): the Make Comcall licensed-decker passcode exception was descoped** by
+> product decision. `makeComcall` now *always* runs the System Test — the passcode-skip path and the
+> `Decker.hasValidPasscode` helper were deleted outright, so the attack surface no longer exists
+> (there is no passcode input to trust, server- or client-side). `Decker.knownPasscodes` remains only
+> for host-level logon legitimacy. The RTG-vs-host key divergence is thereby resolved (see
+> [deferred.md](../../design/deferred.md) and [things_to_note.md](../things_to_note.md)).
+
 **Category:** Security / Correctness
 **Where:** [Messages.kt:57](../../src/main/kotlin/com/shadowrun/matrix/server/dto/Messages.kt#L57),
 [WebSocketDeckerController.kt:389](../../src/main/kotlin/com/shadowrun/matrix/server/WebSocketDeckerController.kt#L389),
@@ -48,6 +62,12 @@ passcode ledger). Remove `hasValidPasscode` from `ActionParams`, the DTO `paramK
 
 ## 🟠 S-2 (MEDIUM) — Client-supplied `scannerDeviceRating`
 
+> ✅ **RESOLVED (Step 1, 2026-09-04).** `scannerDeviceRating` was removed from `ActionParams`, the
+> DTO `paramKind`, and the UI. `tapComcall(host, diceRoller)` now derives the rating from
+> `Host.datalineScannerRatings` (validated 1–10; highest used, per PRD). Secure by default: empty
+> list ⇒ no scanner test. The old `coerceIn(0..10)` clamp in the controller is gone (validation lives
+> on `Host`).
+
 **Category:** Security / Correctness
 **Where:** [Messages.kt](../../src/main/kotlin/com/shadowrun/matrix/server/dto/Messages.kt),
 [WebSocketDeckerController.kt:396](../../src/main/kotlin/com/shadowrun/matrix/server/WebSocketDeckerController.kt#L396),
@@ -62,6 +82,13 @@ rating should be derived server-side from the decker's equipment, not accepted f
 ---
 
 ## 🟠 S-3 (MEDIUM) — WebSocket has no ping/timeout configured
+
+> ✅ **RESOLVED (Step 2, 2026-09-04).** `install(WebSockets)` now sets `pingPeriod = 15s` and
+> `timeout = 30s` (via the Ktor `kotlin.time.Duration` extension setters). Ktor now pings idle
+> sessions and closes any that miss a pong within the timeout; that close ends the `incoming` loop,
+> so the existing `finally { registry.deregister(this) }` → `cancelIfActive` runs and unblocks a
+> turn that was waiting on the dropped controller. The teardown path is the one already covered by
+> the `active controller disconnect mid-turn broadcasts forfeit` test.
 
 **Category:** Concurrency / Resource management
 **Where:** [MatrixServer.kt:31-33](../../src/main/kotlin/com/shadowrun/matrix/server/MatrixServer.kt#L31-L33)
@@ -81,6 +108,14 @@ drives `deregister` → `cancelIfActive` and unblocks the turn.
 
 ## 🟠 S-4 (MEDIUM) — Raw exception text leaked to clients
 
+> ✅ **RESOLVED (Step 2, 2026-09-04).** The frame-dispatch catch now sends a generic
+> `details = "malformed request"` instead of `e.message?.take(256)`; the real exception is still
+> logged server-side (`logger.error(e) { "Frame dispatch error" }`) one line above, so nothing is
+> lost operationally. New integration test `malformed action frame returns generic bad_request
+> without leaking exception text` pins the non-leak contract. (Line 69's `UNKNOWN_MESSAGE_TYPE`
+> `details = msgType?.take(64)` echoes the client's own `type` string, not internal state — left
+> as-is.)
+
 **Category:** Security (information disclosure)
 **Where:** [MatrixServer.kt:64](../../src/main/kotlin/com/shadowrun/matrix/server/MatrixServer.kt#L64)
 
@@ -94,6 +129,13 @@ the error frame. Should return a generic `details` and log the real message serv
 ---
 
 ## 🟠 S-5 (MEDIUM) — No Origin / authentication check on `/decker/ws`
+
+> 🟡 **PARTIALLY RESOLVED (Step 1, 2026-09-04).** The **Origin check** is now in place: the WS
+> upgrade rejects a present-and-disallowed `Origin` with close code `VIOLATED_POLICY` (allow-list
+> `http://localhost:8080` / `http://127.0.0.1:8080`); a missing `Origin` is allowed (non-browser/test
+> clients). Integration tests cover both paths. Documented in
+> [protocol.md](../../design/protocol.md) (net-new; no prior transport-security text existed).
+> **Still open:** a real authentication/handshake token on join — deliberately deferred.
 
 **Category:** Security
 **Where:** [MatrixServer.kt](../../src/main/kotlin/com/shadowrun/matrix/server/MatrixServer.kt)
@@ -110,6 +152,12 @@ server is ever exposed beyond localhost.
 
 ## 🟡 S-6 (LOW) — `promoteForTurn` ordering race
 
+> ✅ **RESOLVED (2026-09-04).** `promoteForTurn`
+> ([SessionRegistry.kt:117-127](../../src/main/kotlin/com/shadowrun/matrix/server/SessionRegistry.kt#L117-L127))
+> now calls `turns.setActive(session)` **before** sending the `ACTIVE_CONTROLLER` frame, so a client
+> that acts the instant it receives the frame is never rejected `NOT_YOUR_TURN` by a not-yet-set
+> controller. (`claimAction` also gates on the pending action, which `conductTurn` sets first.)
+
 **Category:** Concurrency
 **Where:** [SessionRegistry.kt:117-124](../../src/main/kotlin/com/shadowrun/matrix/server/SessionRegistry.kt#L117-L124)
 
@@ -120,6 +168,13 @@ low impact, but the ordering should be inverted (set active, then notify).
 ---
 
 ## 🟡 S-7 (LOW) — `demoteAfterTurn` not in a `finally`
+
+> ✅ **RESOLVED (2026-09-04).** Demotion is now idempotent (`demoteOnce()` guarded by a `demoted`
+> flag) and runs in a `finally` wrapped in `withContext(NonCancellable)`
+> ([WebSocketDeckerController.kt:77-86,154-158](../../src/main/kotlin/com/shadowrun/matrix/server/WebSocketDeckerController.kt#L77-L86)),
+> so every exit path — including `CancellationException` — demotes exactly once and the
+> `setActive(null)` + `REGISTERED_DECKER` frame still complete while unwinding. The success path calls
+> `demoteOnce()` explicitly before its final broadcast; the `finally` covers all other paths.
 
 **Category:** Error handling / Concurrency
 **Where:** [WebSocketDeckerController.kt](../../src/main/kotlin/com/shadowrun/matrix/server/WebSocketDeckerController.kt) (demotion replicated per success branch; cancellation paths ~L89-90, L136-137)
@@ -133,6 +188,12 @@ set. Consolidate demotion into `finally` around the turn body.
 
 ## 🔵 S-8 (INFO) — `Main.kt` production loop
 
+> ✅ **RESOLVED (2026-09-04).** The demo loop now runs inside a **single** `runBlocking` event loop
+> (not one per turn) and tracks consecutive failures: after `MAX_CONSECUTIVE_ERRORS` (10) it logs and
+> `break`s instead of busy-looping, and backs off `ERROR_BACKOFF_MS` (500 ms) via `delay` (not
+> `Thread.sleep`) between failures ([Main.kt:51-71](../../src/main/kotlin/com/shadowrun/matrix/Main.kt#L51-L71)).
+> `CancellationException` is rethrown. Still single-decker demo scaffolding — noted for multi-decker.
+
 **Where:** [Main.kt:46-55](../../src/main/kotlin/com/shadowrun/matrix/Main.kt#L46-L55)
 
 `while (true) { runBlocking { conductTurn(...) } }` with `Thread.sleep(500)` on exception. A persistently
@@ -141,6 +202,14 @@ created each turn. Single hardcoded decker + host (demo scaffolding). Acceptable
 note for when multi-decker support lands.
 
 ## 🔵 S-9 (INFO) — Decode/encode Json asymmetry
+
+> ✅ **RESOLVED (2026-09-04).** The asymmetry is now **intentional and documented**
+> ([Messages.kt:7-12](../../src/main/kotlin/com/shadowrun/matrix/server/dto/Messages.kt#L7-L12)):
+> outbound `MatrixJson` keeps `encodeDefaults = true` (all fields serialized); inbound `MatrixJsonIn`
+> uses `ignoreUnknownKeys = true` so a newer client adding a field does not break an older server
+> (forward compatibility), with a comment stating that type mismatches / missing required fields still
+> fail and surface as the generic `bad_request` (S-4). The two configs are deliberately distinct rather
+> than merged, since encode and decode have opposite leniency needs.
 
 The server encodes with `MatrixJson` (`encodeDefaults = true`) but decodes inbound frames with a plainer
 `Json` configuration. Unknown client fields raise a serialization exception (then caught and surfaced via

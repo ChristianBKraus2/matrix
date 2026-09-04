@@ -666,7 +666,6 @@ The encrypt/decrypt sub-test in `Tap Comcall` is an opposed `Computer Skill vs. 
 
 **Make Comcall — additional rules (PRD: Make Comcall table):**
 
-- **Licensed decker exception:** A corporate decker with a valid RTG passcode may skip all System Tests for Make Comcall. The caller must check `decker.hasValidPasscode(rtg)` before invoking any System Test steps; if true, proceed directly to the call without rolling.
 - **Tap detection:** After placing a call, the decker may detect taps or tracers with an Opposed Sensor vs. Device Rating Test. Resolve as a standard opposed test: roll `persona.sensor` dice vs. TN = Device Rating; the tap/tracer rolls Device Rating dice vs. TN = `persona.sensor`. Decker wins on ≥ equal successes.
 - **Tap neutralization:** Once a tap is detected, the decker may neutralize it with an Opposed Evasion vs. Device Rating Test (same opposed structure as detection).
 - **Dump/join Files Tests:** Dumping a participant from the comcall or jumping into a tapped call each require a separate Files Test (standard `SystemTestResolver.resolve()` with `MAKE_COMCALL` operation).

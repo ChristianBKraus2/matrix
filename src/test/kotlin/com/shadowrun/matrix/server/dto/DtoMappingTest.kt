@@ -26,6 +26,7 @@ class DtoMappingTest {
     fun `Decker toDto with null location produces not jacked in`() {
         val decker = DeckerMock.build(GridMock.getDefaultJackpoint())
         assertEquals("not jacked in", decker.toDto().location)
+        assertFalse(decker.toDto().jackedIn)
     }
 
     @Test
@@ -34,6 +35,7 @@ class DtoMappingTest {
         val decker = DeckerMock.build(GridMock.getDefaultJackpoint())
             .copy(currentLocation = MatrixLocation.OnRTG(rtg))
         assertEquals("RTG: ${rtg.name}", decker.toDto().location)
+        assertTrue(decker.toDto().jackedIn)
     }
 
     @Test

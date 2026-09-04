@@ -266,7 +266,7 @@ Dedicated method for navigating to a PLTG. Because `PLTG` and `LTG` are sibling 
 4. If `outcome.deckerWins`: clear persona, set `currentLocation = null` → `LogoffResult.GracefulSuccess`. (Traces cleared — security tally conceptually expunged; the caller discards the grid/host object or resets its tally.)
 5. If not: decker must fall back to jack out → return `LogoffResult.JackOut(decker, dumpShock = !decker.cyberdeck.isCyberterminal)`.
 
-**Passcode devalidation (rules p. 226):** If the decker's `PersonaStatus` is `LEGITIMATE` (acquired via a planted or stolen host passcode), the host devalidates that passcode upon successful logoff — the decker's cover is blown. The caller must set `decker.hasValidPasscode(host) = false` after a `GracefulSuccess`. The passcode is **not** devalidated if the decker used Legitimate status only against other intruding deckers (i.e., never exploited it against the host's own IC); the GM tracks this distinction narratively.
+**Passcode devalidation (rules p. 226):** If the decker's `PersonaStatus` is `LEGITIMATE` (acquired via a planted or stolen host passcode), the host devalidates that passcode upon successful logoff — the decker's cover is blown. The caller must remove that host from `decker.knownPasscodes` after a `GracefulSuccess`. The passcode is **not** devalidated if the decker used Legitimate status only against other intruding deckers (i.e., never exploited it against the host's own IC); the GM tracks this distinction narratively.
 
 ---
 
