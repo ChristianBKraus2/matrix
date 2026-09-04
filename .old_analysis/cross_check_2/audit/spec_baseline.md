@@ -24,7 +24,7 @@ Session: 2026-09-04. Supplements but never replaces reading the actual docs each
 `ACCESS`, `CONTROL`, `INDEX`, `FILES`, `SLAVE`
 
 ### PersonaAttributeType (Crippler/Ripper targets)
-`BOD` (Acid/Acid-Rip), `EVASION` (Binder/Bind-Rip), `SENSOR` (Jammer/Jam-Rip), `MASKING` (Marker/Mark-Rip)
+`BOD` (Acid/Acid-Rip), `EVASION` (Binder/Bind-Rip), `MASKING` (Marker/Mark-Rip), `SENSORS` (Jammer/Jam-Rip) — code order; variant is `SENSORS` (plural) by design decision
 
 ### PersonaStatus
 `LEGITIMATE`, `INTRUDING`
@@ -96,7 +96,7 @@ Fields: `intelligence`, `body`, `willpower`, `reaction`, `computerSkill`, `curre
 - `interrogationStates: Map<String, InterrogationState>` — key format `"OPERATION_NAME@CONTEXT"` (e.g. `"LOCATE_FILE@HOST"`, `"LOCATE_ACCESS_NODE@GRID"`)
 
 ### Cyberdeck
-Fields: `mpcp`, `hardening`, `activeMemoryMp`, `storageMemoryMp`, `ioSpeedMpPerTurn`, `responseIncrease`, `activeUtilities`, `storedUtilities`, `pendingUploads`, `isCyberterminal`
+Fields: `mcpRating` (domain/wire name for MPCP; YAML key `mpcp`), `hardening`, `activeMemoryMp`, `storageMemoryMp`, `ioSpeedMpPerTurn`, `responseIncrease`, `activeUtilities`, `storedUtilities`, `pendingUploads`, `isCyberterminal`
 - Cyberterminal constraint: `mpcp ≤ 4`, `responseIncrease = 0` always, programs run at −1 rating
 - `usedActiveMemoryMp = activeUtilities.sumOf { it.mpSize } + pendingUploads.sumOf { it.utility.mpSize }`
 
@@ -213,7 +213,7 @@ Fields: `damage`, `maxBoxes` (=10)
 Fields: `score`, `initiativePasses`
 
 ### AttackResult (sealed)
-`Hit(attackerSuccesses, rawDamageLevel, stagedDamageLevel, rawWeaponPower, power)`, `Miss`
+`Hit(attackerSuccesses, rawDamageLevel, stagedDamageLevel, rawWeaponPower, effectivePower)`, `Miss` — final field is `effectivePower` (clearer than "power"; pairs with `rawWeaponPower`) by design decision
 
 ### IcDamageResult
 Fields: `updatedDecker`, `iconDamage`, `simsenseOverload?`, `dumpShockTriggered`, `mpcpReductionOnKill = 0`, `personaOnlyCrashed = false`

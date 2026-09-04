@@ -57,10 +57,10 @@ object HostLoader {
         val resetTime = (data["reset_time_minutes"] as? Int)
 
         val nodes = buildNodes(data["nodes"])
-        val nodesByType = nodes.groupBy { it.subsystemType }.also { grouped ->
-            val dupes = grouped.filterValues { it.size > 1 }.keys
-            if (dupes.isNotEmpty()) logger.warn { "Host YAML has duplicate subsystem types — using first for each: $dupes" }
-        }.mapValues { (_, v) -> v.first() }
+        // A host may hold more than one node of the same subsystem type (e.g. multiple Files
+        // archives). `nodesByType` is only a first-of-type lookup for IC / security-sheaf
+        // `guarded_node` resolution; the host itself keeps the full node list below.
+        val nodesByType = nodes.groupBy { it.subsystemType }.mapValues { (_, v) -> v.first() }
 
         @Suppress("UNCHECKED_CAST")
         val sans = (data["sans"] as? List<Map<String, Any>> ?: emptyList()).map { buildSan(it) }
@@ -90,7 +90,7 @@ object HostLoader {
             topologyType = topology,
             offline = offline,
             resetTimeMinutes = resetTime,
-            nodes = nodesByType.values.toList(),  // deduped: exactly one node per subsystem type
+            nodes = nodes,  // full list; a host may hold multiple nodes of the same subsystem type
             sans = sans,
             icPrograms = icPrograms,
             dataFiles = dataFiles,

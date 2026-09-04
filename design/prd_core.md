@@ -98,7 +98,7 @@ There is one configuration file per decker: `<decker_name>.yaml`. It contains al
 
 - **Decker** (physical character stats): Intelligence, Body, Willpower, Reaction, Computer Skill (with optional Decking specialization).
 - **Cyberdeck**:
-  - MPCP Rating — master OS; no single persona program may exceed MPCP; sum of all four persona programs ≤ MPCP × 3.
+  - MPCP Rating — master OS; no single persona program may exceed MPCP; sum of all four persona programs ≤ MPCP × 3. (The MPCP Rating is represented in the domain model and the wire protocol by the field name `mcpRating`; the configuration YAML key is `mpcp`.)
   - Hardening — reduces Power of Black IC damage; raises Gray IC Attack Test target numbers.
   - Active Memory (Mp) — limits total Mp of simultaneously running utilities.
   - Storage Memory (Mp) — must hold all utilities (active or not) plus any downloaded data.
@@ -118,7 +118,7 @@ The following persona values are **calculated by the application** and must not 
 - **Hacking Pool** = floor((Intelligence + MPCP) ÷ 3). Hacking Pool dice may be added to any test made in the Matrix — System Tests, Attack or Defense tests, maneuvers, or Attribute Tests. **Exception:** Hacking Pool dice may **not** be used in Body or Willpower Tests made to resist damage from gray or black IC attacking the decker's physical body. Only Karma Pool dice, cyberdeck-connected enhancements, or magic boosts to the decker's Body or Willpower apply in those cases.
 - **Detection Factor** = ceil((Masking + Sleaze rating) ÷ 2); if no Sleaze program is loaded, Detection Factor = Masking ÷ 2. Example from the rules: HeadCrash (Computer-6, MPCP-8/6/6/6/6, Sleaze-5) has Detection Factor = ceil((6 + 5) ÷ 2) = 6.
 - **Persona Reaction** = base Reaction + (Response Increase × 2).
-- **Persona attributes** (Bod, Evasion, Masking, Sensor) are read directly from the four persona program ratings.
+- **Persona attributes** (Bod, Evasion, Masking, Sensor) are read directly from the four persona program ratings. (In code the sensor attribute is the enum variant `PersonaAttributeType.SENSORS` — plural; the config YAML key is singular `sensor`.)
 
 ### Integration Tests
 

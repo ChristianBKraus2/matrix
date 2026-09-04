@@ -246,7 +246,7 @@ Named operations (27 total): Analyze Host, Analyze IC, Analyze Icon, Analyze Sec
 - **Host → Host via SAN (tiered topology)** (many:many) — A first-tier host is the sole gateway to one or more second-tier hosts. A decker must pass through the first-tier host to reach any second-tier host; to move between second-tier hosts the decker must re-enter the first-tier host.
 - **Host → Host via SAN (host-host topology)** (many:many) — Peer hosts are linked directly to one another; a decker traverses the chain (e.g., B → C → D → E) to reach deeper hosts.
 - **Host → SAN** (1:1..many) — Each distinct connection point (to a grid or to another host) is represented by a separate SAN icon on the host. A multi-homed host has multiple SANs.
-- **Host → Node** (1:5) — A host contains exactly five Nodes, one per subsystem type: Access, Control, Index, Files, and Slave.
+- **Host → Node** (1:5..*) — A host contains at least five Nodes, one per subsystem type (Access, Control, Index, Files, and Slave), and may hold additional nodes of the same type (e.g. multiple Files archives).
 - **Host → SecuritySheaf** (1:1) — A host owns one SecuritySheaf.
 - **Host → IC** (1:many) — A host owns all IC programs within it. The host's Security Value is the dice pool for IC Attack Tests and IC Damage Resistance Tests.
 - **Host → DataFile** (1:many) — DataFiles reside on a host (primarily in the Files node).
@@ -501,7 +501,7 @@ classDiagram
     PLTG "1" --> "*" Host
     Host "1" --> "1" SecuritySheaf
     Host "1" --> "1..*" SAN
-    Host "1" --> "5" Node
+    Host "1" --> "5..*" Node
     Host "1" --> "*" DataFile
     Host "1" --> "*" RemoteDevice
     Host "*" --> "*" Host : tiered / host-host via SAN
@@ -559,7 +559,7 @@ flowchart TD
         TriggerStep2 -->|"activates"| IC2[IC]
         TriggerStep2 -.->|"0..1 alert transition"| AlertTransition2[AlertTransition]
         Host -->|"1..*"| SAN
-        Host -->|"5"| Node
+        Host -->|"5..*"| Node
         Host -->|"1..*"| DataFile
         Host -->|"1..*"| RemoteDevice
         Host -->|"tiered / host-host via SAN"| Host

@@ -79,6 +79,22 @@ object DeckerLoader {
         val resolvedIoSpeed     = (data["io_speed"] as? Int) ?: entry?.ioSpeedMpPerTurn ?: error("io_speed required")
         val resolvedCost        = (data["cost_nuyen"] as? Int) ?: entry?.costNuyen ?: 0
 
+        // CD-01 load-time validation (creation.md). Note: the responseIncrease cap (CD-02) is
+        // enforced separately by Cyberdeck.init.
+        personaPrograms.forEach { pp ->
+            require(pp.rating <= resolvedMcp) {
+                "Persona program ${pp.name} rating ${pp.rating} exceeds MPCP $resolvedMcp (CD-01)"
+            }
+        }
+        val personaRatingSum = personaPrograms.sumOf { it.rating }
+        require(personaRatingSum <= resolvedMcp * 3) {
+            "Sum of persona program ratings ($personaRatingSum) exceeds MPCP × 3 (${resolvedMcp * 3}) (CD-01)"
+        }
+        val totalUtilityMp = utilities.sumOf { it.mpSize }
+        require(totalUtilityMp <= resolvedStorageMem) {
+            "Total utility Mp ($totalUtilityMp) exceeds storage memory $resolvedStorageMem (CD-01)"
+        }
+
         // type: cyberterminal → Cyberterminal factory (CT-01..CT-04); else a standard Cyberdeck.
         val type = (data["type"] as? String)?.trim()?.lowercase()
         if (type == "cyberterminal") {

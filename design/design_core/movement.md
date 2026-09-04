@@ -242,7 +242,7 @@ Dedicated method for navigating to a PLTG. Because `PLTG` and `LTG` are sibling 
 - `currentLocation is OnPLTG` and `host` is in that PLTG (private-grid, M-15), **or**
 - `currentLocation is OnHost` and `host` is in `currentHost.connectedHosts` (tiered/host-host, M-13/M-14)
 
-**Tiered topology guard (M-13):** If the current host is a second-tier host and the target is another second-tier host of the same first-tier host, return `LogonResult.Failure` (must re-enter first-tier host first; enforced as a precondition violation, not a dice roll).
+**Tiered topology guard (M-13):** A second-tier host reaches a sibling second-tier host only by re-entering the first-tier host first. This is enforced through `connectedHosts` membership: a second-tier host's `connectedHosts` contains only its first-tier gateway, so a sibling-to-sibling hop fails the `require(currentHost.connectedHosts.contains(host))` precondition and **throws `IllegalStateException`** — a precondition violation (no dice roll), consistent with how every other precondition in the `logon*` methods is enforced. (It does not return `LogonResult.Failure`; that return is reserved for a lost logon Success Contest.)
 
 **Logic:**
 1. Run `SystemTestResolver.resolve(decker, LOGON_TO_HOST, host.subsystemRatings.access, host.securityRating.value, diceRoller)`.

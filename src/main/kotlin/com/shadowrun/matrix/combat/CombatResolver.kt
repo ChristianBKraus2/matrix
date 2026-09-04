@@ -384,7 +384,11 @@ object CombatResolver {
         )
         updatedDecker = degradeArmor(updatedDecker, damageBledThrough = effectivePower > 0) // CD-19
         val dumpShockTriggered = newCm.isCrashed || newPhysicalCm.isCrashed
-        return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered)
+        // ICC-13: identical to resolveLethalBlackIc except no MPCP death attack and no blackIcPin.
+        // personaOnlyCrashed is not one of the listed exceptions, so report it faithfully.
+        val personaOnlyCrashed = newCm.isCrashed && !newPhysicalCm.isCrashed
+        return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered,
+            personaOnlyCrashed = personaOnlyCrashed)
     }
 
     fun resolveKilljoy(targetDecker: Decker, attack: AttackResult.Hit, diceRoller: DiceRoller): IcDamageResult {
@@ -404,7 +408,11 @@ object CombatResolver {
         )
         updatedDecker = degradeArmor(updatedDecker, damageBledThrough = effectivePower > 0) // CD-19
         val dumpShockTriggered = newCm.isCrashed || newMentalCm.isCrashed
-        return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered)
+        // ICC-14: identical to resolveNonLethalBlackIc except no MPCP death attack and no blackIcPin.
+        // personaOnlyCrashed is not one of the listed exceptions, so report it faithfully.
+        val personaOnlyCrashed = newCm.isCrashed && !newMentalCm.isCrashed
+        return IcDamageResult(updatedDecker, attack, simsenseOverload = null, dumpShockTriggered,
+            personaOnlyCrashed = personaOnlyCrashed)
     }
 
     // ── Track Utility ─────────────────────────────────────────────────────────────

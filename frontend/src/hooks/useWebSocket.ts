@@ -96,7 +96,7 @@ export function useWebSocket() {
         switch (msg.type) {
           case 'control':
             dispatch({ type: 'CONTROL', msg })
-            if (msg.reconnectToken) reconnectTokenRef.current = msg.reconnectToken
+            if (msg.role === 'registered_decker' && msg.reconnectToken) reconnectTokenRef.current = msg.reconnectToken
             if (msg.deckerName) registeredNameRef.current = msg.deckerName
             if (msg.role === 'observer') {
               dispatch({ type: 'CLEAR_EVENTS' })
@@ -155,7 +155,12 @@ export function useWebSocket() {
     return () => {
       isMountedRef.current = false
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
-      wsRef.current?.close()
+      const ws = wsRef.current
+      if (ws) {
+        ws.onclose = null
+        ws.onerror = null
+        ws.close()
+      }
     }
   }, [connect])
 

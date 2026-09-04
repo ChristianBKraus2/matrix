@@ -10,6 +10,12 @@ Features and behaviors that are explicitly out of scope for the current mileston
 
 `Decker.action()` returns `DeckerAction`, which is a placeholder. In the game loop it returns immediately without side effects. The intent is a future callback to the user when it is the decker's turn; the exact mechanism is not yet designed. The WebSocket controller currently bypasses the `Game` loop for decker turns.
 
+Because `Game.runCombatTurn`/`runOutOfCombatTurn` are unreachable in production, two correctness defects sit dormant inside the loop and are deferred **with** it (they can only be fixed and tested once the loop is wired):
+- **D4G-3 — IC move never persists.** [IC.kt](../src/main/kotlin/com/shadowrun/matrix/ic/IC.kt) `moveIfNeeded()` returns `ActionResult.IcMoved(...)` without mutating `guardedNode` or calling `removeIc`/`addIc`, and [Game.kt:43](../src/main/kotlin/com/shadowrun/matrix/game/Game.kt#L43) discards the `ActionResult` from `state.icon.action(...)`. An anchored proactive IC announces a move every turn forever and never reaches its target. design_game/game.md L221 specifies the caller must replace the IC in `context.activeIc` at the new node; no path does.
+- **D4G-4 — crashed IC can re-act the same turn.** [Game.kt:40-49](../src/main/kotlin/com/shadowrun/matrix/game/Game.kt#L40-L49) builds the initiative list once and gates re-selection only on `currentInitiative > 0`. An IC that calls `context.removeIc(this)` mid-`action()` keeps its `ActiveIconState` with residual initiative and can be selected again after removal.
+
+Fix when wiring the loop: capture `action()`'s result and, on `IcMoved`, replace the IC at the new node (or mutate via `GameContext`); and skip `states` whose icon is no longer in `context.activeIc`.
+
 ---
 
 ## 2. `SWAP_MEMORY` operation
@@ -93,3 +99,13 @@ PRD ICC-10: if a companion at the jackpoint manually pulls the plug while Black 
 **Source:** [discrepancies_without_prd.md](discrepancies_without_prd.md) (SAN-1)
 
 Scramble IC is designed as a reactive IC that triggers when a decker destructs a file. However, `Scramble.action()` is currently a no-op, and no interception point in the game engine triggers it on file destruction operations. Until a game-engine hook is implemented (e.g. in `destructFile` or `decryptFile`), Scramble fires no reactive attack.
+
+## 14. Grid-level `security_sheaf` loading (D7C-3)
+
+**Source:** [design_core/ord.md](design_core/ord.md) · [config/GridLoader.kt](../src/main/kotlin/com/shadowrun/matrix/config/GridLoader.kt)
+
+`GridLoader` parses no `security_sheaf` for RTG/LTG/PLTG, so each grid's `securitySheaf` falls to the empty default and grid-level tally escalation can never fire from config. `HostLoader` has a `buildSecuritySheaf`/`buildTriggerStep` parser, but it is host-specific: `buildTriggerStep` resolves `activatedIc` against a host's subsystem nodes, which grids do not have. Deferred rather than fixed because the grid-security-sheaf model is undesigned:
+- Which tally a grid trigger counts, and what action fires (grids have no subsystem nodes, so "spawn IC in node X" has no grid analogue) is not specified in `ord.md` separately from the host case.
+- No entry in `grid.yaml` declares a grid `security_sheaf`, so there is no example to validate against and no test would exercise new loader code.
+
+Before implementing: define the grid `security_sheaf` schema and semantics in `ord.md`, add at least one `grid.yaml` example, then adapt the parser (it cannot simply be lifted from `HostLoader`).
