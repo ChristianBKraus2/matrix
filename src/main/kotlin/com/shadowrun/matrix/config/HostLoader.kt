@@ -90,7 +90,7 @@ object HostLoader {
             topologyType = topology,
             offline = offline,
             resetTimeMinutes = resetTime,
-            nodes = nodes,
+            nodes = nodesByType.values.toList(),  // deduped: exactly one node per subsystem type
             sans = sans,
             icPrograms = icPrograms,
             dataFiles = dataFiles,

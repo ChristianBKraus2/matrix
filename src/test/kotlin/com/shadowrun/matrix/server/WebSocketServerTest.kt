@@ -296,4 +296,68 @@ class WebSocketServerTest {
         thread.join(6000)
         assertFalse(thread.isAlive, "background thread did not terminate")
     }
+
+    // ── Capacity, timeout, and token clearing ─────────────────────────────────────
+
+    @Test
+    fun `register refuses connection when at capacity`() = runBlocking {
+        val registry = SessionRegistry()
+        val session1 = FakeWebSocketSession()
+        assertTrue(registry.register(session1, maxConnections = 1))
+        session1.nextText() // observer message
+
+        val session2 = FakeWebSocketSession()
+        assertFalse(registry.register(session2, maxConnections = 1),
+            "Registry should refuse second connection when maxConnections=1")
+    }
+
+    @Test
+    fun `action timeout broadcasts timed-out result and demotes decker`() = runBlocking {
+        val registry = SessionRegistry()
+        val decker = makeDecker()
+        val wsController = WebSocketDeckerController(registry, decker, actionTimeoutSeconds = 1)
+        val context = makeContext(decker)
+        val deckerName = wsController.decker.name
+        val session = FakeWebSocketSession()
+
+        registry.register(session)
+        session.nextText() // observer
+        registry.receiveJoin(session, JoinMessage(deckerName = deckerName))
+        session.nextText() // registered_decker
+
+        val thread = Thread { runBlocking { wsController.conductTurn(context, winRoller()) } }
+        thread.start()
+
+        session.nextText() // active_controller
+        session.nextText() // StateMessage
+
+        val result = Json.decodeFromString<ResultMessage>(session.nextText())
+        assertFalse(result.success)
+        assertTrue(result.details.contains("timed out"), "Expected 'timed out' but got: ${result.details}")
+
+        session.nextText() // demotion ControlMessage(registered_decker)
+        thread.join(5000)
+        assertFalse(thread.isAlive, "background thread did not terminate after timeout")
+    }
+
+    @Test
+    fun `clearReconnectToken allows reconnect without token after graceful logoff`() = runBlocking {
+        val registry = SessionRegistry()
+
+        val s1 = FakeWebSocketSession()
+        registry.register(s1)
+        s1.nextText() // observer
+        registry.receiveJoin(s1, JoinMessage(deckerName = "Kylie"))
+        s1.nextText() // registered_decker
+        registry.clearReconnectToken("Kylie") // simulates GracefulLogoff
+        registry.deregister(s1)
+
+        val s2 = FakeWebSocketSession()
+        registry.register(s2)
+        s2.nextText() // observer
+        registry.receiveJoin(s2, JoinMessage(deckerName = "Kylie", reconnectToken = null))
+        val obj = Json.parseToJsonElement(s2.nextText()).jsonObject
+        assertEquals("registered_decker", obj["role"]?.jsonPrimitive?.content,
+            "Reconnect without token should succeed after clearReconnectToken")
+    }
 }

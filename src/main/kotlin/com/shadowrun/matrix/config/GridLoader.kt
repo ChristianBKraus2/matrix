@@ -3,6 +3,7 @@ package com.shadowrun.matrix.config
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.common.SecurityRating
 import com.shadowrun.matrix.common.SubsystemRatings
+import com.shadowrun.matrix.network.DataFile
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.Matrix
@@ -38,7 +39,16 @@ object GridLoader {
                 wiredRtg.copy(ltgs = wiredLtgs)
             }
         }
-        return Matrix(wiredRtgs)
+
+        // Third pass: wire Host.connectedHosts by name (source host declares connected_hosts in YAML).
+        val hostConnectionSpec = collectHostConnectionSpec(rtgData)
+        val afterHostWiring = if (hostConnectionSpec.isEmpty()) Matrix(wiredRtgs)
+            else wireHostConnections(Matrix(wiredRtgs), hostConnectionSpec)
+
+        // Fourth pass: resolve DataFile pointer fields (pointer_to_host / pointer_target_file).
+        val dataFilePointerSpec = collectDataFilePointerSpec(rtgData)
+        return if (dataFilePointerSpec.isEmpty()) afterHostWiring
+            else wireDataFilePointers(afterHostWiring, dataFilePointerSpec)
     }
 
     private fun buildRtg(data: Map<String, Any>): RTG {
@@ -109,8 +119,8 @@ object GridLoader {
     }
 
     private fun buildPltg(data: Map<String, Any>, parentLtg: LTG): PLTG {
-        val secRating = parseSecurityRating(data["security"] as String)
-        val ratings = parseSubsystemRatings(data["ratings"])
+        val secRating = (data["security"] as? String)?.let { parseSecurityRating(it) } ?: parentLtg.securityRating
+        val ratings = data["ratings"]?.let { parseSubsystemRatings(it) } ?: parentLtg.subsystemRatings
 
         @Suppress("UNCHECKED_CAST")
         val hostDataList = (data["hosts"] as? List<Map<String, Any>>) ?: emptyList()
@@ -153,5 +163,126 @@ object GridLoader {
             files   = map["files"]   ?: error("missing files rating"),
             slave   = map["slave"]   ?: error("missing slave rating")
         )
+    }
+
+    // ─── Host connection wiring (D7C-2) ──────────────────────────────────────
+
+    @Suppress("UNCHECKED_CAST")
+    private fun collectHostConnectionSpec(rtgData: List<Map<String, Any>>): Map<String, List<String>> {
+        val spec = mutableMapOf<String, List<String>>()
+        fun scanHosts(hosts: Any?) {
+            for (hd in ((hosts as? List<*>) ?: return).filterIsInstance<Map<String, Any>>()) {
+                val name = hd["name"] as? String ?: continue
+                val connected = (hd["connected_hosts"] as? List<*>)?.filterIsInstance<String>() ?: continue
+                if (connected.isNotEmpty()) spec[name] = connected
+            }
+        }
+        for (rtg in rtgData) {
+            for (ltg in ((rtg["ltgs"] as? List<*>) ?: emptyList<Any>()).filterIsInstance<Map<String, Any>>()) {
+                scanHosts(ltg["hosts"])
+                for (pltg in ((ltg["pltgs"] as? List<*>) ?: emptyList<Any>()).filterIsInstance<Map<String, Any>>()) {
+                    scanHosts(pltg["hosts"])
+                }
+            }
+            for (pltg in ((rtg["pltgs"] as? List<*>) ?: emptyList<Any>()).filterIsInstance<Map<String, Any>>()) {
+                scanHosts(pltg["hosts"])
+            }
+        }
+        return spec
+    }
+
+    private fun wireHostConnections(matrix: Matrix, spec: Map<String, List<String>>): Matrix {
+        val allHosts = matrix.rtgs.flatMap { rtg ->
+            rtg.ltgs.flatMap { ltg -> ltg.hosts + ltg.pltgs.flatMap { it.hosts } }
+        }.associateBy { it.name }
+
+        fun Host.wired(): Host {
+            val links = spec[name]?.mapNotNull { allHosts[it] }?.takeIf { it.isNotEmpty() } ?: return this
+            return copy(connectedHosts = links)
+        }
+
+        val newRtgs = matrix.rtgs.map { rtg ->
+            val ltgsWired = rtg.ltgs.map { ltg ->
+                val newLtg = ltg.copy(
+                    hosts  = ltg.hosts.map { it.wired() },
+                    pltgs  = ltg.pltgs.map { pltg -> pltg.copy(hosts = pltg.hosts.map { it.wired() }) }
+                )
+                newLtg.copy(pltgs = newLtg.pltgs.map { it.copy(parentLtg = newLtg) })
+            }
+            val newRtg = rtg.copy(ltgs = ltgsWired)
+            newRtg.copy(ltgs = newRtg.ltgs.map { it.copy(parentRtg = newRtg) })
+        }
+        return Matrix(newRtgs)
+    }
+
+    // ─── DataFile pointer wiring (D7C-6) ─────────────────────────────────────
+    // Only inline hosts (no `config:` key) declare pointer_to_host in grid.yaml.
+    // Config-file hosts that need pointer DataFiles should be extended via HostLoader separately.
+
+    private data class DataFilePointerEntry(
+        val hostName: String, val fileName: String,
+        val targetHostName: String, val targetFileName: String?
+    )
+
+    @Suppress("UNCHECKED_CAST")
+    private fun collectDataFilePointerSpec(rtgData: List<Map<String, Any>>): List<DataFilePointerEntry> {
+        val spec = mutableListOf<DataFilePointerEntry>()
+        fun scanHosts(hosts: Any?) {
+            for (hd in ((hosts as? List<*>) ?: return).filterIsInstance<Map<String, Any>>()) {
+                if (hd.containsKey("config")) continue  // config-file hosts: pointers live in the host YAML
+                val hostName = hd["name"] as? String ?: continue
+                for (fd in ((hd["data_files"] as? List<*>) ?: emptyList<Any>()).filterIsInstance<Map<String, Any>>()) {
+                    val fileName    = fd["name"] as? String ?: continue
+                    val targetHost  = fd["pointer_to_host"] as? String ?: continue
+                    val targetFile  = fd["pointer_target_file"] as? String
+                    spec += DataFilePointerEntry(hostName, fileName, targetHost, targetFile)
+                }
+            }
+        }
+        for (rtg in rtgData) {
+            for (ltg in ((rtg["ltgs"] as? List<*>) ?: emptyList<Any>()).filterIsInstance<Map<String, Any>>()) {
+                scanHosts(ltg["hosts"])
+                for (pltg in ((ltg["pltgs"] as? List<*>) ?: emptyList<Any>()).filterIsInstance<Map<String, Any>>()) {
+                    scanHosts(pltg["hosts"])
+                }
+            }
+            for (pltg in ((rtg["pltgs"] as? List<*>) ?: emptyList<Any>()).filterIsInstance<Map<String, Any>>()) {
+                scanHosts(pltg["hosts"])
+            }
+        }
+        return spec
+    }
+
+    private fun wireDataFilePointers(matrix: Matrix, spec: List<DataFilePointerEntry>): Matrix {
+        val allHosts = matrix.rtgs.flatMap { rtg ->
+            rtg.ltgs.flatMap { ltg -> ltg.hosts + ltg.pltgs.flatMap { it.hosts } }
+        }.associateBy { it.name }
+
+        val updatedFiles = mutableMapOf<Pair<String, String>, DataFile>()
+        for (entry in spec) {
+            val targetHost = allHosts[entry.targetHostName] ?: continue
+            val sourceHost = allHosts[entry.hostName] ?: continue
+            val sourceFile = sourceHost.dataFiles.firstOrNull { it.name == entry.fileName } ?: continue
+            val targetFile = entry.targetFileName?.let { n -> targetHost.dataFiles.firstOrNull { it.name == n } }
+            updatedFiles[entry.hostName to entry.fileName] = sourceFile.copy(pointerToHost = targetHost, pointerTargetFile = targetFile)
+        }
+
+        fun Host.withWiredDataFiles(): Host {
+            val updated = dataFiles.map { df -> updatedFiles[name to df.name] ?: df }
+            return if (updated == dataFiles) this else copy(dataFiles = updated)
+        }
+
+        val newRtgs = matrix.rtgs.map { rtg ->
+            val ltgsWired = rtg.ltgs.map { ltg ->
+                val newLtg = ltg.copy(
+                    hosts  = ltg.hosts.map { it.withWiredDataFiles() },
+                    pltgs  = ltg.pltgs.map { pltg -> pltg.copy(hosts = pltg.hosts.map { it.withWiredDataFiles() }) }
+                )
+                newLtg.copy(pltgs = newLtg.pltgs.map { it.copy(parentLtg = newLtg) })
+            }
+            val newRtg = rtg.copy(ltgs = ltgsWired)
+            newRtg.copy(ltgs = newRtg.ltgs.map { it.copy(parentRtg = newRtg) })
+        }
+        return Matrix(newRtgs)
     }
 }

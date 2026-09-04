@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class WebSocketServerIntegrationTest : IntegrationTestBase() {
 
@@ -173,4 +174,50 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
             mcpRating = 4,
             activeUtilities = emptyList()
         )
+
+    @Test
+    fun `sending unknown message type returns unknown_message_type error`() = webSocketTest {
+        consumeObserver()
+        send(Frame.Text("""{"type":"unknown_thing"}"""))
+        val obj = receiveJson()
+        assertEquals("error", obj["type"]?.jsonPrimitive?.content)
+        assertEquals("unknown_message_type", obj["message"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `blank LOCATE_ACCESS_NODE query on grid returns error`() = webSocketTest { registry ->
+        val jackpoint = GridMock.getDefaultJackpoint()
+        val decker = DeckerMock.build(jackpoint, DeckerMock.HIGH_END)
+        val ltg = assertNotNull(jackpoint.connectsToLtg, "jackpoint must connect to an LTG")
+        val jackedInDecker = (decker.jackInToLtg(ltg, winRoller()) as LogonResult.Success).decker
+        val context = buildDefaultContext(jackedInDecker)
+        val controller = WebSocketDeckerController(registry, jackedInDecker, actionTimeoutSeconds = 5)
+
+        joinAsDecker(jackedInDecker.name)
+
+        val thread = Thread { runBlocking { controller.conductTurn(context, winRoller()) } }.also { it.start() }
+        incoming.receive() // active_controller
+        val state = receiveJson()
+        val actions = assertNotNull(state["availableActions"], "state must contain availableActions").jsonArray
+        val locateIdx = actions.indexOfFirst {
+            it.jsonObject["operation"]?.jsonPrimitive?.content == "LOCATE_ACCESS_NODE"
+        }
+        assertFalse(locateIdx == -1, "LOCATE_ACCESS_NODE action not found in available actions on LTG")
+
+        send(Frame.Text("""{"type":"action","actionIndex":$locateIdx,"params":{"query":""}}"""))
+
+        val result = receiveJson()
+        assertEquals("result", result["type"]?.jsonPrimitive?.content)
+        assertFalse(result["success"]?.jsonPrimitive?.content?.toBoolean() ?: true,
+            "Expected failure for blank LOCATE_ACCESS_NODE query")
+        assertTrue(
+            result["details"]?.jsonPrimitive?.content?.contains("search term") ?: false,
+            "Expected 'search term' in error details but got: ${result["details"]?.jsonPrimitive?.content}"
+        )
+
+        incoming.receive() // demotion ControlMessage(registered_decker)
+        incoming.receive() // post-action StateMessage broadcast
+        thread.join(5000)
+        assertFalse(thread.isAlive, "background thread did not terminate")
+    }
 }

@@ -3,6 +3,7 @@ package com.shadowrun.matrix.config
 import com.shadowrun.matrix.common.DamageLevel
 import com.shadowrun.matrix.common.PersonaAttributeType
 import com.shadowrun.matrix.decker.Cyberdeck
+import com.shadowrun.matrix.decker.Cyberterminal
 import com.shadowrun.matrix.decker.Decker
 import com.shadowrun.matrix.programs.PersonaProgram
 import com.shadowrun.matrix.programs.Utility
@@ -70,15 +71,40 @@ object DeckerLoader {
             activeByType[u.type] ?: false
         }
 
+        val resolvedName        = modelName ?: "Unknown"
+        val resolvedMcp         = (data["mpcp"] as? Int) ?: entry?.mpcp ?: error("mpcp required")
+        val resolvedHardening   = (data["hardening"] as? Int) ?: entry?.hardening ?: 0
+        val resolvedActiveMem   = (data["active_memory"] as? Int) ?: entry?.activeMemoryMp ?: error("active_memory required")
+        val resolvedStorageMem  = (data["storage_memory"] as? Int) ?: entry?.storageMemoryMp ?: error("storage_memory required")
+        val resolvedIoSpeed     = (data["io_speed"] as? Int) ?: entry?.ioSpeedMpPerTurn ?: error("io_speed required")
+        val resolvedCost        = (data["cost_nuyen"] as? Int) ?: entry?.costNuyen ?: 0
+
+        // type: cyberterminal → Cyberterminal factory (CT-01..CT-04); else a standard Cyberdeck.
+        val type = (data["type"] as? String)?.trim()?.lowercase()
+        if (type == "cyberterminal") {
+            return Cyberterminal(
+                name             = resolvedName,
+                mcpRating        = resolvedMcp,
+                hardening        = resolvedHardening,
+                activeMemoryMp   = resolvedActiveMem,
+                storageMemoryMp  = resolvedStorageMem,
+                ioSpeedMpPerTurn = resolvedIoSpeed,
+                costNuyen        = resolvedCost,
+                personaPrograms  = personaPrograms,
+                activeUtilities  = activeUtils,
+                storedUtilities  = utilities  // all utilities live in storage
+            )
+        }
+
         return Cyberdeck(
-            name             = modelName ?: "Unknown",
-            mcpRating        = (data["mpcp"] as? Int) ?: entry?.mpcp ?: error("mpcp required"),
-            hardening        = (data["hardening"] as? Int) ?: entry?.hardening ?: 0,
-            activeMemoryMp   = (data["active_memory"] as? Int) ?: entry?.activeMemoryMp ?: error("active_memory required"),
-            storageMemoryMp  = (data["storage_memory"] as? Int) ?: entry?.storageMemoryMp ?: error("storage_memory required"),
-            ioSpeedMpPerTurn = (data["io_speed"] as? Int) ?: entry?.ioSpeedMpPerTurn ?: error("io_speed required"),
+            name             = resolvedName,
+            mcpRating        = resolvedMcp,
+            hardening        = resolvedHardening,
+            activeMemoryMp   = resolvedActiveMem,
+            storageMemoryMp  = resolvedStorageMem,
+            ioSpeedMpPerTurn = resolvedIoSpeed,
             responseIncrease = (data["response_increase"] as? Int) ?: 0,
-            costNuyen        = (data["cost_nuyen"] as? Int) ?: entry?.costNuyen ?: 0,
+            costNuyen        = resolvedCost,
             personaPrograms  = personaPrograms,
             activeUtilities  = activeUtils,
             storedUtilities  = utilities  // all utilities live in storage

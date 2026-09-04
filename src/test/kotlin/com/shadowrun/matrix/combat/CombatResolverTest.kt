@@ -326,7 +326,7 @@ class CombatResolverTest {
     }
 
     @Test
-    fun `resolveAttack Hit uses CC-21 table for Intruding in Blue TN=6`() {
+    fun `resolveAttack Hit uses CC-24 table for Intruding in Blue TN=6`() {
         // TN=6; exploding die (6,1 → total 7) beats TN 6; defender all=1 → 0 success
         val attackDice = intArrayOf(6, 1, 6, 1, 6, 1, 6, 1)   // 4 dice each rolling (6,1) = 7
         val defendDice = IntArray(4) { 1 }
@@ -339,7 +339,7 @@ class CombatResolverTest {
     }
 
     @Test
-    fun `resolveAttack Hit uses CC-21 table for Legitimate in Red TN=6`() {
+    fun `resolveAttack Hit uses CC-24 table for Legitimate in Red TN=6`() {
         val roller = DiceRoller(stubRandom(*intArrayOf(6, 1, 6, 1, 6, 1, 6, 1), *IntArray(4) { 1 }))
         val attacker = AttackParticipant(attackDicePool = 4, rawDamageLevel = DamageLevel.MODERATE)
         val defender = DefenderParticipant(bod = 4, personaStatus = PersonaStatus.LEGITIMATE, securityCode = SecurityCode.RED)
@@ -1099,7 +1099,7 @@ class CombatResolverTest {
     fun `resolveSlow net 0 returns no effect`() {
         // equal successes → net = 0 → no effect
         val roller = DiceRoller(stubRandom(
-            *IntArray(5) { 5 },  // IC dice succeed (sv=5 at TN=slowRating)
+            *IntArray(5) { 5 },  // IC dice score 0 (face=5 < TN=slowRating=6)
             *IntArray(6) { 1 }   // slow dice fail
         ))
         val ic = Killer(rating = 4)

@@ -139,7 +139,7 @@ class CombatTest : IntegrationTestBase() {
     fun `Blaster IC reduces cyberdeck MCP rating on hit`() {
         // Need Blaster MPCP test TN = hardening(0) + mcpRating = 5 so hitRoller (face 5) beats it.
         // Start with HIGH_END decker, strip persona programs (so no constraint), set mcpRating=5.
-        // Blaster(rating=2): main attack with 2 dice (face 5) vs TN 4 (ORANGE/INTRUDING) → 2 successes → hits.
+        // Blaster(rating=2): main attack uses host Security Value pool (CC-23), not ic.rating=2
         // MPCP test: 2 dice (face 5) vs TN 5 → 2 successes → reduction = 2/2 = 1 → new mcp = 4.
         val icon = scenario(securityCode = SecurityCode.ORANGE) {
             jackInToLtg("UCAS/UCAS-SEA")

@@ -336,7 +336,7 @@ class CyberdeckAndProgramMechanicsTest {
             override fun nextInt(from: Int, until: Int): Int {
                 call++
                 if (call == 1) effectiveTnUsed = until // from=1, until=TN+1
-                return 5 // face=6
+                return 5 // face=5
             }
         })
         SystemTestResolver.resolve(d, SystemOperation.LOGON_TO_HOST, 10, 1, roller)

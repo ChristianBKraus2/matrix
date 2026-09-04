@@ -81,7 +81,7 @@ class DeckerConfigTest {
     }
 
     @Test
-    fun `detection factor is calculated correctly with sleaze active`() {
+    fun `detection factor formula uses masking and sleaze rating`() {
         // Sleaze is in storedUtilities; to be active it must also be in activeUtilities.
         // Verify the formula directly via cyberdeck helper.
         val masking = decker.cyberdeck.personaPrograms

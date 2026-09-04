@@ -574,6 +574,7 @@ class GameTest {
         val dice = DiceRoller(stubRandom(4))
         val game = Game(ctx, dice)
         runBlocking { game.runCombatTurn() }
+        assertEquals(listOf(decker.name), ctx.deckers.map { it.name })
     }
 
     // ── asDefenderParticipant ─────────────────────────────────────────────────────

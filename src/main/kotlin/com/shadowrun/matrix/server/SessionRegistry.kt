@@ -110,6 +110,10 @@ class SessionRegistry {
         futureToCancel?.completeExceptionally(DeckerDisconnectedException())
     }
 
+    suspend fun clearReconnectToken(deckerName: String) {
+        mutex.withLock { reconnectTokens.remove(deckerName) }
+    }
+
     suspend fun promoteForTurn(deckerName: String): Boolean {
         val session = mutex.withLock { deckerSessions[deckerName] } ?: return false
         session.send(Frame.Text(MatrixJson.encodeToString(

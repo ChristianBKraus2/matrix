@@ -32,7 +32,14 @@ Features and behaviors that are explicitly out of scope for the current mileston
 
 **Source:** [protocol.md](protocol.md) · [design_ui/design_ui.md](design_ui/design_ui.md)
 
-`DeckerStateDto.locationIndex` is always `0` when jacked in. The correct value — the index of the decker's current location in `visibleObjects`, resolved by object identity — is deferred. The `LocationPanel` in the UI currently relies on a fragile name-prefix match as a workaround.
+`DeckerStateDto.locationIndex` is always `0` when jacked in (`DeckerStateDto.kt:28` —
+`locationIndex = if (currentLocation != null) 0 else null`). The correct value — the index of the
+decker's current location in `visibleObjects`, resolved by object identity — is deferred. The
+`LocationPanel` (`LocationPanel.tsx:79-85`) now **prefers this stub index** (`visibleObjects[0]`) and
+keeps a name-prefix match only as an *unreachable fallback* (it is never taken while jacked in,
+because `locationIndex` is non-null). Until the backend populates a real index, the panel renders
+whatever object sits at index 0. (Verified S3, finding D6F-2 — this entry previously described the
+name-match as the primary path, which is inverted from the current code.)
 
 ---
 
@@ -72,7 +79,7 @@ PRD ICC-10: if a companion at the jackpoint manually pulls the plug while Black 
 
 **Source:** [design_game/game.md](design_game/game.md)
 
-`GameContext` does not spawn or manage security deckers as NPC opponents. The PRD anticipates that a host's security response could include deploying a counter-intrusion decker, but the NPC AI design (action selection, target priority, logon sequencing) is not yet specified. Until that design exists, only IC programs act as automated defenders. Belongs in a future `npc_ai.md` design document.
+`GameContext` does not spawn or manage security deckers as NPC opponents. The PRD anticipates that a host's security response could include deploying a counter-intrusion decker, but the NPC AI design (action selection, target priority, logon sequencing) is not yet specified. Until that design exists, only IC programs act as automated defenders. Belongs in a future `npc_ai.md` design document. (Currency, S3: the `security_decker_count` field *is* now parsed by `HostLoader` into `TriggerStep.securityDeckerCount`, but nothing consumes it — no spawn path exists.)
 
 
 ## 12. detectedIcons persistence wiring (MP-01 – MP-10)

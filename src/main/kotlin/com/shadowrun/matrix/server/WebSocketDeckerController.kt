@@ -117,6 +117,7 @@ class WebSocketDeckerController(
             // Re-read from context: applyDeckerOperationResult may have replaced the decker
             // reference (e.g. alert transition updates the embedded host object).
             decker = context.deckers.firstOrNull { it.name == decker.name } ?: decker
+            if (chosen is AvailableAction.GracefulLogoff) registry.clearReconnectToken(decker.name)
             registry.broadcast(MatrixJson.encodeToString(ResultMessage(
                 success = result.success,
                 deckerSuccesses = result.deckerSuccesses,
@@ -187,6 +188,12 @@ class WebSocketDeckerController(
         cmd: ActionCommand,
         diceRoller: DiceRoller
     ): DispatchResult {
+        val gridTag = when (decker.currentLocation) {
+            is MatrixLocation.OnLTG  -> "LTG"
+            is MatrixLocation.OnRTG  -> "RTG"
+            is MatrixLocation.OnPLTG -> "PLTG"
+            else -> null
+        }
         val grid = when (val loc = decker.currentLocation) {
             is MatrixLocation.OnLTG  -> loc.ltg
             is MatrixLocation.OnRTG  -> loc.rtg
@@ -198,6 +205,9 @@ class WebSocketDeckerController(
             SystemOperation.NULL_OPERATION -> decker.nullOperation(grid, p?.inactivitySeconds?.coerceAtLeast(0) ?: 0, diceRoller).toDispatch()
             SystemOperation.RELOCATE_ICON  -> DispatchResult(decker, false, 0, 0, "RELOCATE_ICON requires a host context")
             SystemOperation.LOCATE_ACCESS_NODE -> {
+                val query = p?.query?.trim() ?: ""
+                if (query.isBlank() && decker.interrogationStates["LOCATE_ACCESS_NODE@$gridTag"] == null)
+                    return DispatchResult(decker, false, 0, 0, "LOCATE_ACCESS_NODE requires a search term on the first call")
                 val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateAccessNode(grid, q, prec, diceRoller) }
                 opResult.toDispatch(locateResult.label())
             }

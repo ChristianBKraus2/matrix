@@ -176,7 +176,7 @@ class DeckerCombatTest : IntegrationTestBase() {
         }
         val decker = icon.currentDecker()
 
-        // hitRoller makes decker roll face=5 (evade succeeds) but attack already has high successes
+        // failRoller (face=3) makes both decker and IC roll 0 successes at TN=6 — evasion does not succeed
         val attack = AttackResult.Hit(
             attackerSuccesses = 10,
             rawDamageLevel = DamageLevel.LIGHT,
@@ -224,8 +224,9 @@ class DeckerCombatTest : IntegrationTestBase() {
         val killer = Killer(rating = 4) // IcBehavior.PROACTIVE
         val icInitiative = CombatInitiative(score = 14, initiativePasses = 1)
 
-        // winRoller: decker wins → IC loses actions
-        val result = CombatResolver.resolveSlow(killer, slowRating = 4, securityValue = 5, icInitiative = icInitiative, diceRoller = winRoller())
+        // resolveSlow rolls IC first (securityValue=5 dice), then Slow (slowRating=4 dice).
+        // Zero the IC's 5 dice, then let the 4 Slow dice hit (face 5 ≥ TN 5) → Slow wins, net=4, actionsLost=2.
+        val result = CombatResolver.resolveSlow(killer, slowRating = 4, securityValue = 5, icInitiative = icInitiative, diceRoller = winThenRoller(zeroCalls = 5, thenValue = 5))
 
         assertTrue(result.actionsLost > 0, "actionsLost should be positive when decker wins against proactive IC")
     }

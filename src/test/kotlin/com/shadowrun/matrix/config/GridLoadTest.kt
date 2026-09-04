@@ -1,15 +1,6 @@
 package com.shadowrun.matrix.config
 
-import com.shadowrun.matrix.common.ConditionMonitor
-import com.shadowrun.matrix.common.JackpointType
-import com.shadowrun.matrix.common.PersonaAttributeType
 import com.shadowrun.matrix.common.SecurityCode
-import com.shadowrun.matrix.decker.Cyberdeck
-import com.shadowrun.matrix.decker.Decker
-import com.shadowrun.matrix.network.Jackpoint
-import com.shadowrun.matrix.programs.PersonaProgram
-import com.shadowrun.matrix.utility.DiceRoller
-import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -20,46 +11,6 @@ class GridLoadTest {
     // ── Setup ─────────────────────────────────────────────────────────────────────
 
     private val matrix = GridInitializer.initialize()
-
-    /** Roller where decker always wins (rolls 6s) and host always loses (rolls 1s). */
-    private fun winRoller() = DiceRoller(object : Random() {
-        private var call = 0
-        override fun nextBits(bitCount: Int) = 0
-        override fun nextInt(from: Int, until: Int): Int {
-            call++
-            return if (call <= 6) 5 else 0  // decker: face=6 (success), host: face=1 (no success)
-        }
-    })
-
-    private fun buildDecker(jackpoint: Jackpoint): Decker {
-        val programs = listOf(
-            PersonaProgram(PersonaAttributeType.BOD, 6),
-            PersonaProgram(PersonaAttributeType.EVASION, 6),
-            PersonaProgram(PersonaAttributeType.MASKING, 6),
-            PersonaProgram(PersonaAttributeType.SENSORS, 6)
-        )
-        val deck = Cyberdeck(
-            name = "Fairlight Excalibur",
-            mcpRating = 10,
-            activeMemoryMp = 2000,
-            storageMemoryMp = 5000,
-            ioSpeedMpPerTurn = 300,
-            costNuyen = 1_200_000,
-            personaPrograms = programs
-        )
-        return Decker(
-            name = "Quicksilver",
-            intelligence = 7,
-            body = 4,
-            willpower = 5,
-            reaction = 6,
-            computerSkill = 8,
-            cyberdeck = deck,
-            physicalConditionMonitor = ConditionMonitor(),
-            mentalConditionMonitor = ConditionMonitor(),
-            jackpoint = jackpoint
-        )
-    }
 
     // ── Grid loading ──────────────────────────────────────────────────────────────
 

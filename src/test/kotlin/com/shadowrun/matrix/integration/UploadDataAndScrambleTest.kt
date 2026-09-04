@@ -89,7 +89,7 @@ class UploadDataAndScrambleTest : IntegrationTestBase() {
         val scramble = Scramble(rating = 6)
         val file = DataFile(name = "Classified Dossier", isScrambleProtected = true)
 
-        // failRoller: face=4, TN = max(2, computerSkill=8) = 8 → all dice fail → successes = 0 → dataDestroyed = false
+        // failRoller: face=3, TN = max(2, computerSkill=8) = 8 → all dice fail → successes = 0 → dataDestroyed = false
         val result = decker.resolveScrambleDestructTest(scramble, file, failRoller())
 
         assertTrue(!result.dataDestroyed, "Scramble IC should not destroy data when it rolls no successes")
