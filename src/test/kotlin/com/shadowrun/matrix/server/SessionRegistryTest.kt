@@ -31,7 +31,7 @@ class SessionRegistryTest {
             isPinnedByBlackIc = false,
             physicalDamage = 0, physicalMaxBoxes = 10,
             mentalDamage = 0, mentalMaxBoxes = 10,
-            hackingPool = 5, mcpRating = 4,
+            hackingPool = 5, remainingHackingPool = 5, mcpRating = 4,
             activeUtilities = emptyList()
         ),
         visibleObjects = emptyList<MatrixObjectDto>(),

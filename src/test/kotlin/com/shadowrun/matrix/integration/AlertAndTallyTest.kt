@@ -1,12 +1,22 @@
 package com.shadowrun.matrix.integration
 
 import com.shadowrun.matrix.common.AlertStatus
+import com.shadowrun.matrix.common.JackpointType
 import com.shadowrun.matrix.common.SecurityCode
+import com.shadowrun.matrix.common.SecurityRating
+import com.shadowrun.matrix.common.SubsystemRatings
 import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.decker.*
+import com.shadowrun.matrix.game.GameContext
+import com.shadowrun.matrix.integration.utility.DeckerMock
+import com.shadowrun.matrix.integration.utility.HostMock
 import com.shadowrun.matrix.integration.utility.IntegrationTestBase
 import com.shadowrun.matrix.network.applyAlertTransition
+import com.shadowrun.matrix.network.Jackpoint
+import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.MatrixLocation
+import com.shadowrun.matrix.network.PLTG
+import com.shadowrun.matrix.network.RTG
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -108,16 +118,17 @@ class AlertAndTallyTest : IntegrationTestBase() {
         val result = icon.currentDecker().logonToRtg(aztRtg, failRoller())
 
         val ucasTally = ucasRtg.securityTally
+        // For Failure: use attemptedLocation (the AZT RTG with updated tally), not decker.currentLocation
+        // (which would be the UCAS RTG the decker stayed on). For Success: decker moved to AZT.
         val aztTally = when (result) {
             is com.shadowrun.matrix.decker.LogonResult.Success -> (result.decker.currentLocation as? MatrixLocation.OnRTG)?.rtg?.securityTally ?: 0
-            is com.shadowrun.matrix.decker.LogonResult.Failure -> (result.decker.currentLocation as? MatrixLocation.OnRTG)?.rtg?.securityTally ?: 0
+            is com.shadowrun.matrix.decker.LogonResult.Failure -> (result.attemptedLocation as? MatrixLocation.OnRTG)?.rtg?.securityTally ?: 0
         }
 
-        // The point: AZT tally is not ucasTally + something; they are independent.
-        // With failRoller host wins, ucasRtg tally stays at whatever it was.
-        // AZT tally starts fresh from just the host's logon successes.
-        assertTrue(aztTally != ucasTally || (aztTally == 0 && ucasTally == 0),
-            "AZT tally ($aztTally) should not inherit from UCAS tally ($ucasTally)")
+        // ucasTally = 0 because winRoller gave the host 0 successes on all UCAS steps.
+        // aztTally > 0 because failRoller gives host successes: face=3 >= DF=3, so all securityValue dice hit.
+        assertEquals(0, ucasTally, "UCAS RTG tally should be 0 — winRoller gave host 0 successes")
+        assertTrue(aztTally > 0, "AZT RTG tally should reflect host successes from failRoller (face=3 >= DF=3)")
     }
 
     @Test
@@ -133,5 +144,55 @@ class AlertAndTallyTest : IntegrationTestBase() {
 
         val tally = (icon.currentDecker().currentLocation as MatrixLocation.OnHost).host.securityTally
         assertTrue(tally > 0, "Tally should be > 0 after a failed operation")
+    }
+
+    // ── RTG tally multi-decker sync ──────────────────────────────────────────────
+
+    @Test
+    fun `updateRtgTally propagates new tally to all deckers on LTGs under that RTG`() {
+        val r = RTG("UCAS", "NA", SecurityRating(SecurityCode.GREEN, 6), SubsystemRatings(4, 4, 4, 4, 4))
+        val ltgA = LTG("Seattle", r, SecurityRating(SecurityCode.GREEN, 6), SubsystemRatings(4, 4, 4, 4, 4))
+        val ltgB = LTG("Portland", r, SecurityRating(SecurityCode.GREEN, 6), SubsystemRatings(4, 4, 4, 4, 4))
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
+        val jpA = Jackpoint(JackpointType.ILLEGAL_ACCESS, connectsToLtg = ltgA)
+        val jpB = Jackpoint(JackpointType.ILLEGAL_ACCESS, connectsToLtg = ltgB)
+        val deckerA = DeckerMock.build(jpA).copy(currentLocation = MatrixLocation.OnLTG(ltgA), persona = persona)
+        val deckerB = DeckerMock.build(jpB, DeckerMock.STANDARD).copy(currentLocation = MatrixLocation.OnLTG(ltgB), persona = persona)
+        val context = GameContext(
+            host = HostMock.build("Placeholder"),
+            securityCode = SecurityCode.GREEN,
+            deckers = listOf(deckerA, deckerB)
+        )
+
+        context.updateRtgTally("UCAS", 7)
+
+        val updatedA = context.deckerByName(deckerA.name)!!
+        val updatedB = context.deckerByName(deckerB.name)!!
+        val locA = updatedA.currentLocation as MatrixLocation.OnLTG
+        val locB = updatedB.currentLocation as MatrixLocation.OnLTG
+        assertEquals(7, locA.ltg.securityTally, "Decker-A's LTG tally should be updated to 7")
+        assertEquals(7, locA.ltg.parentRtg.securityTally, "Decker-A's embedded parentRtg tally should be updated to 7")
+        assertEquals(7, locB.ltg.securityTally, "Decker-B's LTG tally should be updated to 7 (shared RTG tally, M-09)")
+    }
+
+    @Test
+    fun `updateRtgTally does not propagate to deckers on a PLTG`() {
+        val r = RTG("UCAS", "NA", SecurityRating(SecurityCode.GREEN, 6), SubsystemRatings(4, 4, 4, 4, 4))
+        val ltg = LTG("Seattle", r, SecurityRating(SecurityCode.GREEN, 6), SubsystemRatings(4, 4, 4, 4, 4))
+        val pltg = PLTG("Corp", "MegaCorp", ltg, SecurityRating(SecurityCode.GREEN, 6), SubsystemRatings(4, 4, 4, 4, 4), securityTally = 3)
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
+        val jp = Jackpoint(JackpointType.ILLEGAL_ACCESS, connectsToLtg = ltg)
+        val deckerOnPltg = DeckerMock.build(jp).copy(currentLocation = MatrixLocation.OnPLTG(pltg), persona = persona)
+        val context = GameContext(
+            host = HostMock.build("Placeholder"),
+            securityCode = SecurityCode.GREEN,
+            deckers = listOf(deckerOnPltg)
+        )
+
+        context.updateRtgTally("UCAS", 9)
+
+        val updated = context.deckerByName(deckerOnPltg.name)!!
+        assertEquals(3, (updated.currentLocation as MatrixLocation.OnPLTG).pltg.securityTally,
+            "PLTG tally must not be affected by RTG tally update — PLTG tally is independent after logon (SR3 p.211)")
     }
 }

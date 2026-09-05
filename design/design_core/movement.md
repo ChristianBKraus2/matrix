@@ -144,7 +144,7 @@ All eight methods are **pure**: they take immutable inputs and return new `Decke
 3. If `outcome.deckerWins`: create persona, set `currentLocation = OnLTG(updatedLtg)` → return `LogonResult.Success`.
 4. If not: return `LogonResult.Failure` with updated tally (persona remains null).
 
-**Note:** The RTG security tally (M-09) is tracked on the LTG's parent RTG object; the caller must propagate the tally to `ltg.parentRtg.securityTally` as well. Helper `mergeRtgTally(ltg, outcome)` encapsulates this.
+**Note:** M-09 shared tally is propagated by `GameContext.applyDeckerOperationResult` → `updateRtgTally` after this method returns. The pure `jackInToLtg` method does not access `GameContext`; it only produces a new `Decker` whose `OnLTG` location carries the updated `securityTally`. `GameContext` detects the change and re-stamps all other deckers under the same RTG umbrella.
 
 ---
 
@@ -182,11 +182,15 @@ All eight methods are **pure**: they take immutable inputs and return new `Decke
 
 **Logic:**
 1. Determine whether the decker is hopping from an LTG (to its parent RTG) or from an RTG (to a peer RTG).
-2. Run `SystemTestResolver.resolve(decker, LOGON_TO_RTG, rtg.subsystemRatings.access, rtg.securityRating.value, diceRoller)`.
-3. Increment `rtg.securityTally` by `outcome.hostSuccesses`.
-4. If different RTG (M-10): carry **no** prior RTG tally; start fresh on target RTG.
+2. Compute `baseTally` (M-09 shared-tally rule):
+   - From `OnLTG`: `baseTally = loc.ltg.securityTally` — the LTG's accumulated tally carries back up to the parent RTG, because they share one running total.
+   - From `OnRTG`: `baseTally = rtg.securityTally` (the *target* RTG's own tally) — each RTG is a separate umbrella; no tally crosses the boundary (M-10).
+3. Run `SystemTestResolver.resolve(decker, LOGON_TO_RTG, rtg.subsystemRatings.access, rtg.securityRating.value, diceRoller)`.
+4. Build updated RTG: `securityTally = baseTally + outcome.hostSuccesses`.
 5. If `outcome.deckerWins`: `currentLocation = OnRTG(updatedRtg)` → `LogonResult.Success`.
 6. Otherwise: `LogonResult.Failure`.
+
+**GameContext propagation:** After `applyDeckerOperationResult` records the new decker state, `GameContext` detects the changed tally and calls `updateRtgTally(rtgName, newTally)` to re-stamp all other deckers that share the same RTG umbrella (M-09 multi-decker sync). The authoritative live store is `GameContext._rtgTallies: MutableMap<String, Int>`.
 
 ---
 

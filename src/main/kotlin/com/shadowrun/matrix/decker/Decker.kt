@@ -50,7 +50,8 @@ data class Decker(
     val interrogationStates: Map<String, InterrogationState> = emptyMap(),
     val detectedIcons: Set<Icon> = emptySet(),
     val analyzedIcNames: Set<String> = emptySet(),
-    val knownPasscodes: Set<String> = emptySet()
+    val knownPasscodes: Set<String> = emptySet(),
+    val hackingPoolUsed: Int = 0
 ) : ActiveIcon {
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = ActionResult.DeckerAction
 
@@ -58,6 +59,7 @@ data class Decker(
         CombatResolver.rollDeckerInitiative(this, meatworldComm = meatworldComm, diceRoller)
 
     val hackingPool: Int get() = (intelligence + cyberdeck.mcpRating) / 3
+    val remainingHackingPool: Int get() = hackingPool - hackingPoolUsed
     val isPinnedByBlackIc: Boolean get() = blackIcPin != null
 
     /** Each suppressed IC reduces Detection Factor by 1 (CC-22). */

@@ -74,15 +74,15 @@ fun Application.matrixModule(registry: SessionRegistry) {
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
                         try {
-                        val json = frame.readText()
-                        val msgType = MatrixJsonIn.parseToJsonElement(json).jsonObject["type"]?.jsonPrimitive?.content
-                        when (msgType) {
-                            "join"   -> registry.receiveJoin(this, MatrixJsonIn.decodeFromString<JoinMessage>(json))
-                            "action" -> registry.receiveAction(this, MatrixJsonIn.decodeFromString<ActionCommand>(json))
-                            else     -> this.send(Frame.Text(MatrixJson.encodeToString(
-                                ErrorMessage(message = ErrorCode.UNKNOWN_MESSAGE_TYPE, details = msgType?.take(64))
-                            )))
-                        }
+                            val json = frame.readText()
+                            val msgType = MatrixJsonIn.parseToJsonElement(json).jsonObject["type"]?.jsonPrimitive?.content
+                            when (msgType) {
+                                "join"   -> registry.receiveJoin(this, MatrixJsonIn.decodeFromString<JoinMessage>(json))
+                                "action" -> registry.receiveAction(this, MatrixJsonIn.decodeFromString<ActionCommand>(json))
+                                else     -> this.send(Frame.Text(MatrixJson.encodeToString(
+                                    ErrorMessage(message = ErrorCode.UNKNOWN_MESSAGE_TYPE, details = msgType?.take(64))
+                                )))
+                            }
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {

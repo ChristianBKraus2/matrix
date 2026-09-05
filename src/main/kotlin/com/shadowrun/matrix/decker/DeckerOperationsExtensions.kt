@@ -81,13 +81,13 @@ fun Decker.noticeTriggeredIc(ic: IC, diceRoller: DiceRoller): IcDetectionResult 
 
 // ── Analyze operations ──────────────────────────────────────────────────────────
 
-fun Decker.analyzeHost(host: Host, requestedItems: List<HostInfoItem>, diceRoller: DiceRoller): AnalyzeHostResult {
+fun Decker.analyzeHost(host: Host, requestedItems: List<HostInfoItem>, diceRoller: DiceRoller, hackingPoolDice: Int = 0): AnalyzeHostResult {
     logger.info { "[$name] analyzeHost → ${host.name}" }
     requireJackedIn()
     require(currentLocation is MatrixLocation.OnHost && currentLocation.host === host) {
         "analyzeHost requires the decker to be on the target host"
     }
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_HOST, host.subsystemRatings.control, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_HOST, host.subsystemRatings.control, host.securityRating.value, diceRoller, hackingPoolDice)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
     val net = outcome.deckerSuccesses - outcome.hostSuccesses
     val secRating: com.shadowrun.matrix.common.SecurityRating?
@@ -109,10 +109,10 @@ fun Decker.analyzeHost(host: Host, requestedItems: List<HostInfoItem>, diceRolle
     }
 }
 
-fun Decker.analyzeIc(ic: IC, host: Host, diceRoller: DiceRoller): OperationResult {
+fun Decker.analyzeIc(ic: IC, host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {
     logger.info { "[$name] analyzeIc on ${host.name}: IC=${ic.name} rating=${ic.rating}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_IC, host.subsystemRatings.control, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_IC, host.subsystemRatings.control, host.securityRating.value, diceRoller, hackingPoolDice)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updatedDecker.copy(analyzedIcNames = analyzedIcNames + ic.name), outcome)
     else OperationResult.Failure(updatedDecker, outcome).also {
@@ -120,12 +120,12 @@ fun Decker.analyzeIc(ic: IC, host: Host, diceRoller: DiceRoller): OperationResul
     }
 }
 
-fun Decker.analyzeIcon(icon: Icon, host: Host, diceRoller: DiceRoller): OperationResult {
+fun Decker.analyzeIcon(icon: Icon, host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {
     logger.info { "[$name] analyzeIcon" }
     requireJackedIn()
     val sensorRating = persona?.sensor ?: 0
     val tn = maxOf(2, host.subsystemRatings.control - sensorRating)
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_ICON, tn, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_ICON, tn, host.securityRating.value, diceRoller, hackingPoolDice)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) {
         val withAnalysis = if (icon is Icon.IcIcon) updatedDecker.copy(analyzedIcNames = analyzedIcNames + icon.ic.name) else updatedDecker
@@ -133,10 +133,10 @@ fun Decker.analyzeIcon(icon: Icon, host: Host, diceRoller: DiceRoller): Operatio
     } else OperationResult.Failure(updatedDecker, outcome)
 }
 
-fun Decker.analyzeSecurity(host: Host, diceRoller: DiceRoller): AnalyzeSecurityResult {
+fun Decker.analyzeSecurity(host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): AnalyzeSecurityResult {
     logger.info { "[$name] analyzeSecurity → ${host.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_SECURITY, host.subsystemRatings.control, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_SECURITY, host.subsystemRatings.control, host.securityRating.value, diceRoller, hackingPoolDice)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
     val newTally = tallyFor(host) + outcome.hostSuccesses
     return AnalyzeSecurityResult(updatedDecker, outcome, host.securityRating, newTally, host.alertStatus).also {
@@ -144,11 +144,11 @@ fun Decker.analyzeSecurity(host: Host, diceRoller: DiceRoller): AnalyzeSecurityR
     }
 }
 
-fun Decker.analyzeSubsystem(host: Host, subsystem: SubsystemType, diceRoller: DiceRoller): OperationResult {
+fun Decker.analyzeSubsystem(host: Host, subsystem: SubsystemType, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {
     logger.info { "[$name] analyzeSubsystem → $subsystem on ${host.name}" }
     requireJackedIn()
     val tn = host.subsystemRatings.get(subsystem)
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_SUBSYSTEM, tn, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_SUBSYSTEM, tn, host.securityRating.value, diceRoller, hackingPoolDice)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome)
     else OperationResult.Failure(updatedDecker, outcome)
@@ -156,26 +156,26 @@ fun Decker.analyzeSubsystem(host: Host, subsystem: SubsystemType, diceRoller: Di
 
 // ── Decrypt operations ─────────────────────────────────────────────────────────
 
-fun Decker.decryptAccess(host: Host, diceRoller: DiceRoller): OperationResult {
+fun Decker.decryptAccess(host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {
     logger.info { "[$name] decryptAccess → ${host.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_ACCESS, host.subsystemRatings.access, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_ACCESS, host.subsystemRatings.access, host.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
 }
 
-fun Decker.decryptAccess(grid: Grid, diceRoller: DiceRoller): OperationResult {
+fun Decker.decryptAccess(grid: Grid, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {
     logger.info { "[$name] decryptAccess on ${grid.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_ACCESS, grid.subsystemRatings.access, grid.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_ACCESS, grid.subsystemRatings.access, grid.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
 }
 
-fun Decker.decryptFile(file: DataFile, host: Host, diceRoller: DiceRoller): Pair<OperationResult, ScrambleDestructResult?> {
+fun Decker.decryptFile(file: DataFile, host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, ScrambleDestructResult?> {
     logger.info { "[$name] decryptFile → ${file.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_FILE, host.subsystemRatings.files, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_FILE, host.subsystemRatings.files, host.securityRating.value, diceRoller, hackingPoolDice)
     var updated = withUpdatedTally(outcome.hostSuccesses)
     val scramble: ScrambleDestructResult? = if (!outcome.deckerWins) {
         host.icPrograms.filterIsInstance<Scramble>()
@@ -196,23 +196,23 @@ private fun Decker.withFileRemovedFromHost(file: DataFile): Decker {
     return copy(currentLocation = MatrixLocation.OnHost(updatedHost))
 }
 
-fun Decker.decryptSlave(host: Host, diceRoller: DiceRoller): OperationResult {
+fun Decker.decryptSlave(host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {
     logger.info { "[$name] decryptSlave → ${host.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
 }
 
 // ── Interrogation operations ───────────────────────────────────────────────────
 
-fun Decker.locateFile(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
+fun Decker.locateFile(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, LocateResult> {
     val existingState = interrogationStates["LOCATE_FILE@HOST"]
     require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
     val state = existingState ?: InterrogationState(SystemOperation.LOCATE_FILE, query)
     logger.info { "[$name] locateFile on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
     requireJackedIn()
-    val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_FILE, host, state, precision, diceRoller)
+    val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_FILE, host, state, precision, diceRoller, hackingPoolDice)
     val locateResult = when {
         newState.accumulatedSuccesses >= 5 -> {
             val file = host.dataFiles.firstOrNull { it.name.contains(state.query, ignoreCase = true) }
@@ -233,13 +233,13 @@ fun Decker.locateFile(host: Host, query: String = "", precision: QueryPrecision,
     return Pair(opResult, locateResult)
 }
 
-fun Decker.locateSlave(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
+fun Decker.locateSlave(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, LocateResult> {
     val existingState = interrogationStates["LOCATE_SLAVE@HOST"]
     require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
     val state = existingState ?: InterrogationState(SystemOperation.LOCATE_SLAVE, query)
     logger.info { "[$name] locateSlave on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
     requireJackedIn()
-    val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_SLAVE, host, state, precision, diceRoller)
+    val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_SLAVE, host, state, precision, diceRoller, hackingPoolDice)
     val locateResult = when {
         newState.accumulatedSuccesses >= 3 -> {
             val device = host.remoteDevices.firstOrNull { it.name.contains(state.query, ignoreCase = true) }
@@ -258,13 +258,13 @@ fun Decker.locateSlave(host: Host, query: String = "", precision: QueryPrecision
     return Pair(opResult, locateResult)
 }
 
-fun Decker.locateAccessNode(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
+fun Decker.locateAccessNode(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, LocateResult> {
     val existingState = interrogationStates["LOCATE_ACCESS_NODE@HOST"]
     require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
     val state = existingState ?: InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, query)
     logger.info { "[$name] locateAccessNode on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
     requireJackedIn()
-    val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_ACCESS_NODE, host, state, precision, diceRoller)
+    val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_ACCESS_NODE, host, state, precision, diceRoller, hackingPoolDice)
     val nodeExists = host.nodes.any {
         it.subsystemType.name.contains(state.query, ignoreCase = true) ||
         it.description.contains(state.query, ignoreCase = true)
@@ -286,7 +286,7 @@ fun Decker.locateAccessNode(host: Host, query: String = "", precision: QueryPrec
     return Pair(opResult, locateResult)
 }
 
-fun Decker.locateAccessNode(grid: Grid, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult> {
+fun Decker.locateAccessNode(grid: Grid, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, LocateResult> {
     val contextTag = when (grid) { is LTG -> "LTG"; is RTG -> "RTG"; is PLTG -> "PLTG" }
     val stateKey = "LOCATE_ACCESS_NODE@$contextTag"
     val existingState = interrogationStates[stateKey]
@@ -294,7 +294,7 @@ fun Decker.locateAccessNode(grid: Grid, query: String = "", precision: QueryPrec
     val state = existingState ?: InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, query)
     logger.info { "[$name] locateAccessNode on ${grid.name} (accumulated=${state.accumulatedSuccesses})" }
     requireJackedIn()
-    val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_ACCESS_NODE, grid, state, precision, diceRoller)
+    val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_ACCESS_NODE, grid, state, precision, diceRoller, hackingPoolDice)
     val accessibleHosts = when (grid) {
         is LTG  -> grid.hosts
         is RTG  -> grid.ltgs.flatMap { it.hosts }
@@ -318,10 +318,10 @@ fun Decker.locateAccessNode(grid: Grid, query: String = "", precision: QueryPrec
     return Pair(opResult, locateResult)
 }
 
-fun Decker.analyzeSecurity(grid: Grid, diceRoller: DiceRoller): AnalyzeSecurityResult {
+fun Decker.analyzeSecurity(grid: Grid, diceRoller: DiceRoller, hackingPoolDice: Int = 0): AnalyzeSecurityResult {
     logger.info { "[$name] analyzeSecurity → ${grid.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_SECURITY, grid.subsystemRatings.control, grid.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_SECURITY, grid.subsystemRatings.control, grid.securityRating.value, diceRoller, hackingPoolDice)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
     val newTally = tallyFor(grid) + outcome.hostSuccesses
     return AnalyzeSecurityResult(updatedDecker, outcome, grid.securityRating, newTally, grid.alertStatus).also {
@@ -329,20 +329,20 @@ fun Decker.analyzeSecurity(grid: Grid, diceRoller: DiceRoller): AnalyzeSecurityR
     }
 }
 
-fun Decker.locateIc(grid: Grid, diceRoller: DiceRoller): OperationResult {
+fun Decker.locateIc(grid: Grid, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {
     logger.info { "[$name] locateIc on ${grid.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.LOCATE_IC, grid.subsystemRatings.index, grid.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.LOCATE_IC, grid.subsystemRatings.index, grid.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome)
     else OperationResult.Failure(updated, outcome)
 }
 
 /** PRD: SO-10 through SO-12 */
-fun Decker.downloadData(file: DataFile, host: Host, diceRoller: DiceRoller): Pair<OperationResult, DownloadHandle?> {
+fun Decker.downloadData(file: DataFile, host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, DownloadHandle?> {
     logger.info { "[$name] downloadData → ${file.name} (${file.sizeMp} Mp)" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.DOWNLOAD_DATA, host.subsystemRatings.files, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.DOWNLOAD_DATA, host.subsystemRatings.files, host.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) {
         val ioSpeed = cyberdeck.ioSpeedMpPerTurn
@@ -370,12 +370,13 @@ fun Decker.editFile(
     host: Host,
     newContent: ByteArray?,
     diceRoller: DiceRoller,
-    attemptAuthentication: Boolean = false
+    attemptAuthentication: Boolean = false,
+    hackingPoolDice: Int = 0
 ): EditFileResult {
     logger.info { "[$name] editFile → ${file.name} (delete=${newContent == null})" }
     requireJackedIn()
     require(newContent == null || newContent.size <= 4096) { "File content too large (max 4096 bytes)" }
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.EDIT_FILE, host.subsystemRatings.files, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.EDIT_FILE, host.subsystemRatings.files, host.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     val authSuccesses: Int? = if (outcome.deckerWins && attemptAuthentication) {
         val readWrite = cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.READ_WRITE }
@@ -388,10 +389,10 @@ fun Decker.editFile(
 }
 
 /** PRD: SO-10 through SO-12 */
-fun Decker.uploadData(host: Host, dataSizeMp: Int, diceRoller: DiceRoller): Pair<OperationResult, UploadHandle?> {
+fun Decker.uploadData(host: Host, dataSizeMp: Int, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, UploadHandle?> {
     logger.info { "[$name] uploadData → ${host.name} (${dataSizeMp} Mp)" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.UPLOAD_DATA, host.subsystemRatings.files, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.UPLOAD_DATA, host.subsystemRatings.files, host.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) {
         val ioSpeed = cyberdeck.ioSpeedMpPerTurn
@@ -415,14 +416,15 @@ fun Decker.controlSlave(
     device: RemoteDevice,
     host: Host,
     diceRoller: DiceRoller,
-    effectiveSkill: Int? = null
+    effectiveSkill: Int? = null,
+    hackingPoolDice: Int = 0
 ): Pair<OperationResult, MonitoredOperationHandle?> {
     logger.info { "[$name] controlSlave → ${device.name}" }
     requireJackedIn()
     val skill = effectiveSkill ?: computerSkill
     require(skill in 1..20) { "effectiveSkill must be between 1 and 20 (got $skill)" }
     val deckerForTest = if (effectiveSkill != null) copy(computerSkill = skill) else this
-    val outcome = SystemTestResolver.resolve(deckerForTest, SystemOperation.CONTROL_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(deckerForTest, SystemOperation.CONTROL_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller, hackingPoolDice)
     logger.info { "[$name] controlSlave: skill=$skill → ${outcome.deckerSuccesses}; host=${outcome.hostSuccesses}" }
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins)
@@ -431,19 +433,19 @@ fun Decker.controlSlave(
         Pair(OperationResult.Failure(updated, outcome), null)
 }
 
-fun Decker.editSlave(device: RemoteDevice, host: Host, diceRoller: DiceRoller): Pair<OperationResult, MonitoredOperationHandle?> {
+fun Decker.editSlave(device: RemoteDevice, host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, MonitoredOperationHandle?> {
     logger.info { "[$name] editSlave → ${device.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.EDIT_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.EDIT_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.EDIT_SLAVE, MonitoredTarget.SlaveDevice(device)))
     else Pair(OperationResult.Failure(updated, outcome), null)
 }
 
-fun Decker.monitorSlave(device: RemoteDevice, host: Host, diceRoller: DiceRoller): Pair<OperationResult, MonitoredOperationHandle?> {
+fun Decker.monitorSlave(device: RemoteDevice, host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, MonitoredOperationHandle?> {
     logger.info { "[$name] monitorSlave → ${device.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.MONITOR_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.MONITOR_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.MONITOR_SLAVE, MonitoredTarget.SlaveDevice(device)))
     else Pair(OperationResult.Failure(updated, outcome), null)
@@ -478,18 +480,18 @@ fun Decker.abortMonitoredOperation(handle: MonitoredOperationHandle): MonitoredO
 
 // ── Null Operation ─────────────────────────────────────────────────────────────
 
-fun Decker.nullOperation(host: Host, inactivitySeconds: Int, diceRoller: DiceRoller): OperationResult {
+fun Decker.nullOperation(host: Host, inactivitySeconds: Int, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {
     logger.info { "[$name] nullOperation: inactivity=${inactivitySeconds}s on ${host.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolveNullOperation(this, host, inactivitySeconds, diceRoller)
+    val outcome = SystemTestResolver.resolveNullOperation(this, host, inactivitySeconds, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
 }
 
-fun Decker.nullOperation(grid: Grid, inactivitySeconds: Int, diceRoller: DiceRoller): OperationResult {
+fun Decker.nullOperation(grid: Grid, inactivitySeconds: Int, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {
     logger.info { "[$name] nullOperation: inactivity=${inactivitySeconds}s on ${grid.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolveNullOperation(this, grid, inactivitySeconds, diceRoller)
+    val outcome = SystemTestResolver.resolveNullOperation(this, grid, inactivitySeconds, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
 }
@@ -563,11 +565,12 @@ fun Decker.resolvePointerChain(file: DataFile, diceRoller: DiceRoller): PointerC
 fun Decker.locateDecker(
     host: Host,
     targetPersona: Persona,
-    diceRoller: DiceRoller
+    diceRoller: DiceRoller,
+    hackingPoolDice: Int = 0
 ): LocateDeckerResult {
     logger.info { "[$name] locateDecker on ${host.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.LOCATE_DECKER, host.subsystemRatings.index, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.LOCATE_DECKER, host.subsystemRatings.index, host.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     if (!outcome.deckerWins) {
         logger.warn { "[$name] locateDecker: Index Test failed" }
@@ -580,10 +583,10 @@ fun Decker.locateDecker(
     return LocateDeckerResult(updated, outcome, located, targetNotified = located)
 }
 
-fun Decker.locateIc(host: Host, diceRoller: DiceRoller): OperationResult {
+fun Decker.locateIc(host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {
     logger.info { "[$name] locateIc on ${host.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.LOCATE_IC, host.subsystemRatings.index, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.LOCATE_IC, host.subsystemRatings.index, host.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome)
     else OperationResult.Failure(updated, outcome)
@@ -591,33 +594,35 @@ fun Decker.locateIc(host: Host, diceRoller: DiceRoller): OperationResult {
 
 // ── Comcall operations ─────────────────────────────────────────────────────────
 
-fun Decker.makeComcall(host: Host, diceRoller: DiceRoller): Pair<OperationResult, MonitoredOperationHandle?> {
+fun Decker.makeComcall(host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, MonitoredOperationHandle?> {
     logger.info { "[$name] makeComcall on ${host.name}" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.MAKE_COMCALL, host.subsystemRatings.files, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.MAKE_COMCALL, host.subsystemRatings.files, host.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) Pair(OperationResult.Success(updated, outcome), MonitoredOperationHandle(SystemOperation.MAKE_COMCALL, MonitoredTarget.ComcallHost(host)))
     else Pair(OperationResult.Failure(updated, outcome), null)
 }
 
-fun Decker.tapComcall(host: Host, diceRoller: DiceRoller): Pair<OperationResult, MonitoredOperationHandle?> {
+fun Decker.tapComcall(host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, MonitoredOperationHandle?> {
     // Server-side source of truth: the target's own dataline scanners (PRD: use the highest rating).
     val scannerDeviceRating = host.datalineScannerRatings.maxOrNull() ?: 0
     logger.info { "[$name] tapComcall on ${host.name} (scannerRating=$scannerDeviceRating)" }
     requireJackedIn()
-    val outcome = SystemTestResolver.resolve(this, SystemOperation.TAP_COMCALL, host.subsystemRatings.files, host.securityRating.value, diceRoller)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.TAP_COMCALL, host.subsystemRatings.files, host.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     if (!outcome.deckerWins) {
         logger.warn { "[$name] tapComcall: System Test failed" }
         return Pair(OperationResult.Failure(updated, outcome), null)
     }
-    // Dataline scanner check: scanner test does NOT affect RTG tally (PRD: Tap Comcall)
+    // Dataline scanner check: opposed test, does NOT affect RTG tally (SR3 p.219, PRD: Tap Comcall)
     if (scannerDeviceRating > 0) {
         val commlink = cyberdeck.activeUtilities.firstOrNull { it.type == UtilityType.COMMLINK }
-        val scannerTn = maxOf(2, scannerDeviceRating - (commlink?.currentRating ?: 0))
-        val scannerResult = diceRoller.roll(computerSkill, scannerTn)
-        logger.info { "[$name] tapComcall: scanner test TN=$scannerTn → ${scannerResult.successes} successes" }
-        if (scannerResult.successes == 0) {
+        val deckerTn = maxOf(2, scannerDeviceRating - (commlink?.currentRating ?: 0))
+        val deckerResult = diceRoller.roll(computerSkill, deckerTn)
+        val scannerRollResult = diceRoller.roll(scannerDeviceRating, computerSkill)
+        val netSuccesses = deckerResult.successes - scannerRollResult.successes
+        logger.info { "[$name] tapComcall: scanner opposed test deckerTN=$deckerTn decker=${deckerResult.successes} scanner=${scannerRollResult.successes} net=$netSuccesses" }
+        if (netSuccesses <= 0) {
             logger.warn { "[$name] tapComcall: scanner detected the tap" }
             return Pair(OperationResult.Failure(updated, outcome), null)
         }
@@ -628,14 +633,14 @@ fun Decker.tapComcall(host: Host, diceRoller: DiceRoller): Pair<OperationResult,
 // ── Relocate Icon ──────────────────────────────────────────────────────────────
 
 /** PRD: SO individual table, CD-16 */
-fun Decker.relocateIcon(host: Host, diceRoller: DiceRoller): OperationResult {
+fun Decker.relocateIcon(host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {
     logger.info { "[$name] relocateIcon on ${host.name}" }
     requireJackedIn()
     // PRD: TN = opponent's Sensor − Relocate rating. Use opponentSensorRating from TrackState when
     // available (non-zero); fall back to Control subsystem when not currently being tracked.
     val tn = trackState?.opponentSensorRating?.takeIf { it > 0 } ?: host.subsystemRatings.control
     val outcome = SystemTestResolver.resolve(this, SystemOperation.RELOCATE_ICON,
-        tn, host.securityRating.value, diceRoller)
+        tn, host.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome)
     else OperationResult.Failure(updated, outcome)

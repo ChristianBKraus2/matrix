@@ -59,7 +59,7 @@ fun Decker.jackInToLtg(ltg: LTG, diceRoller: DiceRoller): LogonResult {
     ).also { result ->
         when (result) {
             is LogonResult.Success -> logger.info { "[$name] jackInToLtg succeeded: now at ${result.location.label()}" }
-            is LogonResult.Failure -> logger.warn { "[$name] jackInToLtg failed: remaining at ${result.location.label()}" }
+            is LogonResult.Failure -> logger.warn { "[$name] jackInToLtg failed: remaining at ${result.attemptedLocation.label()}" }
         }
     }
 }
@@ -98,7 +98,7 @@ fun Decker.jackInToHost(host: Host, diceRoller: DiceRoller): LogonResult {
         val updatedDecker = result.decker.copy(persona = persona.copy(currentNode = startNode))
         LogonResult.Success(updatedDecker, result.location, result.deckerSuccesses, result.hostSuccesses)
     } else {
-        logger.warn { "[$name] jackInToHost failed: remaining at ${(result as LogonResult.Failure).location.label()}" }
+        logger.warn { "[$name] jackInToHost failed: remaining at ${(result as LogonResult.Failure).attemptedLocation.label()}" }
         result
     }
 }
@@ -107,12 +107,17 @@ fun Decker.jackInToHost(host: Host, diceRoller: DiceRoller): LogonResult {
 fun Decker.logonToRtg(rtg: RTG, diceRoller: DiceRoller): LogonResult {
     logger.info { "[$name] logonToRtg → ${rtg.name} (from ${currentLocation.label()})" }
     requireJackedIn()
-    when (val loc = currentLocation) {
-        is MatrixLocation.OnLTG -> require(loc.ltg.parentRtg == rtg) {
-            "Target RTG is not the parent of the current LTG"
+    // M-09: RTG and all its LTGs share one tally. When moving back up from a child LTG to the parent
+    // RTG, seed the RTG's tally from the LTG's accumulated value so the shared tally is preserved.
+    // When hopping to a connected (different) RTG, that RTG has its own tally — do not carry over.
+    val baseTally = when (val loc = currentLocation) {
+        is MatrixLocation.OnLTG -> {
+            require(loc.ltg.parentRtg == rtg) { "Target RTG is not the parent of the current LTG" }
+            loc.ltg.securityTally
         }
-        is MatrixLocation.OnRTG -> require(loc.rtg.connectedRtgs.contains(rtg)) {
-            "Target RTG is not connected to the current RTG"
+        is MatrixLocation.OnRTG -> {
+            require(loc.rtg.connectedRtgs.contains(rtg)) { "Target RTG is not connected to the current RTG" }
+            rtg.securityTally  // different RTG — use target's own tally, not current's
         }
         else -> throw IllegalStateException("Cannot logon to RTG from $currentLocation")
     }
@@ -123,12 +128,12 @@ fun Decker.logonToRtg(rtg: RTG, diceRoller: DiceRoller): LogonResult {
         diceRoller = diceRoller,
         targetName = rtg.name,
         buildLocation = { hostTallyDelta ->
-            MatrixLocation.OnRTG(rtg.copy(securityTally = rtg.securityTally + hostTallyDelta))
+            MatrixLocation.OnRTG(rtg.copy(securityTally = baseTally + hostTallyDelta))
         }
     ).also { result ->
         when (result) {
             is LogonResult.Success -> logger.info { "[$name] logonToRtg succeeded: now at ${result.location.label()}" }
-            is LogonResult.Failure -> logger.warn { "[$name] logonToRtg failed: remaining at ${result.location.label()}" }
+            is LogonResult.Failure -> logger.warn { "[$name] logonToRtg failed: remaining at ${result.attemptedLocation.label()}" }
         }
     }
 }
@@ -163,7 +168,7 @@ fun Decker.logonToLtg(ltg: LTG, diceRoller: DiceRoller): LogonResult {
     ).also { result ->
         when (result) {
             is LogonResult.Success -> logger.info { "[$name] logonToLtg succeeded: now at ${result.location.label()}" }
-            is LogonResult.Failure -> logger.warn { "[$name] logonToLtg failed: remaining at ${result.location.label()}" }
+            is LogonResult.Failure -> logger.warn { "[$name] logonToLtg failed: remaining at ${result.attemptedLocation.label()}" }
         }
     }
 }
@@ -192,7 +197,7 @@ fun Decker.logonToPltg(pltg: PLTG, diceRoller: DiceRoller): LogonResult {
     ).also { result ->
         when (result) {
             is LogonResult.Success -> logger.info { "[$name] logonToPltg succeeded: now at ${result.location.label()}" }
-            is LogonResult.Failure -> logger.warn { "[$name] logonToPltg failed: remaining at ${result.location.label()}" }
+            is LogonResult.Failure -> logger.warn { "[$name] logonToPltg failed: remaining at ${result.attemptedLocation.label()}" }
         }
     }
 }
@@ -225,7 +230,7 @@ fun Decker.logonToHost(host: Host, diceRoller: DiceRoller): LogonResult {
     ).also { result ->
         when (result) {
             is LogonResult.Success -> logger.info { "[$name] logonToHost succeeded: now at ${result.location.label()}" }
-            is LogonResult.Failure -> logger.warn { "[$name] logonToHost failed: remaining at ${result.location.label()}" }
+            is LogonResult.Failure -> logger.warn { "[$name] logonToHost failed: remaining at ${result.attemptedLocation.label()}" }
         }
     }
 }

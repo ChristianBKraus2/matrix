@@ -16,6 +16,7 @@ data class DeckerStateDto(
     val mentalDamage: Int,
     val mentalMaxBoxes: Int,
     val hackingPool: Int,
+    val remainingHackingPool: Int,
     val mcpRating: Int,
     val activeUtilities: List<UtilityDto>
 )
@@ -34,6 +35,7 @@ fun Decker.toDto() = DeckerStateDto(
     mentalDamage = mentalConditionMonitor.damage,
     mentalMaxBoxes = mentalConditionMonitor.maxBoxes,
     hackingPool = hackingPool,
+    remainingHackingPool = remainingHackingPool,
     mcpRating = cyberdeck.mcpRating,
     activeUtilities = cyberdeck.activeUtilities.map { UtilityDto(it.type.name, it.currentRating) }
 )

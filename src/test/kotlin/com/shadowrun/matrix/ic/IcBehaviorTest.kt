@@ -190,5 +190,49 @@ class IcBehaviorTest {
         assertEquals(DamageLevel.LIGHT.boxes, personaCm.damage, "Persona CM should have LIGHT damage applied")
         assertEquals(originalMcp, result.updatedDecker.cyberdeck.mcpRating, "MPCP must not be reduced when dump shock is not triggered")
     }
+
+    // ── Crippler ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `Crippler strictly reduces target attribute when IC net is positive`() = runBlocking {
+        val d = decker()
+        val crippler = Crippler(rating = 6, targetAttribute = PersonaAttributeType.BOD)
+        val ctx = context(d, crippler)
+        val originalBod = requireNotNull(d.persona).bod
+
+        // IC: host securityValue=5, 5 dice vs TN=max(2, DF=3)=3. Exploding [6+1=7]: all 5 succeed → 5 successes.
+        // Decker defense: persona.bod=6 dice vs TN=max(2, ic.rating=6)=6. face=1: 0 successes.
+        // net=5, reduction=5/2=2, newBod=max(1,6-2)=4 < 6.
+        val roller = DiceRoller(stubRandom(
+            6, 1, 6, 1, 6, 1, 6, 1, 6, 1,  // 5 IC dice: each explodes to 7 (≥ TN=3)
+            1, 1, 1, 1, 1, 1                 // 6 decker defense dice: face=1 (< TN=6)
+        ))
+        crippler.action(ctx, roller)
+
+        val newBod = requireNotNull(ctx.deckers.first().persona).bod
+        assertTrue(newBod < originalBod, "Crippler must strictly reduce BOD when IC net > 0 (got $newBod, was $originalBod)")
+    }
+
+    // ── Ripper ────────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `Ripper strictly reduces target attribute when IC net is positive`() = runBlocking {
+        val d = decker()
+        val ripper = Ripper(rating = 6, targetAttribute = PersonaAttributeType.EVASION)
+        val ctx = context(d, ripper)
+        val originalEvasion = requireNotNull(d.persona).evasion
+
+        // IC: host securityValue=5, 5 dice vs TN=max(2, DF=3)=3. Exploding [6+1=7]: all 5 succeed → 5 successes.
+        // Decker defense: persona.evasion=6 dice vs TN=max(2, ic.rating=6)=6. face=1: 0 successes.
+        // net=5, reduction=5/2=2, newEvasion=max(0,6-2)=4 < 6.
+        val roller = DiceRoller(stubRandom(
+            6, 1, 6, 1, 6, 1, 6, 1, 6, 1,  // 5 IC dice: each explodes to 7 (≥ TN=3)
+            1, 1, 1, 1, 1, 1                 // 6 decker defense dice: face=1 (< TN=6)
+        ))
+        ripper.action(ctx, roller)
+
+        val newEvasion = requireNotNull(ctx.deckers.first().persona).evasion
+        assertTrue(newEvasion < originalEvasion, "Ripper must strictly reduce EVASION when IC net > 0 (got $newEvasion, was $originalEvasion)")
+    }
 }
 

@@ -28,6 +28,7 @@ enum class ErrorCode {
     @SerialName("unknown_message_type") UNKNOWN_MESSAGE_TYPE,
     @SerialName("bad_request")         BAD_REQUEST,
     @SerialName("server_full")         SERVER_FULL,
+    @SerialName("insufficient_hacking_pool") INSUFFICIENT_HACKING_POOL,
 }
 
 @Serializable
@@ -59,7 +60,8 @@ data class ActionParams(
     val inactivitySeconds: Int? = null,
     val precision: String? = null,
     val query: String? = null,
-    val dataSize: Int? = null
+    val dataSize: Int? = null,
+    val hackingPoolDice: Int? = null
 )
 
 @Serializable

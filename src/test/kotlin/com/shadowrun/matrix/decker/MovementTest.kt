@@ -190,7 +190,7 @@ class MovementTest {
         assertIs<LogonResult.Failure>(result)
         // Security tally must have increased on the LTG stored in the location
         // (even on failure the host's successes are counted — M-05)
-        assertTrue((result.location as MatrixLocation.OnLTG).ltg.securityTally > 0,
+        assertTrue((result.attemptedLocation as MatrixLocation.OnLTG).ltg.securityTally > 0,
             "jackInToLtg failure should increment LTG security tally (M-05)")
         assertNull(result.decker.persona)
     }
@@ -210,10 +210,10 @@ class MovementTest {
         val d = decker(jackpoint = jp)
         val result = d.jackInToLtg(targetLtg, hostWinsRoller)
         assertIs<LogonResult.Failure>(result)
-        val failedLocation = result.location
+        val failedLocation = result.attemptedLocation
         assertNotNull(failedLocation)
         val tally = (failedLocation as MatrixLocation.OnLTG).ltg.securityTally
-        assertTrue(tally > 0, "Failure.location must carry the tally-incremented LTG (M-05)")
+        assertTrue(tally > 0, "Failure.attemptedLocation must carry the tally-incremented LTG (M-05)")
     }
 
     @Test
@@ -340,6 +340,41 @@ class MovementTest {
         val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
         val d = decker(currentLocation = MatrixLocation.OnLTG(l), persona = persona)
         assertFailsWith<IllegalArgumentException> { d.logonToRtg(r2, DiceRoller()) }
+    }
+
+    @Test
+    fun `logonToRtg from LTG carries accumulated tally to parent RTG`() {
+        val r = rtg()
+        val l = ltg(parentRtg = r).copy(securityTally = 5)
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
+        val d = decker(currentLocation = MatrixLocation.OnLTG(l), persona = persona)
+        val result = d.logonToRtg(r, deckerWinsRoller())
+        assertIs<LogonResult.Success>(result)
+        // M-09: RTG and its LTGs share one tally — logonToRtg must seed the RTG from the LTG's value.
+        assertEquals(5, (result.location as MatrixLocation.OnRTG).rtg.securityTally,
+            "RTG tally should carry forward from LTG accumulated tally (M-09)")
+    }
+
+    @Test
+    fun `tally accumulated on LTG carries through parent RTG to sibling LTG`() {
+        val r0 = rtg()
+        val ltgA = ltg("Seattle", parentRtg = r0).copy(securityTally = 5)
+        val ltgB = ltg("Portland", parentRtg = r0)
+        val r = r0.copy(ltgs = listOf(ltgA, ltgB))
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
+
+        // Step 1: move from LTG-A (tally=5) back up to parent RTG
+        val d1 = decker(currentLocation = MatrixLocation.OnLTG(ltgA), persona = persona)
+        val rtgResult = d1.logonToRtg(r, deckerWinsRoller())
+        assertIs<LogonResult.Success>(rtgResult)
+        assertEquals(5, (rtgResult.location as MatrixLocation.OnRTG).rtg.securityTally,
+            "RTG should carry LTG-A's tally (M-09)")
+
+        // Step 2: from RTG (tally=5), move down to sibling LTG-B — must seed from RTG tally
+        val ltgBResult = rtgResult.decker.logonToLtg(ltgB, deckerWinsRoller())
+        assertIs<LogonResult.Success>(ltgBResult)
+        assertEquals(5, (ltgBResult.location as MatrixLocation.OnLTG).ltg.securityTally,
+            "LTG-B should start with the inherited RTG tally (M-09)")
     }
 
     // ── logonToLtg ───────────────────────────────────────────────────────────────

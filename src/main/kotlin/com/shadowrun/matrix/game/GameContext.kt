@@ -9,7 +9,10 @@ import com.shadowrun.matrix.network.Matrix
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.network.Node
 import com.shadowrun.matrix.network.applyAlertTransition
+import com.shadowrun.matrix.network.LTG
+import com.shadowrun.matrix.network.RTG
 
+// Single-coroutine context: _deckers and _activeIc are not thread-safe.
 class GameContext(
     host: Host,
     val securityCode: SecurityCode,
@@ -27,6 +30,11 @@ class GameContext(
     private val _activeIc: MutableList<IC> = activeIc.toMutableList()
     /** Read-only view of active IC programs. Use addIc()/removeIc() to mutate. */
     val activeIc: List<IC> get() = _activeIc
+
+    // Authoritative live tally for each RTG umbrella (keyed by RTG name).
+    // All LTGs under the same RTG share this single running total (SR3 p.211 M-09).
+    private val _rtgTallies: MutableMap<String, Int> =
+        matrix.rtgs.associate { it.name to it.securityTally }.toMutableMap()
 
     fun addIc(ic: IC) { _activeIc.add(ic) }
 
@@ -61,6 +69,32 @@ class GameContext(
         }
     }
 
+    /**
+     * Propagates a new tally value across all deckers whose location falls under the given RTG.
+     * Covers OnRTG and OnLTG locations (PLTG tally is independent after logon and is not updated).
+     */
+    fun updateRtgTally(rtgName: String, newTally: Int) {
+        _rtgTallies[rtgName] = newTally
+        _deckers.replaceAll { decker ->
+            when (val loc = decker.currentLocation) {
+                is MatrixLocation.OnRTG ->
+                    if (loc.rtg.name == rtgName)
+                        decker.copy(currentLocation = MatrixLocation.OnRTG(loc.rtg.copy(securityTally = newTally)))
+                    else decker
+                is MatrixLocation.OnLTG ->
+                    if (loc.ltg.parentRtg.name == rtgName)
+                        decker.copy(currentLocation = MatrixLocation.OnLTG(
+                            loc.ltg.copy(
+                                securityTally = newTally,
+                                parentRtg = loc.ltg.parentRtg.copy(securityTally = newTally)
+                            )
+                        ))
+                    else decker
+                else -> decker
+            }
+        }
+    }
+
     fun checkTriggers(oldTally: Int, newTally: Int) {
         val newlyTriggered = host.securitySheaf.triggerSteps
             .filter { it.tallyThreshold in (oldTally + 1)..newTally }
@@ -83,6 +117,24 @@ class GameContext(
             // Triggers are upward threshold crossings only; a tally decrease (e.g. IC-suppression
             // accounting) still updates host state but must not re-fire or unfire triggers.
             if (newTally > oldTally) checkTriggers(oldTally, newTally)
+        }
+        // RTG/LTG tally propagation: keep the shared RTG tally registry in sync whenever a decker's
+        // location carries an updated tally for its RTG umbrella (M-09).
+        val rtgName = when (val loc = new.currentLocation) {
+            is MatrixLocation.OnRTG -> loc.rtg.name
+            is MatrixLocation.OnLTG -> loc.ltg.parentRtg.name
+            else -> null
+        }
+        if (rtgName != null) {
+            val newGridTally = when (val loc = new.currentLocation) {
+                is MatrixLocation.OnRTG -> loc.rtg.securityTally
+                is MatrixLocation.OnLTG -> loc.ltg.securityTally
+                else -> null
+            }
+            val oldGridTally = _rtgTallies[rtgName]
+            if (newGridTally != null && newGridTally != oldGridTally) {
+                updateRtgTally(rtgName, newGridTally)
+            }
         }
     }
 

@@ -7,11 +7,11 @@ sealed class LogonResult {
     data class Success(val decker: Decker, val location: MatrixLocation,
         val deckerSuccesses: Int = 0, val hostSuccesses: Int = 0) : LogonResult()
 
-    /** Decker lost the System Test. [decker] remains at its previous location; [location] is the
-     *  attempted destination with its security tally already incremented by the host's successes.
+    /** Decker lost the System Test. [decker] remains at its previous location; [attemptedLocation] is
+     *  the attempted destination with its security tally already incremented by the host's successes.
      *  Callers should read [decker.currentLocation] for the decker's actual position and use
-     *  [location] to propagate the tally update to the target grid/host. */
-    data class Failure(val decker: Decker, val location: MatrixLocation?,
+     *  [attemptedLocation] to propagate the tally update to the target grid/host. */
+    data class Failure(val decker: Decker, val attemptedLocation: MatrixLocation?,
         val deckerSuccesses: Int = 0, val hostSuccesses: Int = 0) : LogonResult()
 }
 
