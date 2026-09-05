@@ -35,7 +35,9 @@ fun main() {
 
     val matrix = GridInitializer.initialize()
 
-    val registry = SessionRegistry()
+    val joinSecret = System.getenv("MATRIX_JOIN_SECRET")
+    if (joinSecret == null) logger.warn { "MATRIX_JOIN_SECRET not set — join authentication disabled" }
+    val registry = SessionRegistry(joinSecret = joinSecret)
     startMatrixServer(registry)
     logger.info { "Matrix server running on http://localhost:8080" }
 

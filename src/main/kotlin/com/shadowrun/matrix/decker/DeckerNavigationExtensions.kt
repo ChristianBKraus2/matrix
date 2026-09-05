@@ -7,6 +7,8 @@ import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.network.PLTG
 import com.shadowrun.matrix.network.RTG
+import com.shadowrun.matrix.operations.Icon
+import com.shadowrun.matrix.operations.SensorTestResult
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.operations.SystemTestResolver
 import com.shadowrun.matrix.programs.UtilityType
@@ -96,7 +98,12 @@ fun Decker.jackInToHost(host: Host, diceRoller: DiceRoller): LogonResult {
             "jackInToHost: logon succeeded but decker has no active persona"
         }
         val updatedDecker = result.decker.copy(persona = persona.copy(currentNode = startNode))
-        LogonResult.Success(updatedDecker, result.location, result.deckerSuccesses, result.hostSuccesses)
+        var detectedDecker = updatedDecker
+        for (ic in host.icPrograms) {
+            if (detectedDecker.noticeIcon(Icon.IcIcon(ic), diceRoller) is SensorTestResult.Detected)
+                detectedDecker = detectedDecker.copy(detectedIcons = detectedDecker.detectedIcons + Icon.IcIcon(ic))
+        }
+        LogonResult.Success(detectedDecker, result.location, result.deckerSuccesses, result.hostSuccesses)
     } else {
         logger.warn { "[$name] jackInToHost failed: remaining at ${(result as LogonResult.Failure).attemptedLocation.label()}" }
         result
@@ -218,7 +225,7 @@ fun Decker.logonToHost(host: Host, diceRoller: DiceRoller): LogonResult {
         }
         else -> throw IllegalStateException("Cannot logon to a host from $currentLocation")
     }
-    return performLogon(
+    return when (val result = performLogon(
         operation = SystemOperation.LOGON_TO_HOST,
         accessRating = host.subsystemRatings.access,
         securityValue = host.securityRating.value,
@@ -227,11 +234,18 @@ fun Decker.logonToHost(host: Host, diceRoller: DiceRoller): LogonResult {
         buildLocation = { hostTallyDelta ->
             MatrixLocation.OnHost(host.copy(securityTally = host.securityTally + hostTallyDelta))
         }
-    ).also { result ->
-        when (result) {
-            is LogonResult.Success -> logger.info { "[$name] logonToHost succeeded: now at ${result.location.label()}" }
-            is LogonResult.Failure -> logger.warn { "[$name] logonToHost failed: remaining at ${result.attemptedLocation.label()}" }
+    )) {
+        is LogonResult.Success -> {
+            var d = result.decker
+            for (ic in host.icPrograms) {
+                if (d.noticeIcon(Icon.IcIcon(ic), diceRoller) is SensorTestResult.Detected)
+                    d = d.copy(detectedIcons = d.detectedIcons + Icon.IcIcon(ic))
+            }
+            LogonResult.Success(d, result.location, result.deckerSuccesses, result.hostSuccesses)
+                .also { logger.info { "[$name] logonToHost succeeded: now at ${result.location.label()}" } }
         }
+        is LogonResult.Failure -> result
+            .also { logger.warn { "[$name] logonToHost failed: remaining at ${result.attemptedLocation.label()}" } }
     }
 }
 

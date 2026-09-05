@@ -5,10 +5,13 @@ import com.shadowrun.matrix.combat.ManeuverParticipant
 import com.shadowrun.matrix.combat.ManeuverResult
 import com.shadowrun.matrix.common.CombatManeuverType
 import com.shadowrun.matrix.common.SecurityCode
+import com.shadowrun.matrix.ic.Probe
 import com.shadowrun.matrix.integration.utility.IntegrationTestBase
+import com.shadowrun.matrix.operations.EvadeDetectionResult
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlin.test.assertEquals
 
 class ManeuverTest : IntegrationTestBase() {
 
@@ -125,5 +128,31 @@ class ManeuverTest : IntegrationTestBase() {
 
         assertIs<ManeuverResult.Success>(result, "Decker with Cloak should win POSITION_ATTACK")
         assertTrue((result as ManeuverResult.Success).netSuccesses > 0)
+    }
+
+    // ── evadeDetection ────────────────────────────────────────────────────────
+
+    @Test
+    fun `evadeDetection success sets countdown to netSuccesses`() {
+        // hitRoller face=5; ic.rating=3 → mover TN=max(2,3)=3, face=5 ≥ 3 → mover successes
+        // opponent TN=max(2, evasion=6)=6, face=5 < 6 → 0 opponent successes → net > 0
+        val icon = loggedInIcon()
+        val ic = Probe(rating = 3)
+        val result = CombatResolver.evadeDetection(icon.currentDecker(), ic, hitRoller())
+        assertIs<EvadeDetectionResult.Success>(result)
+        val state = result.decker.evadeDetectionStates.single()
+        assertEquals(ic.name, state.icName)
+        assertTrue(state.turnsRemaining > 0)
+        assertEquals(result.netSuccesses, state.turnsRemaining)
+    }
+
+    @Test
+    fun `evadeDetection failure leaves evadeDetectionStates unchanged`() {
+        // winRoller face=0; mover TN=max(2,3)=3, face=0 < 3 → 0 mover successes → net≤0 → Failure
+        val icon = loggedInIcon()
+        val ic = Probe(rating = 3)
+        val result = CombatResolver.evadeDetection(icon.currentDecker(), ic, winRoller())
+        assertIs<EvadeDetectionResult.Failure>(result)
+        assertTrue(result.decker.evadeDetectionStates.isEmpty())
     }
 }

@@ -291,6 +291,8 @@ Named operations (27 total): Analyze Host, Analyze IC, Analyze Icon, Analyze Sec
 
 ### Security Decker (NPC)
 
+> **Out of scope** — see [out_of_scope.md §3](../out_of_scope.md). The relationship and field are modelled below as design intent; no spawn path exists.
+
 - **Host → SecurityDecker Persona** (0:many, Active Alert) — Under Active Alert a TriggerStep may spawn one or more corporate/law-enforcement security deckers whose Personas enter the host and operate in the same nodes as the intruder.
 
 ### IC

@@ -3,6 +3,7 @@ package com.shadowrun.matrix.game
 import com.shadowrun.matrix.common.PersonaStatus
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.decker.Decker
+import com.shadowrun.matrix.decker.noticeTriggeredIc
 import com.shadowrun.matrix.ic.IC
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.Matrix
@@ -11,6 +12,9 @@ import com.shadowrun.matrix.network.Node
 import com.shadowrun.matrix.network.applyAlertTransition
 import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.RTG
+import com.shadowrun.matrix.operations.IcDetectionResult
+import com.shadowrun.matrix.operations.Icon
+import com.shadowrun.matrix.utility.DiceRoller
 
 // Single-coroutine context: _deckers and _activeIc are not thread-safe.
 class GameContext(
@@ -44,11 +48,18 @@ class GameContext(
 
     fun deckerByName(name: String): Decker? = _deckers.firstOrNull { it.name == name }
 
-    fun unauthorizedDeckerInNode(node: Node): Decker? =
-        _deckers.firstOrNull { it.persona?.currentNode == node && it.persona.status == PersonaStatus.INTRUDING }
+    fun unauthorizedDeckerInNode(node: Node, evadingIcName: String? = null): Decker? =
+        _deckers.firstOrNull {
+            it.persona?.currentNode == node &&
+            it.persona?.status == PersonaStatus.INTRUDING &&
+            (evadingIcName == null || it.evadeDetectionStates.none { s -> s.icName == evadingIcName })
+        }
 
-    fun unauthorizedDeckerInHost(): Decker? =
-        _deckers.firstOrNull { it.persona?.status == PersonaStatus.INTRUDING }
+    fun unauthorizedDeckerInHost(evadingIcName: String? = null): Decker? =
+        _deckers.firstOrNull {
+            it.persona?.status == PersonaStatus.INTRUDING &&
+            (evadingIcName == null || it.evadeDetectionStates.none { s -> s.icName == evadingIcName })
+        }
 
     fun updateDecker(old: Decker, new: Decker) {
         val idx = _deckers.indexOf(old)
@@ -144,5 +155,21 @@ class GameContext(
         val new = old + points
         updateHost(host.copy(securityTally = new))
         checkTriggers(old, new)
+    }
+
+    fun runSpawnDetection(diceRoller: DiceRoller) {
+        _deckers.replaceAll { decker ->
+            if (decker.persona == null) return@replaceAll decker
+            if (decker.currentLocation !is MatrixLocation.OnHost) return@replaceAll decker
+            val alreadyDetected = decker.detectedIcNames
+            val undetected = _activeIc.filter { it.name !in alreadyDetected }
+            if (undetected.isEmpty()) return@replaceAll decker
+            var updated = decker
+            for (ic in undetected) {
+                if (updated.noticeTriggeredIc(ic, diceRoller) !is IcDetectionResult.Undetected)
+                    updated = updated.copy(detectedIcons = updated.detectedIcons + Icon.IcIcon(ic))
+            }
+            updated
+        }
     }
 }

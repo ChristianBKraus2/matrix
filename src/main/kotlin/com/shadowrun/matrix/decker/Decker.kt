@@ -19,11 +19,13 @@ import com.shadowrun.matrix.utility.DiceRoller
 import com.shadowrun.matrix.combat.BlackIcPinState
 import com.shadowrun.matrix.combat.CombatInitiative
 import com.shadowrun.matrix.combat.CombatResolver
+import com.shadowrun.matrix.combat.EvadeDetectionState
 import com.shadowrun.matrix.combat.IcSuppressionState
 import com.shadowrun.matrix.combat.TrackState
 import com.shadowrun.matrix.game.ActionResult
 import com.shadowrun.matrix.game.ActiveIcon
 import com.shadowrun.matrix.game.GameContext
+import com.shadowrun.matrix.ic.IC
 import kotlin.math.ceil
 
 data class Decker(
@@ -44,6 +46,7 @@ data class Decker(
     val meatworldComm: Boolean = false,
     val suppressedIc: List<IcSuppressionState> = emptyList(),
     val runDownloadedFiles: List<DataFile> = emptyList(),
+    val offlineStorageFiles: List<DataFile> = emptyList(),
     val activeDownloads: List<DownloadHandle> = emptyList(),
     val activeUploads: List<UploadHandle> = emptyList(),
     val activeMonitoredOperations: List<MonitoredOperationHandle> = emptyList(),
@@ -51,7 +54,8 @@ data class Decker(
     val detectedIcons: Set<Icon> = emptySet(),
     val analyzedIcNames: Set<String> = emptySet(),
     val knownPasscodes: Set<String> = emptySet(),
-    val hackingPoolUsed: Int = 0
+    val hackingPoolUsed: Int = 0,
+    val evadeDetectionStates: List<EvadeDetectionState> = emptyList()
 ) : ActiveIcon {
     override suspend fun action(context: GameContext, diceRoller: DiceRoller): ActionResult = ActionResult.DeckerAction
 
@@ -64,6 +68,9 @@ data class Decker(
 
     /** Each suppressed IC reduces Detection Factor by 1 (CC-22). */
     val suppressionDfPenalty: Int get() = suppressedIc.size
+
+    val detectedIcNames: Set<String>
+        get() = detectedIcons.filterIsInstance<Icon.IcIcon>().mapTo(mutableSetOf()) { it.ic.name }
 
     /** Detection Factor used by the host in all System Tests = base DF minus suppression penalty, floored at 2. */
     val effectiveDetectionFactor: Int get() = maxOf(2, detectionFactor - suppressionDfPenalty)
@@ -94,7 +101,7 @@ data class Decker(
      * Returns all Matrix objects visible to the decker from their current location.
      * Returns empty if not jacked in.
      */
-    fun visibleObjects(): List<MatrixObject> {
+    fun visibleObjects(activeIc: List<IC> = emptyList()): List<MatrixObject> {
         if (persona == null) return emptyList()
         return when (val loc = currentLocation) {
             null -> emptyList()
@@ -117,7 +124,13 @@ data class Decker(
             is MatrixLocation.OnHost -> buildList {
                 add(MatrixObject.HostNode(loc.host))
                 loc.host.nodes.forEach { add(MatrixObject.HostSubsystem(it)) }
-                loc.host.icPrograms.forEach { add(MatrixObject.IcProgram(it, analyzed = it.name in analyzedIcNames)) }
+                val detected = detectedIcNames
+                loc.host.icPrograms
+                    .filter { it.name in detected }
+                    .forEach { add(MatrixObject.IcProgram(it, analyzed = it.name in analyzedIcNames)) }
+                activeIc
+                    .filter { it.name in detected }
+                    .forEach { add(MatrixObject.IcProgram(it, analyzed = it.name in analyzedIcNames)) }
                 loc.host.dataFiles.forEach { add(MatrixObject.File(it)) }
                 loc.host.remoteDevices.forEach { add(MatrixObject.Device(it)) }
                 loc.host.connectedHosts.forEach { add(MatrixObject.HostNode(it)) }
@@ -222,13 +235,40 @@ data class Decker(
 
     internal fun withUpdatedTally(hostSuccesses: Int): Decker {
         if (hostSuccesses == 0) return this
-        return when (val loc = currentLocation) {
+        val afterTally = when (val loc = currentLocation) {
             is MatrixLocation.OnHost  -> copy(currentLocation = MatrixLocation.OnHost(loc.host.copy(securityTally = loc.host.securityTally + hostSuccesses)))
             is MatrixLocation.OnLTG   -> copy(currentLocation = MatrixLocation.OnLTG(loc.ltg.copy(securityTally = loc.ltg.securityTally + hostSuccesses)))
             is MatrixLocation.OnRTG   -> copy(currentLocation = MatrixLocation.OnRTG(loc.rtg.copy(securityTally = loc.rtg.securityTally + hostSuccesses)))
             is MatrixLocation.OnPLTG  -> copy(currentLocation = MatrixLocation.OnPLTG(loc.pltg.copy(securityTally = loc.pltg.securityTally + hostSuccesses)))
-            null                      -> this
+            null                      -> return this
         }
+        // Each tally point added shortens the IC re-detection countdown by 1 (SR3 p. 224–225).
+        val (expired, surviving) = afterTally.evadeDetectionStates
+            .map { it.copy(turnsRemaining = it.turnsRemaining - hostSuccesses) }
+            .partition { it.turnsRemaining <= 0 }
+        val expiredNames = expired.mapTo(mutableSetOf()) { it.icName }
+        return afterTally.copy(
+            evadeDetectionStates = surviving,
+            detectedIcons = if (expiredNames.isEmpty()) afterTally.detectedIcons
+                else afterTally.detectedIcons.filterTo(mutableSetOf()) { it !is Icon.IcIcon || it.ic.name !in expiredNames }
+        )
+    }
+
+    /**
+     * Decrements every IC re-detection countdown by 1 Combat Turn (SR3 p. 224–225).
+     * Call once per Combat Turn from the game loop. Expired entries are removed and
+     * their ICs are dropped from detectedIcons — requiring Locate IC to re-detect (CC-18).
+     */
+    fun tickEvadeCountdowns(): Decker {
+        if (evadeDetectionStates.isEmpty()) return this
+        val (expired, surviving) = evadeDetectionStates
+            .map { it.copy(turnsRemaining = it.turnsRemaining - 1) }
+            .partition { it.turnsRemaining <= 0 }
+        val expiredNames = expired.mapTo(mutableSetOf()) { it.icName }
+        return copy(
+            evadeDetectionStates = surviving,
+            detectedIcons = detectedIcons.filterTo(mutableSetOf()) { it !is Icon.IcIcon || it.ic.name !in expiredNames }
+        )
     }
 
 }

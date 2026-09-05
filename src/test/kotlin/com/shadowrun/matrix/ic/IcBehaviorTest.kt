@@ -234,5 +234,31 @@ class IcBehaviorTest {
         val newEvasion = requireNotNull(ctx.deckers.first().persona).evasion
         assertTrue(newEvasion < originalEvasion, "Ripper must strictly reduce EVASION when IC net > 0 (got $newEvasion, was $originalEvasion)")
     }
+
+    // ── Evade Detection — CC-18 targeting filter ──────────────────────────────
+
+    @Test
+    fun `IC does not target decker with active EvadeDetectionState for that IC`() {
+        val d = decker().copy(
+            evadeDetectionStates = listOf(com.shadowrun.matrix.combat.EvadeDetectionState("Killer", 2))
+        )
+        val killer = Killer(rating = 5)
+        val ctx = context(d, killer)
+        // Killer's name is "Killer" — decker is actively evading it
+        val target = ctx.unauthorizedDeckerInHost(evadingIcName = "Killer")
+        assertEquals(null, target)
+    }
+
+    @Test
+    fun `IC targets decker evading a different IC`() {
+        val d = decker().copy(
+            evadeDetectionStates = listOf(com.shadowrun.matrix.combat.EvadeDetectionState("Probe", 2))
+        )
+        val killer = Killer(rating = 5)
+        val ctx = context(d, killer)
+        // Decker is evading Probe, not Killer — Killer should still see the decker
+        val target = ctx.unauthorizedDeckerInHost(evadingIcName = "Killer")
+        assertEquals(d.name, target?.name)
+    }
 }
 

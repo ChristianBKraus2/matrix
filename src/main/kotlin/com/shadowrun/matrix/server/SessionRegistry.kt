@@ -20,7 +20,7 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 private data class JoinOutcome(val error: ErrorCode?, val isReconnect: Boolean, val token: String?)
 
-class SessionRegistry {
+class SessionRegistry(private val joinSecret: String? = null) {
     private val mutex = Mutex()
     private val sessions = LinkedHashSet<DefaultWebSocketServerSession>()
     private val deckerSessions = LinkedHashMap<String, DefaultWebSocketServerSession>()
@@ -45,6 +45,10 @@ class SessionRegistry {
     }
 
     suspend fun receiveJoin(session: DefaultWebSocketServerSession, msg: JoinMessage) {
+        if (joinSecret != null && msg.joinSecret != joinSecret) {
+            session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = ErrorCode.UNAUTHORIZED))))
+            return
+        }
         val name = msg.deckerName
         if (name.length > 32) {
             session.send(Frame.Text(MatrixJson.encodeToString(ErrorMessage(message = ErrorCode.NAME_TOO_LONG))))

@@ -208,8 +208,8 @@ Sealed by `"kind"` field (not `"type"`):
 
 | Operation | Status |
 |---|---|
-| `LOCATE_DECKER` | Deferred — requires passcode ledger design (not yet in PRD) |
-| `SWAP_MEMORY` | Deferred — memory management refactor pending |
+| `LOCATE_DECKER` | Out of scope — see [out_of_scope.md §4](out_of_scope.md) |
+| `SWAP_MEMORY` | Out of scope — see [out_of_scope.md §5](out_of_scope.md) |
 
 ## `MatrixObjectDto` Discriminant
 

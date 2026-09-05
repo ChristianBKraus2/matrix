@@ -1,8 +1,11 @@
 package com.shadowrun.matrix.integration
 
+import com.shadowrun.matrix.accessories.Accessory
 import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.integration.utility.IntegrationTestBase
+import com.shadowrun.matrix.network.DataFile
 import com.shadowrun.matrix.network.MatrixLocation
+import com.shadowrun.matrix.operations.DownloadHandle
 import com.shadowrun.matrix.operations.InterrogationState
 import com.shadowrun.matrix.operations.LocateResult
 import com.shadowrun.matrix.operations.OperationResult
@@ -125,6 +128,43 @@ class FileOperationsTest : IntegrationTestBase() {
         assertTrue(d.runDownloadedFiles.any { it.name == file.name },
             "File should appear in runDownloadedFiles after all turns complete")
         assertTrue(d.activeDownloads.isEmpty(), "activeDownloads should be empty after completion")
+    }
+
+    @Test
+    fun `downloadData with OfflineStorage destination routes to offlineStorageFiles not runDownloadedFiles`() {
+        val file = DataFile("payload.txt", sizeMp = 1)
+        val accessory = Accessory.OfflineStorage(500)
+        val handle = DownloadHandle(
+            file = file,
+            totalMp = 1,
+            ioSpeedMpPerTurn = 1,
+            turnsRemaining = 1,
+            destination = DownloadDestination.OfflineStorage(accessory)
+        )
+        val icon = scenario { jackInToLtg("UCAS/UCAS-SEA") }
+        var d = icon.currentDecker().copy(activeDownloads = listOf(handle))
+        d = d.advanceCombatTurn()
+        assertTrue(d.offlineStorageFiles.any { it.name == file.name }, "File should land in offlineStorageFiles")
+        assertTrue(d.runDownloadedFiles.none { it.name == file.name }, "File should NOT land in runDownloadedFiles")
+        assertTrue(d.activeDownloads.isEmpty(), "activeDownloads should be cleared")
+    }
+
+    @Test
+    fun `downloadData with StorageMemory destination routes to runDownloadedFiles`() {
+        val file = DataFile("payload.txt", sizeMp = 1)
+        val handle = DownloadHandle(
+            file = file,
+            totalMp = 1,
+            ioSpeedMpPerTurn = 1,
+            turnsRemaining = 1,
+            destination = DownloadDestination.StorageMemory
+        )
+        val icon = scenario { jackInToLtg("UCAS/UCAS-SEA") }
+        var d = icon.currentDecker().copy(activeDownloads = listOf(handle))
+        d = d.advanceCombatTurn()
+        assertTrue(d.runDownloadedFiles.any { it.name == file.name }, "File should land in runDownloadedFiles")
+        assertTrue(d.offlineStorageFiles.isEmpty(), "offlineStorageFiles should remain empty")
+        assertTrue(d.activeDownloads.isEmpty(), "activeDownloads should be cleared")
     }
 
     // ── editFile ──────────────────────────────────────────────────────────────

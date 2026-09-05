@@ -175,10 +175,10 @@ class ICActivationTest : IntegrationTestBase() {
 
     @Test
     fun `analyzeIc succeeds on active Probe IC`() {
-        // Win: jack-in (12) + logon (14) = 26 calls
+        // Win: jack-in (12) + logon (14) + IC detection (12) = 38 calls
         // Fail: analyzeSubsystem FILES (14 calls) → host wins → Probe activates
         // Win again: analyzeIc (14 calls) → decker wins
-        val icon = scenario(diceRoller = winFailWinRoller(winCalls = 26, failCalls = 14)) {
+        val icon = scenario(diceRoller = winFailWinRoller(winCalls = 38, failCalls = 14)) {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
             analyzeSubsystem(SubsystemType.FILES, succeed = false)

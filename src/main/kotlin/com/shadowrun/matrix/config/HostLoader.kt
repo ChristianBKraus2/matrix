@@ -78,6 +78,9 @@ object HostLoader {
             .map { buildRemoteDevice(it) }
 
         @Suppress("UNCHECKED_CAST")
+        val datalineScannerRatings = (data["dataline_scanners"] as? List<Int> ?: emptyList())
+
+        @Suppress("UNCHECKED_CAST")
         val securitySheaf = (data["security_sheaf"] as? Map<String, Any>)
             ?.let { buildSecuritySheaf(it, nodesByType) }
             ?: SecuritySheaf()
@@ -95,6 +98,7 @@ object HostLoader {
             icPrograms = icPrograms,
             dataFiles = dataFiles,
             remoteDevices = remoteDevices,
+            datalineScannerRatings = datalineScannerRatings,
             securitySheaf = securitySheaf
         )
     }

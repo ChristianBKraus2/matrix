@@ -16,6 +16,7 @@ import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.network.Node
 import com.shadowrun.matrix.network.PLTG
 import com.shadowrun.matrix.network.RTG
+import com.shadowrun.matrix.combat.EvadeDetectionState
 import com.shadowrun.matrix.combat.IcSuppressionState
 import com.shadowrun.matrix.programs.PersonaProgram
 import com.shadowrun.matrix.programs.Utility
@@ -302,6 +303,59 @@ class DeckerTest {
         val d = deckerWithMasking(6).copy(currentLocation = MatrixLocation.OnLTG(l))
         val updated = d.withUpdatedTally(0)
         assertTrue(updated === d)
+    }
+
+    // ── evadeDetectionStates / withUpdatedTally countdown shortening ──────────
+
+    @Test
+    fun `withUpdatedTally shortens evadeDetection countdown by hostSuccesses`() {
+        val l = ltg()
+        val d = deckerWithMasking(6).copy(
+            currentLocation = MatrixLocation.OnLTG(l),
+            evadeDetectionStates = listOf(EvadeDetectionState("Probe", 5))
+        )
+        val updated = d.withUpdatedTally(2)
+        val state = updated.evadeDetectionStates.single()
+        assertEquals(3, state.turnsRemaining)
+    }
+
+    @Test
+    fun `withUpdatedTally removes evadeDetection entries that expire`() {
+        val l = ltg()
+        val d = deckerWithMasking(6).copy(
+            currentLocation = MatrixLocation.OnLTG(l),
+            evadeDetectionStates = listOf(EvadeDetectionState("Probe", 2))
+        )
+        val updated = d.withUpdatedTally(3)
+        assertTrue(updated.evadeDetectionStates.isEmpty())
+    }
+
+    // ── tickEvadeCountdowns ───────────────────────────────────────────────────
+
+    @Test
+    fun `tickEvadeCountdowns decrements all countdowns by 1`() {
+        val d = deckerWithMasking(6).copy(
+            evadeDetectionStates = listOf(
+                EvadeDetectionState("Probe", 3),
+                EvadeDetectionState("Killer", 1)
+            )
+        )
+        val updated = d.tickEvadeCountdowns()
+        val probe = updated.evadeDetectionStates.single { it.icName == "Probe" }
+        assertEquals(2, probe.turnsRemaining)
+    }
+
+    @Test
+    fun `tickEvadeCountdowns removes entries that reach 0`() {
+        val d = deckerWithMasking(6).copy(
+            evadeDetectionStates = listOf(
+                EvadeDetectionState("Probe", 3),
+                EvadeDetectionState("Killer", 1)
+            )
+        )
+        val updated = d.tickEvadeCountdowns()
+        assertEquals(1, updated.evadeDetectionStates.size)
+        assertEquals("Probe", updated.evadeDetectionStates.single().icName)
     }
 }
 

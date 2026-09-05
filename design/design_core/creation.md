@@ -157,7 +157,7 @@ security_sheaf:
     - tally_threshold: 20
       description: Active alert; security decker dispatched
       alert_transition: ACTIVE_ALERT
-      security_decker_count: 1
+      security_decker_count: 1   # out of scope — see out_of_scope.md §3
 ```
 
 The `alert_transition` values must match the `AlertStatus` enum exactly: `PASSIVE_ALERT` or `ACTIVE_ALERT`. The `topology` value must match the `TopologyType` enum: `OPEN_ACCESS`, `TIERED`, `HOST_HOST`, or `PRIVATE_GRID`.

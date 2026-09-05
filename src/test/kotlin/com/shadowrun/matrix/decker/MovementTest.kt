@@ -10,6 +10,7 @@ import com.shadowrun.matrix.common.SubsystemRatings
 import com.shadowrun.matrix.common.TopologyType
 import com.shadowrun.matrix.combat.BlackIcPinState
 import com.shadowrun.matrix.ic.LethalBlackIC
+import com.shadowrun.matrix.ic.Probe
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.operations.InterrogationState
 import com.shadowrun.matrix.operations.SystemOperation
@@ -693,5 +694,23 @@ class MovementTest {
         assertIs<LogoffResult.JackOut>(result)
         assertTrue(result.decker.interrogationStates.isEmpty(),
             "interrogationStates should be cleared after jackOut")
+    }
+
+    // ── logonToHost IC detection ──────────────────────────────────────────────────
+
+    @Test
+    fun `logonToHost populates detectedIcNames when sensor test succeeds`() {
+        val probe = Probe(rating = 5)
+        val h = host().copy(icPrograms = listOf(probe))
+        val l = ltg().copy(hosts = listOf(h))
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6)
+        val d = decker(currentLocation = MatrixLocation.OnLTG(l), persona = persona)
+        val alwaysFive = DiceRoller(object : Random() {
+            override fun nextBits(bitCount: Int) = 0
+            override fun nextInt(from: Int, until: Int) = 5.coerceIn(from, until - 1)
+        })
+        val result = d.logonToHost(h, alwaysFive)
+        assertIs<LogonResult.Success>(result)
+        assertTrue(result.decker.detectedIcNames.contains(probe.name))
     }
 }

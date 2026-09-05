@@ -2,6 +2,8 @@ package com.shadowrun.matrix.operations
 
 import com.shadowrun.matrix.decker.Persona
 import com.shadowrun.matrix.ic.IC
+import com.shadowrun.matrix.network.DataFile
+import com.shadowrun.matrix.network.RemoteDevice
 
 /**
  * A discriminated union covering any icon that can be noticed or analyzed in the Matrix.
@@ -15,6 +17,12 @@ sealed class Icon {
 
     /** An IC program. TN for notice = ic.rating. */
     data class IcIcon(val ic: IC) : Icon()
+
+    /** A data file present in the current host. */
+    data class FileIcon(val file: DataFile) : Icon()
+
+    /** A remote device accessible from the current host. */
+    data class DeviceIcon(val device: RemoteDevice) : Icon()
 }
 
 /** Return type of [Decker.noticeIcon]. PRD: MP-01–MP-05 */

@@ -54,9 +54,10 @@ sealed class IC(
 
     protected fun findTarget(context: GameContext): Decker? =
         if (guardedNode != null) {
-            context.unauthorizedDeckerInNode(guardedNode) ?: context.unauthorizedDeckerInHost()
+            context.unauthorizedDeckerInNode(guardedNode, evadingIcName = name)
+                ?: context.unauthorizedDeckerInHost(evadingIcName = name)
         } else {
-            context.unauthorizedDeckerInHost()
+            context.unauthorizedDeckerInHost(evadingIcName = name)
         }
 
     protected fun moveIfNeeded(target: Decker, context: GameContext): ActionResult.IcMoved? {

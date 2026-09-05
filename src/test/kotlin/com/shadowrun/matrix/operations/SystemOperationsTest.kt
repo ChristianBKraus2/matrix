@@ -16,6 +16,8 @@ import com.shadowrun.matrix.network.DataFile
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.network.RemoteDevice
+import com.shadowrun.matrix.operations.Icon
+import com.shadowrun.matrix.operations.MatrixObject
 import com.shadowrun.matrix.programs.PersonaProgram
 import com.shadowrun.matrix.programs.Utility
 import com.shadowrun.matrix.programs.UtilityType
@@ -84,7 +86,8 @@ class SystemOperationsTest {
         access: Int = 8, control: Int = 8, index: Int = 8, files: Int = 8, slave: Int = 8,
         alertStatus: AlertStatus = AlertStatus.NO_ALERT,
         dataFiles: List<DataFile> = emptyList(),
-        remoteDevices: List<RemoteDevice> = emptyList()
+        remoteDevices: List<RemoteDevice> = emptyList(),
+        icPrograms: List<com.shadowrun.matrix.ic.IC> = emptyList()
     ) = Host(
         name = "TestHost",
         securityRating = SecurityRating(SecurityCode.GREEN, secValue),
@@ -93,7 +96,8 @@ class SystemOperationsTest {
         topologyType = TopologyType.OPEN_ACCESS,
         alertStatus = alertStatus,
         dataFiles = dataFiles,
-        remoteDevices = remoteDevices
+        remoteDevices = remoteDevices,
+        icPrograms = icPrograms
     )
 
     private fun fixedRoller(face: Int) = DiceRoller(object : Random() {
@@ -566,5 +570,19 @@ class SystemOperationsTest {
     fun `InterrogationState accumulatedSuccesses defaults to 0`() {
         val s = InterrogationState(SystemOperation.LOCATE_FILE, "query")
         assertEquals(0, s.accumulatedSuccesses)
+    }
+
+    // ── detectedIcNames / visibleObjects IC filter ─────────────────────────────────
+
+    @Test
+    fun `visibleObjects shows only IC whose name is in detectedIcNames`() {
+        val probe = Probe(rating = 3)
+        val killer = Killer(rating = 4)
+        val h = host(icPrograms = listOf(probe, killer))
+        val detectedIcon = Icon.IcIcon(probe)
+        val d = decker(jackedIn = true, host = h).copy(detectedIcons = setOf(detectedIcon))
+        val visible = d.visibleObjects()
+        assertTrue(visible.any { it is MatrixObject.IcProgram && it.ic == probe }, "Detected probe should be visible")
+        assertTrue(visible.none { it is MatrixObject.IcProgram && it.ic == killer }, "Undetected killer should not be visible")
     }
 }

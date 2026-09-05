@@ -46,6 +46,9 @@ remote_devices:
   - name: Access Door Controllers
     system_address: door-ctrl-01
 
+dataline_scanners:
+  - 5
+
 security_sheaf:
   trigger_steps:
     - tally_threshold: 5

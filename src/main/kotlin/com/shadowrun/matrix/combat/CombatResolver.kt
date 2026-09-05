@@ -23,6 +23,7 @@ import com.shadowrun.matrix.ic.TarPit
 import com.shadowrun.matrix.ic.WhiteIC
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.MatrixLocation
+import com.shadowrun.matrix.operations.EvadeDetectionResult
 import com.shadowrun.matrix.programs.Utility
 import com.shadowrun.matrix.programs.UtilityType
 import com.shadowrun.matrix.utility.DiceRoller
@@ -462,6 +463,41 @@ object CombatResolver {
             ?: return decker
         onTallyIncrease(state.icRating)
         return decker.copy(suppressedIc = decker.suppressedIc - state)
+    }
+
+    /**
+     * Decker performs an Evade Detection combat maneuver against [ic] (CC-14, SR3 p. 224–225).
+     * On success the IC cannot detect the decker for [ManeuverResult.Success.netSuccesses] Combat
+     * Turns; the countdown is stored in [Decker.evadeDetectionStates].
+     * Cloak utility (if active) lowers the IC's TN.
+     */
+    fun evadeDetection(
+        decker: Decker,
+        ic: IC,
+        diceRoller: DiceRoller,
+        hackingPoolDice: Int = 0
+    ): EvadeDetectionResult {
+        require(decker.persona != null) { "evadeDetection requires a jacked-in persona" }
+        val cloakRating = decker.cyberdeck.activeUtilities
+            .firstOrNull { it.type == UtilityType.CLOAK }?.rating ?: 0
+        val deckerParticipant = ManeuverParticipant(
+            evasion     = decker.persona!!.evasion,
+            sensor      = decker.persona.sensor,
+            cloakRating = cloakRating,
+            hackingPool = hackingPoolDice
+        )
+        val icParticipant = ManeuverParticipant(evasion = 0, sensor = ic.rating)
+        return when (val result = resolveManeuver(CombatManeuverType.EVADE_DETECTION, deckerParticipant, icParticipant, diceRoller)) {
+            is ManeuverResult.Success -> {
+                val state = EvadeDetectionState(icName = ic.name, turnsRemaining = result.netSuccesses)
+                val updated = decker.copy(
+                    evadeDetectionStates = decker.evadeDetectionStates
+                        .filter { it.icName != ic.name } + state
+                )
+                EvadeDetectionResult.Success(updated, result.netSuccesses)
+            }
+            ManeuverResult.Failure -> EvadeDetectionResult.Failure(decker)
+        }
     }
 
     // ── IC Attack Using Host Security Value ───────────────────────────────────────

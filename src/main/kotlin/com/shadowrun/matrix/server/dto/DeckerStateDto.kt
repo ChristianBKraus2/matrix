@@ -2,6 +2,7 @@ package com.shadowrun.matrix.server.dto
 
 import com.shadowrun.matrix.decker.Decker
 import com.shadowrun.matrix.network.MatrixLocation
+import com.shadowrun.matrix.operations.MatrixObject
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -28,7 +29,9 @@ fun Decker.toDto() = DeckerStateDto(
     name = name,
     location = currentLocation?.label() ?: "not jacked in",
     jackedIn = currentLocation != null,
-    locationIndex = if (currentLocation != null) 0 else null,
+    locationIndex = currentLocation?.let { loc ->
+        visibleObjects().indexOf(loc.toMatrixObject()).takeIf { it >= 0 }
+    },
     isPinnedByBlackIc = isPinnedByBlackIc,
     physicalDamage = physicalConditionMonitor.damage,
     physicalMaxBoxes = physicalConditionMonitor.maxBoxes,
@@ -45,4 +48,11 @@ private fun MatrixLocation.label(): String = when (this) {
     is MatrixLocation.OnLTG  -> "LTG: ${ltg.name}"
     is MatrixLocation.OnPLTG -> "PLTG: ${pltg.name}"
     is MatrixLocation.OnHost -> "Host: ${host.name}"
+}
+
+private fun MatrixLocation.toMatrixObject(): MatrixObject = when (this) {
+    is MatrixLocation.OnRTG  -> MatrixObject.GridNode(rtg)
+    is MatrixLocation.OnLTG  -> MatrixObject.LocalGrid(ltg)
+    is MatrixLocation.OnPLTG -> MatrixObject.PrivateGrid(pltg)
+    is MatrixLocation.OnHost -> MatrixObject.HostNode(host)
 }

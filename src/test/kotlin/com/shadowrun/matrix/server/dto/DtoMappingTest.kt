@@ -1,5 +1,6 @@
 package com.shadowrun.matrix.server.dto
 
+import com.shadowrun.matrix.decker.Persona
 import com.shadowrun.matrix.ic.Killer
 import com.shadowrun.matrix.ic.Probe
 import com.shadowrun.matrix.integration.utility.DeckerMock
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -52,6 +54,25 @@ class DtoMappingTest {
         val decker = DeckerMock.build(GridMock.getDefaultJackpoint())
             .copy(currentLocation = MatrixLocation.OnHost(host))
         assertEquals("Host: ${host.name}", decker.toDto().location)
+    }
+
+    @Test
+    fun `Decker toDto locationIndex resolves to current location object by identity`() {
+        val ltg = GridMock.matrix.rtgs.first().ltgs.first()
+        val decker = DeckerMock.build(GridMock.getDefaultJackpoint())
+            .copy(
+                currentLocation = MatrixLocation.OnLTG(ltg),
+                persona = Persona(bod = 1, evasion = 1, masking = 1, sensor = 1)
+            )
+        val idx = decker.toDto().locationIndex
+        assertNotNull(idx)
+        assertEquals(MatrixObject.LocalGrid(ltg), decker.visibleObjects()[idx])
+    }
+
+    @Test
+    fun `Decker toDto locationIndex is null when not jacked in`() {
+        val decker = DeckerMock.build(GridMock.getDefaultJackpoint())
+        assertNull(decker.toDto().locationIndex)
     }
 
     // ── MatrixObject.toDto(index) ──────────────────────────────────────────────
@@ -139,6 +160,7 @@ class DtoMappingTest {
         assertEquals(6, dto.index)
         assertEquals("payroll.txt", dto.name)
         assertEquals(5, dto.sizeMp)
+        assertFalse(dto.scrambled, "A fresh file should not be scrambled")
     }
 
     @Test

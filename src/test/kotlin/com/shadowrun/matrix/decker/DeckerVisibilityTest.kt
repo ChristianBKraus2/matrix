@@ -22,6 +22,7 @@ import com.shadowrun.matrix.network.RTG
 import com.shadowrun.matrix.network.RemoteDevice
 import com.shadowrun.matrix.operations.AvailableAction
 import com.shadowrun.matrix.operations.MatrixObject
+import com.shadowrun.matrix.operations.Icon
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.programs.PersonaProgram
 import kotlin.test.Test
@@ -137,7 +138,7 @@ class DeckerVisibilityTest {
 
     @Test
     fun `visibleObjects on Host includes host, nodes, IC, files, and devices`() {
-        val d = decker(MatrixLocation.OnHost(host))
+        val d = decker(MatrixLocation.OnHost(host)).copy(detectedIcons = setOf(Icon.IcIcon(probe)))
         val objects = d.visibleObjects()
 
         assertEquals(1, objects.filterIsInstance<MatrixObject.HostNode>().size)

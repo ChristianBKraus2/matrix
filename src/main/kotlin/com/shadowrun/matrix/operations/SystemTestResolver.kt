@@ -28,7 +28,8 @@ object SystemTestResolver {
         accessRating: Int,
         hostSecurityValue: Int,
         diceRoller: DiceRoller,
-        hackingPoolDice: Int = 0
+        hackingPoolDice: Int = 0,
+        effectiveSkill: Int? = null
     ): SystemTestOutcome {
         val utilityType = operation.utility
         val utilityRating = if (utilityType != null)
@@ -40,7 +41,7 @@ object SystemTestResolver {
             0
         val effectiveTn = maxOf(2, accessRating - utilityRating)
 
-        val totalDeckerDice = decker.computerSkill + hackingPoolDice
+        val totalDeckerDice = (effectiveSkill ?: decker.computerSkill) + hackingPoolDice
         val deckerResult = diceRoller.roll(totalDeckerDice, effectiveTn)
         logger.info { "[${decker.name}] Decker rolls: $totalDeckerDice dice vs TN $effectiveTn (base=$accessRating, ${operation.name} modifier=$utilityRating, hackingPool=$hackingPoolDice) → ${deckerResult.successes} successes" }
 

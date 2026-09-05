@@ -86,7 +86,8 @@ class DeckerOperationsTest {
         alertStatus: AlertStatus = AlertStatus.NO_ALERT,
         dataFiles: List<DataFile> = emptyList(),
         remoteDevices: List<RemoteDevice> = emptyList(),
-        datalineScannerRatings: List<Int> = emptyList()
+        datalineScannerRatings: List<Int> = emptyList(),
+        icPrograms: List<com.shadowrun.matrix.ic.IC> = emptyList()
     ) = Host(
         name = "TestHost",
         securityRating = SecurityRating(SecurityCode.GREEN, secValue),
@@ -96,7 +97,8 @@ class DeckerOperationsTest {
         alertStatus = alertStatus,
         dataFiles = dataFiles,
         remoteDevices = remoteDevices,
-        datalineScannerRatings = datalineScannerRatings
+        datalineScannerRatings = datalineScannerRatings,
+        icPrograms = icPrograms
     )
 
     /** Every die shows [face]. */
@@ -104,6 +106,15 @@ class DeckerOperationsTest {
         override fun nextBits(bitCount: Int) = 0
         override fun nextInt(from: Int, until: Int) = face.coerceIn(from, until - 1)
     })
+
+    /** Each die explodes through [faces] in round-robin order then stops (avoids fixedRoller(6) infinite loop). */
+    private fun sequenceRoller(vararg faces: Int): DiceRoller {
+        var i = 0
+        return DiceRoller(object : Random() {
+            override fun nextBits(bitCount: Int) = 0
+            override fun nextInt(from: Int, until: Int) = faces[i++ % faces.size].coerceIn(from, until - 1)
+        })
+    }
 
     // face=5: decker succeeds vs TN≤5; host faces DF=3 → also succeeds but decker wins ties
     private val winRoller = fixedRoller(5)
@@ -173,6 +184,42 @@ class DeckerOperationsTest {
             fixedRoller(2)
         )
         assertIs<OperationResult.Success>(result)
+    }
+
+    @Test
+    fun `analyzeIcon returns Success for FileIcon when decker wins`() {
+        val h = host(secValue = 2, control = 2)
+        val d = decker(host = h)
+        val icon = com.shadowrun.matrix.operations.Icon.FileIcon(DataFile(name = "test.dat"))
+        val result = d.analyzeIcon(icon, h, winRoller)
+        assertIs<OperationResult.Success>(result)
+    }
+
+    @Test
+    fun `analyzeIcon returns Failure for FileIcon when decker loses`() {
+        val h = host(secValue = 8, control = 12)
+        val d = decker(host = h)
+        val icon = com.shadowrun.matrix.operations.Icon.FileIcon(DataFile(name = "test.dat"))
+        val result = d.analyzeIcon(icon, h, loseRoller)
+        assertIs<OperationResult.Failure>(result)
+    }
+
+    @Test
+    fun `analyzeIcon returns Success for DeviceIcon when decker wins`() {
+        val h = host(secValue = 2, control = 2)
+        val d = decker(host = h)
+        val icon = com.shadowrun.matrix.operations.Icon.DeviceIcon(RemoteDevice(name = "printer", systemAddress = "10.0.0.1"))
+        val result = d.analyzeIcon(icon, h, winRoller)
+        assertIs<OperationResult.Success>(result)
+    }
+
+    @Test
+    fun `analyzeIcon returns Failure for DeviceIcon when decker loses`() {
+        val h = host(secValue = 8, control = 12)
+        val d = decker(host = h)
+        val icon = com.shadowrun.matrix.operations.Icon.DeviceIcon(RemoteDevice(name = "printer", systemAddress = "10.0.0.1"))
+        val result = d.analyzeIcon(icon, h, loseRoller)
+        assertIs<OperationResult.Failure>(result)
     }
 
     // ── analyzeSubsystem ──────────────────────────────────────────────────────────
@@ -524,34 +571,69 @@ class DeckerOperationsTest {
     // ── resolveScrambleDestructTest ───────────────────────────────────────────────
 
     @Test
-    fun `resolveScrambleDestructTest returns destroyed=true when IC succeeds`() {
+    fun `resolveScrambleDestructTest returns scrambled=true when IC succeeds`() {
         // computerSkill=3 → TN=max(2,3)=3; IC rating=4 dice, all show face=5 ≥ 3 → 4 successes
         val ic = Scramble(rating = 4)
         val file = DataFile("encrypted.dat")
         val d = decker(computerSkill = 3)
         val result = d.resolveScrambleDestructTest(ic, file, fixedRoller(5))
-        assertTrue(result.dataDestroyed)
+        assertTrue(result.fileScrambled)
         assertEquals(4, result.icRating)
     }
 
     @Test
-    fun `resolveScrambleDestructTest returns destroyed=false when IC fails`() {
+    fun `resolveScrambleDestructTest returns scrambled=false when IC fails`() {
         // All dice fail: face=1 < TN=6
         val ic = Scramble(rating = 6)
         val file = DataFile("encrypted.dat")
         val d = decker()
         val result = d.resolveScrambleDestructTest(ic, file, fixedRoller(1))
-        assertFalse(result.dataDestroyed)
+        assertFalse(result.fileScrambled)
     }
 
     @Test
     fun `resolveScrambleDestructTest uses decker computerSkill as TN`() {
-        // computerSkill=4 → TN=4; face=5 ≥ 4 → success → data destroyed
+        // computerSkill=4 → TN=4; face=5 ≥ 4 → success → file scrambled
         val ic = Scramble(rating = 4)
         val file = DataFile("secret.dat")
         val d = decker(computerSkill = 4)
         val result = d.resolveScrambleDestructTest(ic, file, fixedRoller(5))
-        assertTrue(result.dataDestroyed)
+        assertTrue(result.fileScrambled)
+    }
+
+    // ── decryptFile + Scramble IC ─────────────────────────────────────────────────
+
+    @Test
+    fun `decryptFile marks file scrambled and keeps it present when Scramble IC wins`() {
+        // Sequence [6,1]: each die explodes (6→reroll→1), accumulating 7 per die.
+        // decker fails (TN=files=8, 7<8→0 successes); host succeeds (TN=3, 7≥3); Scramble wins (TN=max(2,6)=6, 7≥6)
+        val file = DataFile("secret.dat", isScrambleProtected = true, sizeMp = 10)
+        val h = host(dataFiles = listOf(file), icPrograms = listOf(Scramble(rating = 4)))
+        val d = decker(computerSkill = 6, host = h)
+        val (opResult, scramble) = d.decryptFile(file, h, sequenceRoller(6, 1))
+        assertIs<OperationResult.Failure>(opResult)
+        assertNotNull(scramble)
+        assertTrue(scramble.fileScrambled)
+        val updatedHost = (opResult.decker.currentLocation as MatrixLocation.OnHost).host
+        val updatedFile = updatedHost.dataFiles.firstOrNull { it.name == file.name }
+        assertNotNull(updatedFile, "Scrambled file must still be present in host.dataFiles")
+        assertTrue(updatedFile.scrambled, "File must be marked scrambled=true")
+        assertEquals(1, updatedHost.dataFiles.size, "File count must not change — file is marked, not removed")
+    }
+
+    @Test
+    fun `decryptFile does not mark file scrambled when Scramble IC loses`() {
+        // loseRoller face=3: decker fails (3<8), host succeeds (3≥3); Scramble loses (TN=max(2,6)=6, 3<6→0 successes)
+        val file = DataFile("secret.dat", isScrambleProtected = true, sizeMp = 10)
+        val h = host(dataFiles = listOf(file), icPrograms = listOf(Scramble(rating = 4)))
+        val d = decker(computerSkill = 6, host = h)
+        val (_, scramble) = d.decryptFile(file, h, loseRoller)
+        assertNotNull(scramble)
+        assertFalse(scramble.fileScrambled)
+        val updatedHost = (d.currentLocation as MatrixLocation.OnHost).host
+        val originalFile = updatedHost.dataFiles.firstOrNull { it.name == file.name }
+        assertNotNull(originalFile, "File must still be present when Scramble IC fails")
+        assertFalse(originalFile.scrambled, "File must not be marked scrambled when Scramble IC loses")
     }
 
     // ── bufferMessage ─────────────────────────────────────────────────────────────

@@ -100,6 +100,11 @@ fun Decker.advanceCombatTurn(): Decker {
         activeDownloads = ongoingDownloads,
         activeUploads = ongoingUploads
     )
-    completedDownloads.forEach { handle -> result = result.recordCompletedDownload(handle.file) }
-    return result
+    completedDownloads.forEach { handle ->
+        result = when (handle.destination) {
+            is DownloadDestination.OfflineStorage -> result.recordOfflineDownload(handle.file)
+            else -> result.recordCompletedDownload(handle.file)
+        }
+    }
+    return result.tickEvadeCountdowns()
 }

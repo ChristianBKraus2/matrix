@@ -94,10 +94,23 @@ data class LocateDeckerResult(
 )
 
 /**
- * Result of a Scramble IC destruct test on a failed Decrypt.
- * PRD: operations.md Decrypt operations section, rules p. 228.
+ * Result of a Scramble IC test on a failed Decrypt.
+ * PRD: prd_core.md ICC-04. SR3 p. 228.
  */
 data class ScrambleDestructResult(
-    val dataDestroyed: Boolean,
+    val fileScrambled: Boolean,
     val icRating: Int
 )
+
+/**
+ * Result of an Evade Detection combat maneuver (CC-14, SR3 p. 224–225).
+ * Not a System Test — carries no [SystemTestOutcome].
+ * On [Success], [decker] has the new [EvadeDetectionState] appended to its
+ * [evadeDetectionStates] list; the IC cannot detect the decker for [netSuccesses] Combat Turns.
+ */
+sealed class EvadeDetectionResult {
+    abstract val decker: Decker
+
+    data class Success(override val decker: Decker, val netSuccesses: Int) : EvadeDetectionResult()
+    data class Failure(override val decker: Decker) : EvadeDetectionResult()
+}

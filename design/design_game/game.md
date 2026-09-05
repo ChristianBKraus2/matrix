@@ -429,7 +429,7 @@ This extension lives in `src/main/kotlin/com/shadowrun/matrix/game/DeckerExtensi
 
 Operations requiring host context must not appear in `availableActions` when the decker is on a grid node. The filter is applied inside `Decker.availableActions()`, not at the server dispatch point — offering an action and returning a failure is confusing to the player.
 
-Both `swapUtility()` and `locateDecker()` are implemented on `Decker` but are not yet dispatched via `WebSocketDeckerController` and are excluded from `availableActions()` regardless of location context. This overrides the `prd_game.md` deferral language — the Decker-side logic exists; the server dispatch layer is the remaining gap.
+Both `swapUtility()` and `locateDecker()` are implemented on `Decker` but are excluded from `availableActions()` regardless of location context. Both are out of scope — `LOCATE_DECKER` see [out_of_scope.md §4](../out_of_scope.md), `SWAP_MEMORY` see [out_of_scope.md §5](../out_of_scope.md).
 
 ---
 

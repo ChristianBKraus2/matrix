@@ -8,6 +8,7 @@ import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.operations.OperationResult
 import com.shadowrun.matrix.decker.*
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -60,12 +61,12 @@ class UploadDataAndScrambleTest : IntegrationTestBase() {
         assertTrue(tallyAfter > tallyBefore, "Failed uploadData should increment the security tally")
     }
 
-    // ── Scramble IC destruct test ─────────────────────────────────────────────
+    // ── Scramble IC test ──────────────────────────────────────────────────────
 
     @Test
-    fun `resolveScrambleDestructTest destroys file when IC has more successes`() {
+    fun `resolveScrambleDestructTest scrambles file when IC has more successes`() {
         // STANDARD decker: computerSkill=5 → TN = max(2, 5) = 5
-        // hitRoller face=5 ≥ 5 → each die succeeds → IC rolls 6 successes ≥ 1 → dataDestroyed = true
+        // hitRoller face=5 ≥ 5 → each die succeeds → IC rolls 6 successes ≥ 1 → fileScrambled = true
         val icon = scenario(deckerTier = DeckerMock.STANDARD) {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
@@ -76,11 +77,11 @@ class UploadDataAndScrambleTest : IntegrationTestBase() {
 
         val result = decker.resolveScrambleDestructTest(scramble, file, hitRoller())
 
-        assertTrue(result.dataDestroyed, "Scramble IC should destroy data when it rolls successes")
+        assertTrue(result.fileScrambled, "Scramble IC should scramble the file when it rolls successes")
     }
 
     @Test
-    fun `resolveScrambleDestructTest does not destroy file when IC rolls no successes`() {
+    fun `resolveScrambleDestructTest does not scramble file when IC rolls no successes`() {
         val icon = scenario {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
@@ -89,10 +90,10 @@ class UploadDataAndScrambleTest : IntegrationTestBase() {
         val scramble = Scramble(rating = 6)
         val file = DataFile(name = "Classified Dossier", isScrambleProtected = true)
 
-        // failRoller: face=3, TN = max(2, computerSkill=8) = 8 → all dice fail → successes = 0 → dataDestroyed = false
+        // failRoller: face=3, TN = max(2, computerSkill=8) = 8 → all dice fail → successes = 0 → fileScrambled = false
         val result = decker.resolveScrambleDestructTest(scramble, file, failRoller())
 
-        assertTrue(!result.dataDestroyed, "Scramble IC should not destroy data when it rolls no successes")
+        assertFalse(result.fileScrambled, "Scramble IC should not scramble the file when it rolls no successes")
     }
 
     @Test

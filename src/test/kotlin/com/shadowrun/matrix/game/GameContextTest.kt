@@ -20,6 +20,8 @@ import com.shadowrun.matrix.network.RTG
 import com.shadowrun.matrix.network.SecuritySheaf
 import com.shadowrun.matrix.network.TriggerStep
 import com.shadowrun.matrix.programs.PersonaProgram
+import com.shadowrun.matrix.utility.DiceRoller
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -271,5 +273,54 @@ class GameContextTest {
         ctx.addToSecurityTally(0)
         assertEquals(3, ctx.host.securityTally)
         assertTrue(ctx.activeIc.isEmpty())
+    }
+
+    // ── runSpawnDetection ─────────────────────────────────────────────────────────
+
+    private fun fixedRoller(face: Int) = DiceRoller(object : Random() {
+        override fun nextBits(bitCount: Int) = 0
+        override fun nextInt(from: Int, until: Int) = face.coerceIn(from, until - 1)
+    })
+
+    @Test
+    fun `runSpawnDetection adds triggered IC to detectedIcons when sensor test passes`() {
+        val probe = Probe(rating = 3)
+        val decker = deckerOnHost(host())
+        val ctx = context(host(), deckers = listOf(decker))
+        ctx.addIc(probe)
+        ctx.runSpawnDetection(fixedRoller(5))
+        assertTrue(ctx.deckers.first().detectedIcNames.contains(probe.name))
+    }
+
+    @Test
+    fun `runSpawnDetection does not add IC to detectedIcons when sensor test fails`() {
+        val probe = Probe(rating = 3)
+        val decker = deckerOnHost(host())
+        val ctx = context(host(), deckers = listOf(decker))
+        ctx.addIc(probe)
+        ctx.runSpawnDetection(fixedRoller(1))
+        assertTrue(ctx.deckers.first().detectedIcNames.isEmpty())
+    }
+
+    @Test
+    fun `runSpawnDetection skips deckers not on a host`() {
+        val probe = Probe(rating = 3)
+        val decker = deckerOnLtg()
+        val ctx = context(host(), deckers = listOf(decker))
+        ctx.addIc(probe)
+        ctx.runSpawnDetection(fixedRoller(5))
+        assertTrue(ctx.deckers.first().detectedIcNames.isEmpty())
+    }
+
+    @Test
+    fun `runSpawnDetection does not re-detect already detected IC`() {
+        val probe = Probe(rating = 3)
+        val icon = com.shadowrun.matrix.operations.Icon.IcIcon(probe)
+        val decker = deckerOnHost(host()).copy(detectedIcons = setOf(icon))
+        val ctx = context(host(), deckers = listOf(decker))
+        ctx.addIc(probe)
+        ctx.runSpawnDetection(fixedRoller(1))
+        // icon was already in detectedIcNames before runSpawnDetection — should still be there
+        assertTrue(ctx.deckers.first().detectedIcNames.contains(probe.name))
     }
 }

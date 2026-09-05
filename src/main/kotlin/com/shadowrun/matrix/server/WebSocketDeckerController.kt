@@ -61,7 +61,7 @@ class WebSocketDeckerController(
     suspend fun conductTurn(context: GameContext, diceRoller: DiceRoller): ActionResult {
         // Re-read decker from context; reset per-turn pool at the start of each turn.
         decker = (context.deckers.firstOrNull { it.name == decker.name } ?: decker).copy(hackingPoolUsed = 0)
-        val visibleObjects = decker.visibleObjects()
+        val visibleObjects = decker.visibleObjects(context.activeIc)
         val availableActions = decker.availableActions()
 
         // Set pendingAction BEFORE promoteForTurn so receiveAction never sees a null future
@@ -126,8 +126,9 @@ class WebSocketDeckerController(
                 val result = dispatch(chosen, cmd, diceRoller)
                 decker = result.decker
                 context.applyDeckerOperationResult(oldDecker, decker)
-                // Re-read from context: applyDeckerOperationResult may have replaced the decker
-                // reference (e.g. alert transition updates the embedded host object).
+                context.runSpawnDetection(diceRoller)
+                // Re-read from context: applyDeckerOperationResult and runSpawnDetection may have
+                // replaced the decker reference (alert transitions, new IC detection).
                 decker = context.deckers.firstOrNull { it.name == decker.name } ?: decker
                 if (chosen is AvailableAction.GracefulLogoff) registry.clearReconnectToken(decker.name)
                 registry.broadcast(MatrixJson.encodeToString(ResultMessage(
@@ -137,7 +138,7 @@ class WebSocketDeckerController(
                     details = result.details
                 )))
                 demoteOnce()
-                val postVisible = decker.visibleObjects()
+                val postVisible = decker.visibleObjects(context.activeIc)
                 val postActions = decker.availableActions()
                 registry.broadcastWithRoles(StateMessage(
                     role = SessionRole.OBSERVER,
@@ -365,8 +366,8 @@ class WebSocketDeckerController(
                 val (opResult, scramble) = decker.decryptFile(file, host, diceRoller, poolDice)
                 val extra = when {
                     scramble == null -> ""
-                    scramble.dataDestroyed -> "Scramble IC (rating ${scramble.icRating}) destroyed the file"
-                    else -> "Scramble IC (rating ${scramble.icRating}) failed to destruct"
+                    scramble.fileScrambled -> "Scramble IC (rating ${scramble.icRating}) scrambled the file — data is corrupted"
+                    else -> "Scramble IC (rating ${scramble.icRating}) failed to scramble the file"
                 }
                 opResult.toDispatch(extra)
             }

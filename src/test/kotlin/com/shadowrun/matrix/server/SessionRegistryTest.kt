@@ -176,6 +176,48 @@ class SessionRegistryTest {
     }
 
     @Test
+    fun `receiveJoin with correct secret succeeds`() = runBlocking {
+        val registry = SessionRegistry(joinSecret = "s3cr3t")
+        val session = FakeWebSocketSession()
+        registry.register(session)
+        session.nextText() // observer
+        registry.receiveJoin(session, JoinMessage(deckerName = "Kylie", joinSecret = "s3cr3t"))
+        val response = Json.decodeFromString<ControlMessage>(session.nextText())
+        assertEquals(SessionRole.REGISTERED_DECKER, response.role)
+    }
+
+    @Test
+    fun `receiveJoin with wrong secret sends unauthorized error`() = runBlocking {
+        val registry = SessionRegistry(joinSecret = "s3cr3t")
+        val session = FakeWebSocketSession()
+        registry.register(session)
+        session.nextText() // observer
+        registry.receiveJoin(session, JoinMessage(deckerName = "Kylie", joinSecret = "wrong"))
+        assertEquals(ErrorCode.UNAUTHORIZED, Json.decodeFromString<ErrorMessage>(session.nextText()).message)
+    }
+
+    @Test
+    fun `receiveJoin with missing secret when secret required sends unauthorized error`() = runBlocking {
+        val registry = SessionRegistry(joinSecret = "s3cr3t")
+        val session = FakeWebSocketSession()
+        registry.register(session)
+        session.nextText() // observer
+        registry.receiveJoin(session, JoinMessage(deckerName = "Kylie"))
+        assertEquals(ErrorCode.UNAUTHORIZED, Json.decodeFromString<ErrorMessage>(session.nextText()).message)
+    }
+
+    @Test
+    fun `receiveJoin with no secret configured accepts join regardless of joinSecret field`() = runBlocking {
+        val registry = SessionRegistry()
+        val session = FakeWebSocketSession()
+        registry.register(session)
+        session.nextText() // observer
+        registry.receiveJoin(session, JoinMessage(deckerName = "Kylie", joinSecret = "anything"))
+        val response = Json.decodeFromString<ControlMessage>(session.nextText())
+        assertEquals(SessionRole.REGISTERED_DECKER, response.role)
+    }
+
+    @Test
     fun `receiveJoin with 32-char name succeeds`() = runBlocking {
         val registry = SessionRegistry()
         val session = FakeWebSocketSession()

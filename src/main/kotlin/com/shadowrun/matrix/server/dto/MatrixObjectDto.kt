@@ -92,7 +92,8 @@ sealed class MatrixObjectDto {
         val name: String,
         val isScrambleProtected: Boolean,
         val isPointer: Boolean,
-        val sizeMp: Int
+        val sizeMp: Int,
+        val scrambled: Boolean
     ) : MatrixObjectDto()
 
     @Serializable
@@ -134,7 +135,7 @@ fun MatrixObject.toDto(index: Int): MatrixObjectDto = when (this) {
             guardedNodeType = if (analyzed) ic.guardedNode?.subsystemType?.name else null)
     is MatrixObject.File ->
         MatrixObjectDto.File(index, name = file.name, isScrambleProtected = file.isScrambleProtected,
-            isPointer = file.isPointer, sizeMp = file.sizeMp)
+            isPointer = file.isPointer, sizeMp = file.sizeMp, scrambled = file.scrambled)
     is MatrixObject.Device ->
         MatrixObjectDto.Device(index, name = device.name, systemAddress = device.systemAddress)
 }

@@ -29,13 +29,15 @@ enum class ErrorCode {
     @SerialName("bad_request")         BAD_REQUEST,
     @SerialName("server_full")         SERVER_FULL,
     @SerialName("insufficient_hacking_pool") INSUFFICIENT_HACKING_POOL,
+    @SerialName("unauthorized")        UNAUTHORIZED,
 }
 
 @Serializable
 data class JoinMessage(
     val type: String = "join",
     val deckerName: String,
-    val reconnectToken: String? = null
+    val reconnectToken: String? = null,
+    val joinSecret: String? = null
 )
 
 @Serializable

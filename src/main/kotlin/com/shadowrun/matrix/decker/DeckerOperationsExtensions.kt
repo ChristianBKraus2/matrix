@@ -55,7 +55,9 @@ fun Decker.noticeIcon(icon: Icon, diceRoller: DiceRoller, friendlyReveal: Boolea
     }
     val tn = when (icon) {
         is Icon.PersonaIcon -> icon.persona.masking + icon.sleazeRating
-        is Icon.IcIcon     -> icon.ic.rating
+        is Icon.IcIcon      -> icon.ic.rating
+        is Icon.FileIcon,
+        is Icon.DeviceIcon  -> 2
     }
     val p = persona
     val result = diceRoller.roll(p.sensor, maxOf(2, tn))
@@ -128,7 +130,12 @@ fun Decker.analyzeIcon(icon: Icon, host: Host, diceRoller: DiceRoller, hackingPo
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_ICON, tn, host.securityRating.value, diceRoller, hackingPoolDice)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins) {
-        val withAnalysis = if (icon is Icon.IcIcon) updatedDecker.copy(analyzedIcNames = analyzedIcNames + icon.ic.name) else updatedDecker
+        val withAnalysis = when (icon) {
+            is Icon.IcIcon     -> updatedDecker.copy(analyzedIcNames = analyzedIcNames + icon.ic.name)
+            is Icon.PersonaIcon,
+            is Icon.FileIcon,
+            is Icon.DeviceIcon -> updatedDecker
+        }
         OperationResult.Success(withAnalysis, outcome)
     } else OperationResult.Failure(updatedDecker, outcome)
 }
@@ -182,7 +189,7 @@ fun Decker.decryptFile(file: DataFile, host: Host, diceRoller: DiceRoller, hacki
             .firstOrNull { it.guardedNode == null || it.guardedNode.subsystemType == SubsystemType.FILES }
             ?.let { ic ->
                 val result = updated.resolveScrambleDestructTest(ic, file, diceRoller)
-                if (result.dataDestroyed) updated = updated.withFileRemovedFromHost(file)
+                if (result.fileScrambled) updated = updated.withFileScrambledOnHost(file)
                 result
             }
     } else null
@@ -190,10 +197,10 @@ fun Decker.decryptFile(file: DataFile, host: Host, diceRoller: DiceRoller, hacki
     return Pair(opResult, scramble)
 }
 
-private fun Decker.withFileRemovedFromHost(file: DataFile): Decker {
+private fun Decker.withFileScrambledOnHost(file: DataFile): Decker {
     val loc = currentLocation as? MatrixLocation.OnHost ?: return this
-    val updatedHost = loc.host.copy(dataFiles = loc.host.dataFiles - file)
-    return copy(currentLocation = MatrixLocation.OnHost(updatedHost))
+    val updatedFiles = loc.host.dataFiles.map { if (it == file) it.copy(scrambled = true) else it }
+    return copy(currentLocation = MatrixLocation.OnHost(loc.host.copy(dataFiles = updatedFiles)))
 }
 
 fun Decker.decryptSlave(host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {
@@ -269,6 +276,8 @@ fun Decker.locateAccessNode(host: Host, query: String = "", precision: QueryPrec
         it.subsystemType.name.contains(state.query, ignoreCase = true) ||
         it.description.contains(state.query, ignoreCase = true)
     }
+    // NotFound can only fire for a free-text description query; a standard subsystem-type query
+    // (e.g. "FILES") always matches because Host.init enforces all 5 subsystem types are present.
     val locateResult = when {
         newState.accumulatedSuccesses >= 5 -> {
             if (nodeExists) LocateResult.Located(LocatedTarget.AccessNodeTarget(state.query), newState.accumulatedSuccesses)
@@ -365,6 +374,11 @@ fun Decker.recordCompletedDownload(file: DataFile): Decker {
     return copy(runDownloadedFiles = runDownloadedFiles + file)
 }
 
+fun Decker.recordOfflineDownload(file: DataFile): Decker {
+    logger.info { "[$name] recordOfflineDownload: ${file.name}" }
+    return copy(offlineStorageFiles = offlineStorageFiles + file)
+}
+
 fun Decker.editFile(
     file: DataFile,
     host: Host,
@@ -423,8 +437,7 @@ fun Decker.controlSlave(
     requireJackedIn()
     val skill = effectiveSkill ?: computerSkill
     require(skill in 1..20) { "effectiveSkill must be between 1 and 20 (got $skill)" }
-    val deckerForTest = if (effectiveSkill != null) copy(computerSkill = skill) else this
-    val outcome = SystemTestResolver.resolve(deckerForTest, SystemOperation.CONTROL_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller, hackingPoolDice)
+    val outcome = SystemTestResolver.resolve(this, SystemOperation.CONTROL_SLAVE, host.subsystemRatings.slave, host.securityRating.value, diceRoller, hackingPoolDice, effectiveSkill = effectiveSkill)
     logger.info { "[$name] controlSlave: skill=$skill → ${outcome.deckerSuccesses}; host=${outcome.hostSuccesses}" }
     val updated = withUpdatedTally(outcome.hostSuccesses)
     return if (outcome.deckerWins)
@@ -651,9 +664,9 @@ fun Decker.relocateIcon(host: Host, diceRoller: DiceRoller, hackingPoolDice: Int
 fun Decker.resolveScrambleDestructTest(ic: Scramble, file: DataFile, diceRoller: DiceRoller): ScrambleDestructResult {
     logger.info { "[$name] resolveScrambleDestructTest: IC rating=${ic.rating} vs computerSkill=$computerSkill" }
     val successes = diceRoller.roll(ic.rating, maxOf(2, computerSkill)).successes
-    val destroyed = successes >= 1
-    logger.info { "[$name] resolveScrambleDestructTest: successes=$successes destroyed=$destroyed" }
-    return ScrambleDestructResult(dataDestroyed = destroyed, icRating = ic.rating)
+    val scrambled = successes >= 1
+    logger.info { "[$name] resolveScrambleDestructTest: successes=$successes scrambled=$scrambled" }
+    return ScrambleDestructResult(fileScrambled = scrambled, icRating = ic.rating)
 }
 
 // ── Buffered Message ───────────────────────────────────────────────────────────

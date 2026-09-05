@@ -31,7 +31,7 @@ If a target is found but is not in the IC's current node, a proactive IC moves t
 
 ## Available Actions
 
-The `availableActions` list returned to the client must only include operations that have a complete server-side implementation. Operations `SWAP_MEMORY` and `LOCATE_DECKER` are deferred to a future milestone and are excluded from `availableActions` until implemented.
+The `availableActions` list returned to the client must only include operations that have a complete server-side implementation. `SWAP_MEMORY` and `LOCATE_DECKER` are out of scope — see [out_of_scope.md §5](out_of_scope.md) and [§4](out_of_scope.md) respectively.
 
 ## Decker State — Multi-Turn Interrogation
 

@@ -204,7 +204,7 @@ UPLOAD_DATA(FILES, READ_WRITE, SIMPLE, ONGOING),
 
 // Locate group — Index Test, Complex Action, Interrogation
 LOCATE_ACCESS_NODE(INDEX, BROWSE, COMPLEX, INTERROGATION),
-LOCATE_DECKER(INDEX, SCANNER, COMPLEX, STANDARD),
+LOCATE_DECKER(INDEX, SCANNER, COMPLEX, STANDARD),    // Out of scope — see out_of_scope.md §4
 LOCATE_FILE(INDEX, BROWSE, COMPLEX, INTERROGATION),
 LOCATE_IC(INDEX, ANALYZE, COMPLEX, STANDARD),
 LOCATE_SLAVE(INDEX, BROWSE, COMPLEX, INTERROGATION),
@@ -502,6 +502,8 @@ fun locateAccessNode(
 
 ### Locate Decker
 
+> **Out of scope** — see [out_of_scope.md §4](../out_of_scope.md). The Decker-side implementation exists and is correct; controller dispatch is deferred until a second decker (NPC or multiplayer) exists to target.
+
 **PRD:** MP-10, SO individual table
 **Action:** Complex (two-step: Index Test then open-ended Sensor Test)
 
@@ -770,6 +772,8 @@ host.copy(
 
 **AL-02 — Active Alert:** When `newAlertStatus == ACTIVE_ALERT`, set `alertStatus = ACTIVE_ALERT` and additionally spawn security decker NPCs if the triggering `TriggerStep` specifies them. `TriggerStep` gains an optional field:
 
+> **Security decker spawning is out of scope** — see [out_of_scope.md §3](../out_of_scope.md). `securityDeckerCount` is parsed and stored but never consumed; `spawnSecurityDeckers` does not exist. The field and the AL-02 spec below are retained as design intent.
+
 ```kotlin
 data class TriggerStep(
     val tallyThreshold: Int,
@@ -885,10 +889,10 @@ Resolves `LOCATE_IC` against the grid.
 | `downloadData` aborted mid-transfer | Corrupted file copy (worthless unless GM rules otherwise) |
 | Monitored operation: missing one Free Action | `MonitoredOperationHandle.active = false`; operation aborts |
 | `controlSlave` on medical lab, Computer 5, Biotech 4 | Effective skill = (5+4)/2 = 4 (rounded down) |
-| `locateDecker` succeeds (Sensor Test ≥ 1 success) | `LocateDeckerResult(located = true, targetNotified = true)`; notification event fired (MP-10) |
-| `locateDecker` Index Test fails | `LocateDeckerResult(located = false, targetNotified = false)`; no notification |
+| `locateDecker` succeeds (Sensor Test ≥ 1 success) | `LocateDeckerResult(located = true, targetNotified = true)`; notification event fired (MP-10) — **out of scope (§4)** |
+| `locateDecker` Index Test fails | `LocateDeckerResult(located = false, targetNotified = false)`; no notification — **out of scope (§4)** |
 | Tally crosses Passive Alert step | `applyAlertTransition` returns host with all five ratings +2; `alertStatus = PASSIVE_ALERT` (AL-01) |
-| Tally crosses Active Alert step with `securityDeckerCount = 2` | `alertStatus = ACTIVE_ALERT`; 2 NPC decker personas spawned on host (AL-02) |
+| Tally crosses Active Alert step with `securityDeckerCount = 2` | `alertStatus = ACTIVE_ALERT`; 2 NPC decker personas spawned on host (AL-02) — **out of scope (§3)** |
 | Tally drops below Passive Alert step after transition | Ratings remain at +2; effect is permanent for the session (AL-01) |
 | Tap Comcall with 3 scanners (ratings 4, 6, 7) | Only rating 7 used for the scanner test |
 | Decker rolls 0 successes on scanner test | Tap fails (scanner detects the tap); tap aborted |
