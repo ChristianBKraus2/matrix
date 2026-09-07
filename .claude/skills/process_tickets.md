@@ -38,6 +38,10 @@ powershell -Command "cd 'C:\VSCode\private\matrix'; .\gradlew.bat test integrati
 
 Do not proceed to documentation until all tests pass.
 
+### Manual Test
+
+At this point the user has to apply an additional MANDATORY manual test. Only when the user CONFIRMS that everything is OK, continue.
+
 ### Update PRD, Design and Documentation
 
 Update the PRD (if necessary), the design documents and the player guide in the documentation folder.

@@ -1,5 +1,6 @@
 package com.shadowrun.matrix.server.dto
 
+import com.shadowrun.matrix.common.PersonaAttributeType
 import com.shadowrun.matrix.decker.Decker
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.operations.MatrixObject
@@ -19,6 +20,10 @@ data class DeckerStateDto(
     val hackingPool: Int,
     val remainingHackingPool: Int,
     val mcpRating: Int,
+    val bod: Int,
+    val evasion: Int,
+    val masking: Int,
+    val sensor: Int,
     val activeUtilities: List<UtilityDto>
 )
 
@@ -40,6 +45,18 @@ fun Decker.toDto() = DeckerStateDto(
     hackingPool = hackingPool,
     remainingHackingPool = remainingHackingPool,
     mcpRating = cyberdeck.mcpRating,
+    bod = persona?.bod
+        ?: cyberdeck.personaPrograms.firstOrNull { it.attributeType == PersonaAttributeType.BOD }?.rating
+        ?: 0,
+    evasion = persona?.evasion
+        ?: cyberdeck.personaPrograms.firstOrNull { it.attributeType == PersonaAttributeType.EVASION }?.rating
+        ?: 0,
+    masking = persona?.masking
+        ?: cyberdeck.personaPrograms.firstOrNull { it.attributeType == PersonaAttributeType.MASKING }?.rating
+        ?: 0,
+    sensor = persona?.sensor
+        ?: cyberdeck.personaPrograms.firstOrNull { it.attributeType == PersonaAttributeType.SENSORS }?.rating
+        ?: 0,
     activeUtilities = cyberdeck.activeUtilities.map { UtilityDto(it.type.name, it.currentRating) }
 )
 

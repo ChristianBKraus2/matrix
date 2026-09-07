@@ -59,7 +59,7 @@ All fields from the `decker` object of `StateMessage`:
 | `physicalDamage` / `physicalMaxBoxes` | Physical condition monitor |
 | `mentalDamage` / `mentalMaxBoxes` | Mental condition monitor |
 | `hackingPool` | Current hacking pool dice |
-| `mcpRating` | Cyberdeck MCP rating |
+| `mcpRating`, `bod`, `evasion`, `masking`, `sensor` | Compact stat line: label `R:B/E/M/S`, value `mcpRating:bod/evasion/masking/sensor` |
 | `activeUtilities` (`type`, `rating`) | Loaded programs list |
 
 `decker.location` is also read here to identify the current node for the Top area (see below).

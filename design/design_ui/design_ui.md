@@ -209,6 +209,10 @@ export interface DeckerStateDto {
   mentalMaxBoxes: number;
   hackingPool: number;
   mcpRating: number;
+  bod: number;      // persona firmware rating; falls back to cyberdeck.personaPrograms baseline when not jacked in
+  evasion: number;
+  masking: number;
+  sensor: number;
   activeUtilities: ActiveUtility[];
   locationIndex: number | null;  // index into visibleObjects for the current location; null when not jacked in; currently always 0 when jacked in (stub)
 }

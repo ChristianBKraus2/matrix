@@ -184,6 +184,10 @@ The `decker` object within `StateMessage` has the following key fields:
 | `isPinnedByBlackIc` | bool | True if a Black IC pin is active |
 | `mcpRating` | int | Current MPCP rating |
 | `hackingPool` | int | Current hacking pool |
+| `bod` | int | Persona Bod program rating; falls back to cyberdeck firmware baseline when not jacked in |
+| `evasion` | int | Persona Evasion program rating; same fallback |
+| `masking` | int | Persona Masking program rating; same fallback |
+| `sensor` | int | Persona Sensor program rating; same fallback |
 | `activeUtilities` | array | Loaded utility programs |
 | `physicalDamage` | int | Physical CM damage boxes filled |
 | `mentalDamage` | int | Mental CM damage boxes filled |

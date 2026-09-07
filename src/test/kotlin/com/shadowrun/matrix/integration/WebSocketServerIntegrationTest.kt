@@ -177,6 +177,7 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
             hackingPool = 6,
             remainingHackingPool = 6,
             mcpRating = 4,
+            bod = 0, evasion = 0, masking = 0, sensor = 0,
             activeUtilities = emptyList()
         )
 

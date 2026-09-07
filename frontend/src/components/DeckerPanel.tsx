@@ -50,8 +50,8 @@ export default function DeckerPanel({ decker }: Props) {
           <span className="stat-value">{decker.hackingPool}d</span>
         </div>
         <div className="stat-row">
-          <span className="stat-label">MCP RATING</span>
-          <span className="stat-value">{decker.mcpRating}</span>
+          <span className="stat-label">R:B/E/M/S</span>
+          <span className="stat-value">{decker.mcpRating}:{decker.bod}/{decker.evasion}/{decker.masking}/{decker.sensor}</span>
         </div>
 
         {decker.activeUtilities.length > 0 && (
