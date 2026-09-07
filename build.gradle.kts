@@ -30,7 +30,7 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("io.ktor:ktor-server-test-host:$ktorVersion")
     testImplementation("io.ktor:ktor-client-websockets:$ktorVersion")
-    testRuntimeOnly("ch.qos.logback:logback-classic:1.5.18")
+    runtimeOnly("ch.qos.logback:logback-classic:1.5.18")
 }
 
 tasks.test {
