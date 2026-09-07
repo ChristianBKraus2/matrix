@@ -36,6 +36,7 @@ enum class ErrorCode {
 data class JoinMessage(
     val type: String = "join",
     val deckerName: String,
+    val jackPointName: String = "",
     val reconnectToken: String? = null,
     val joinSecret: String? = null
 )

@@ -12,7 +12,7 @@ The WebSocket endpoint is at `ws://localhost:8080/decker/ws`.
 ## First steps in the UI
 
 1. Open **http://localhost:8080** in a browser
-2. Enter a decker name and click **Join** — the server registers you as the active decker (HeadCrash)
+2. Enter a decker name and a jackpoint address, then click **Join** — the server registers you as the active decker and immediately jacks you into the Matrix through the specified jackpoint. A result message confirms whether jack-in succeeded.
 3. The state panel shows the decker's current location and available actions
 4. Select an action and submit — the server processes the turn and updates the state
 

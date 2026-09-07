@@ -80,9 +80,13 @@ token on join remains deferred.
 
 ### `JoinMessage` (client → server)
 ```json
-{ "type": "join", "deckerName": "Kylie", "reconnectToken": "<string|omit>" }
+{ "type": "join", "deckerName": "Kylie", "jackPointName": "Seattle-LTG", "reconnectToken": "<string|omit>" }
 ```
+`jackPointName` is the name of the LTG or host the decker is physically connected to. Omitting it (empty string) is valid when no jackIn is needed (e.g. tests).
+
 `reconnectToken` is required when rejoining after a disconnect to reclaim the same decker slot. Omit on first join. If the token is missing or wrong for a disconnected name, the server responds with `BAD_REQUEST`.
+
+After the server sends `ControlMessage(role: "registered_decker")`, it immediately performs the jack-in System Test using the specified jackpoint and broadcasts a `ResultMessage` to all sessions. The first game turn (`StateMessage`) follows only after this jackIn result is sent.
 
 ### `ActionCommand` (client → server)
 ```json

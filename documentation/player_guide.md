@@ -11,11 +11,12 @@ Open the application in your browser. You will see the join screen with the titl
 While the browser establishes a WebSocket connection, the status reads *ESTABLISHING CONNECTION…*. Once the connection is live, a form appears:
 
 1. Enter your **decker handle** (up to 32 characters; letters, numbers, spaces, underscores, and dashes are allowed).
-2. Click **JACK IN**.
+2. Enter the **jackpoint address** — the name of the LTG or host you are physically connected to (e.g. *UCAS-SEA-2206* or *Mitsuhama Pagoda*). Your game master provides this.
+3. Click **JACK IN**.
 
 If the name is already taken, too long, or the server is full, an error message appears below the input. Correct it and try again.
 
-Once your handle is accepted you enter the game and wait for your turn to begin.
+Once your credentials are accepted the server jacks you in immediately. The Narrative Panel shows the result — *Logged on to LTG: \<name\>* on success, or a failure message if the logon contest did not go your way. If jack-in succeeds you enter the game and wait for your turn to begin.
 
 ---
 
@@ -248,7 +249,7 @@ Monitor both tracks in the Decker Panel. If you are taking damage, consider whet
 
 ## Reconnecting After a Disconnect
 
-If your browser disconnects you can rejoin with the same handle. Use the same decker name in the join form. The server issues a reconnect token when you first join — if your browser preserved the session, reconnection is automatic. If not, re-entering your name reclaims the session if the token matches.
+If your browser disconnects you can rejoin with the same handle. Use the same decker name and jackpoint address in the join form. The server issues a reconnect token when you first join — if your browser preserved the session, reconnection is automatic and the jackpoint address is re-used. If not, re-enter both your decker name and the same jackpoint address used originally to reclaim the session.
 
 ---
 

@@ -27,11 +27,19 @@ class SessionRegistry(private val joinSecret: String? = null) {
     private val sessionDecker = HashMap<DefaultWebSocketServerSession, String>()
     private val disconnectedDeckerNames = HashSet<String>()
     private val reconnectTokens = HashMap<String, String>()
+    private val jackPointDeferreds = HashMap<String, CompletableDeferred<String>>()
 
     val turns = TurnCoordinator()
 
     suspend fun setPendingAction(deferred: CompletableDeferred<ActionCommand>?) =
         turns.setPendingAction(deferred)
+
+    suspend fun awaitJackPointName(deckerName: String): String {
+        val deferred = mutex.withLock {
+            jackPointDeferreds.getOrPut(deckerName) { CompletableDeferred() }
+        }
+        return deferred.await()
+    }
 
     suspend fun register(session: DefaultWebSocketServerSession, maxConnections: Int = Int.MAX_VALUE): Boolean {
         val allowed = mutex.withLock {
@@ -98,6 +106,9 @@ class SessionRegistry(private val joinSecret: String? = null) {
                     reconnectToken = token
                 )
             )))
+            mutex.withLock {
+                jackPointDeferreds.getOrPut(name) { CompletableDeferred() }.complete(msg.jackPointName)
+            }
         }
     }
 

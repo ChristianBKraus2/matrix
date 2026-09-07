@@ -52,15 +52,16 @@ Every message carries a `"type"` string field.
 Sent once per connection to claim a decker identity. Must be sent before the game engine can promote the session.
 
 ```json
-{ "type": "join", "deckerName": "Kylie" }
+{ "type": "join", "deckerName": "Kylie", "jackPointName": "Seattle-LTG" }
 ```
 
-| Field        | Type   | Required | Description                        |
-|--------------|--------|----------|------------------------------------|
-| `type`       | string | yes      | Always `"join"`                    |
-| `deckerName` | string | yes      | The decker handle to claim (non-empty) |
+| Field           | Type   | Required | Description                                       |
+|-----------------|--------|----------|---------------------------------------------------|
+| `type`          | string | yes      | Always `"join"`                                   |
+| `deckerName`    | string | yes      | The decker handle to claim (non-empty)            |
+| `jackPointName` | string | yes      | Name of the LTG or Host to jack into              |
 
-**On success:** server sends `ControlMessage { "role": "registered_decker", "deckerName": "Kylie" }`.
+**On success:** server sends `ControlMessage { "role": "registered_decker", "deckerName": "Kylie" }`, then immediately broadcasts a `ResultMessage` with the jack-in dice result to all connected sessions. The first `StateMessage` follows after jack-in completes.
 
 **On failure:** server sends `ErrorMessage` — see §8.
 
@@ -324,7 +325,9 @@ The following operations always return `success: false` with a descriptive `deta
 
 ## 7. ResultMessage (server → client)
 
-Broadcast to **all** connected clients after every action resolves.
+Broadcast to **all** connected clients after every action resolves, and also immediately after
+join — carrying the jack-in System Test outcome (`details`: `"Logged on to LTG: <name>"` on
+success, `"Logon failed"` on failure).
 
 ```json
 {
@@ -371,14 +374,16 @@ Sent only to the client that caused the error (not broadcast).
 Kylie-UI              Server                  Shadowcat-UI          Observer-UI
     |─── connect ─────────>|
     |<── control(observer) ─|
-    |─── join("Kylie") ────>|
+    |─── join("Kylie","Seattle-LTG") ──>|
     |<── control(reg,"Kylie")|
+    |<── result(jack-in) ────|──── result(jack-in) ─────────────>|──── result(jack-in) ──────────>|
     |                       |<─── connect ─────────────────────────|
     |                       |──── control(observer) ───────────────>|
     |                       |<─── connect ────────────────────────────────────|
     |                       |──── control(observer) ──────────────────────────>|
-    |                       |<─── join("Shadowcat") ────────────────|
+    |                       |<─── join("Shadowcat","Seattle-LTG") ──|
     |                       |──── control(reg,"Shadowcat") ─────────>|
+    |                       |──── result(jack-in) ──────────────────>|──── result(jack-in) ─────────>|
     |                       |
     |  (game tick: Kylie's turn)
     |<── control(active,"Kylie")

@@ -53,6 +53,7 @@ fun main() {
     // Single event loop for the whole demo (one runBlocking, not one per turn). A run of
     // consecutive failures backs off and eventually aborts instead of spinning forever.
     runBlocking {
+        controller.performJackIn(context, diceRoller)
         var consecutiveErrors = 0
         while (true) {
             try {

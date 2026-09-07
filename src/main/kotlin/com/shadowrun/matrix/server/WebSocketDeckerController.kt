@@ -2,6 +2,7 @@ package com.shadowrun.matrix.server
 
 import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.combat.CombatResolver
+import com.shadowrun.matrix.common.JackpointType
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.common.SecurityRating
 import com.shadowrun.matrix.ic.LethalBlackIC
@@ -11,6 +12,7 @@ import com.shadowrun.matrix.game.GameContext
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CancellationException
 import com.shadowrun.matrix.network.Host
+import com.shadowrun.matrix.network.Jackpoint
 import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.network.PLTG
@@ -57,6 +59,46 @@ class WebSocketDeckerController(
         registry.broadcast(MatrixJson.encodeToString(ResultMessage(
             success = false, deckerSuccesses = 0, hostSuccesses = 0, details = details
         )))
+
+    suspend fun performJackIn(context: GameContext, diceRoller: DiceRoller) {
+        if (decker.persona != null) return
+
+        val jackPointName = registry.awaitJackPointName(decker.name)
+
+        val ltg = context.matrix.rtgs
+            .flatMap { it.ltgs }
+            .firstOrNull { it.name == jackPointName }
+        val host = if (ltg == null && context.host.name == jackPointName) context.host else null
+
+        if (ltg == null && host == null) {
+            broadcastFail("Unknown jackpoint: $jackPointName")
+            return
+        }
+
+        val jp = when {
+            ltg  != null -> Jackpoint(JackpointType.LEGAL_ACCESS, connectsToLtg = ltg)
+            else         -> Jackpoint(JackpointType.WORKSTATION, connectsToHost = host!!)
+        }
+        val deckerWithJp = decker.copy(jackpoint = jp)
+        context.updateDecker(decker, deckerWithJp)
+        decker = deckerWithJp
+
+        val result = when {
+            jp.connectsToLtg  != null -> decker.jackInToLtg(jp.connectsToLtg,  diceRoller)
+            jp.connectsToHost != null -> decker.jackInToHost(jp.connectsToHost, diceRoller)
+            else -> return
+        }
+
+        val dispatch = result.toDispatch()
+        context.updateDecker(decker, dispatch.decker)
+        decker = dispatch.decker
+        registry.broadcast(MatrixJson.encodeToString(ResultMessage(
+            success = dispatch.success,
+            deckerSuccesses = dispatch.deckerSuccesses,
+            hostSuccesses = dispatch.hostSuccesses,
+            details = dispatch.details
+        )))
+    }
 
     suspend fun conductTurn(context: GameContext, diceRoller: DiceRoller): ActionResult {
         // Re-read decker from context; reset per-turn pool at the start of each turn.
