@@ -33,7 +33,8 @@ class SessionRegistryTest {
             mentalDamage = 0, mentalMaxBoxes = 10,
             hackingPool = 5, remainingHackingPool = 5, mcpRating = 4,
             bod = 0, evasion = 0, masking = 0, sensor = 0,
-            activeUtilities = emptyList()
+            activeUtilities = emptyList(),
+            storedUtilities = emptyList()
         ),
         visibleObjects = emptyList<MatrixObjectDto>(),
         availableActions = emptyList<AvailableActionDto>()

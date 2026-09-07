@@ -24,7 +24,8 @@ data class DeckerStateDto(
     val evasion: Int,
     val masking: Int,
     val sensor: Int,
-    val activeUtilities: List<UtilityDto>
+    val activeUtilities: List<UtilityDto>,
+    val storedUtilities: List<UtilityDto>
 )
 
 @Serializable
@@ -57,7 +58,8 @@ fun Decker.toDto() = DeckerStateDto(
     sensor = persona?.sensor
         ?: cyberdeck.personaPrograms.firstOrNull { it.attributeType == PersonaAttributeType.SENSORS }?.rating
         ?: 0,
-    activeUtilities = cyberdeck.activeUtilities.map { UtilityDto(it.type.name, it.currentRating) }
+    activeUtilities = cyberdeck.activeUtilities.map { UtilityDto(it.type.name, it.currentRating) },
+    storedUtilities = cyberdeck.storedUtilities.map { UtilityDto(it.type.name, it.currentRating) }
 )
 
 private fun MatrixLocation.label(): String = when (this) {

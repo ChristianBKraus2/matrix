@@ -54,6 +54,7 @@ export interface DeckerStateDto {
   masking: number
   sensor: number
   activeUtilities: ActiveUtility[]
+  storedUtilities: ActiveUtility[]
 }
 
 // These union types mirror Kotlin enums serialised with .name (not @SerialName).

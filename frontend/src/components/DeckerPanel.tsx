@@ -54,19 +54,22 @@ export default function DeckerPanel({ decker }: Props) {
           <span className="stat-value">{decker.mcpRating}:{decker.bod}/{decker.evasion}/{decker.masking}/{decker.sensor}</span>
         </div>
 
-        {decker.activeUtilities.length > 0 && (
+        {decker.storedUtilities.length > 0 && (
           <>
-            <div className="section-title">LOADED PROGRAMS</div>
+            <div className="section-title">PROGRAMS</div>
             <div>
-              {decker.activeUtilities.map((u) => (
-                <div key={u.type} className="program-row">
-                  <span className="program-name">{u.type}</span>
-                  <span className="program-rating">
-                    {'●'.repeat(Math.min(Math.max(0, u.rating), 10))}
-                    {'○'.repeat(Math.max(0, 10 - Math.max(0, u.rating)))} ({u.rating})
-                  </span>
-                </div>
-              ))}
+              {decker.storedUtilities.map((u) => {
+                const loaded = decker.activeUtilities.some((a) => a.type === u.type)
+                return (
+                  <div key={u.type} className={`program-row${loaded ? '' : ' program-unloaded'}`}>
+                    <span className="program-name">{u.type}</span>
+                    <span className="program-rating">
+                      {'●'.repeat(Math.min(Math.max(0, u.rating), 10))}
+                      {'○'.repeat(Math.max(0, 10 - Math.max(0, u.rating)))} ({u.rating})
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </>
         )}

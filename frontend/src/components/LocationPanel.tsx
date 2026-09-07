@@ -87,7 +87,7 @@ export default function LocationPanel({ gameState }: Props) {
   return (
     <div className="panel location-panel">
       <div className="panel-header">LOCATION</div>
-      <div className="panel-body" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: '14px 24px', alignItems: 'flex-start' }}>
+      <div className="panel-body">
         {!decker.jackedIn ? (
           <div className="loc-field">
             <div className="loc-field-value" style={{ color: 'var(--green-dim)', fontSize: 20 }}>
@@ -96,9 +96,9 @@ export default function LocationPanel({ gameState }: Props) {
           </div>
         ) : (
           <>
-            <div className="loc-field">
-              <div className="loc-field-label">{prefix}</div>
-              <div className="loc-name">{name}</div>
+            <div className="loc-header">
+              {prefix && <span className="loc-prefix">{prefix}:&nbsp;</span>}
+              <span className="loc-name">{name}</span>
             </div>
             {locationObj && <LocationFields obj={locationObj} />}
           </>

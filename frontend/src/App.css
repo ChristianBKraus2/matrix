@@ -3,6 +3,7 @@
 :root {
   --green:        #00ff41;
   --green-dim:    #00b32c;
+  --green-dark:   #005c16;
   --green-faint:  #002a0a;
   --bg:           #000000;
   --bg-panel:     #010801;
@@ -247,6 +248,8 @@ body {
 }
 .program-name { flex: 1; }
 .program-rating { color: var(--green-dim); font-size: 14px; }
+.program-unloaded { color: var(--green-dark); font-style: italic; }
+.program-unloaded .program-rating { color: var(--green-dark); }
 
 /* ── Pinned alert ────────────────────────────────────────────────────────────── */
 
@@ -263,6 +266,7 @@ body {
 /* ── Location panel ──────────────────────────────────────────────────────────── */
 
 .location-panel .panel-body {
+  display: flex;
   flex-direction: row;
   flex-wrap: wrap;
   gap: 14px 24px;
@@ -270,10 +274,12 @@ body {
   overflow-y: auto;
 }
 
-.loc-field { white-space: nowrap; }
+.loc-field { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
 .loc-field-label { font-size: 12px; color: var(--green-dim); letter-spacing: 1px; }
 .loc-field-value { font-size: 20px; }
 
+.loc-header { display: flex; align-items: baseline; gap: 0; white-space: nowrap; }
+.loc-prefix { font-size: 14px; color: var(--green-dim); letter-spacing: 1px; align-self: center; margin-right: 4px; }
 .loc-name { font-size: 22px; font-weight: bold; }
 .loc-offline { color: var(--red-alert); animation: blink 1s step-end infinite; }
 
