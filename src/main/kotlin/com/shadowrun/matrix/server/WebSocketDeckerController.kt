@@ -132,7 +132,7 @@ class WebSocketDeckerController(
             val stateBase = StateMessage(
                 role = SessionRole.OBSERVER,
                 decker = decker.toDto(),
-                visibleObjects = visibleObjects.toDto(),
+                visibleObjects = visibleObjects.toDto(decker.analyzeSecuritySystems),
                 availableActions = availableActions.toDto()
             )
             registry.broadcastWithRoles(stateBase)
@@ -185,7 +185,7 @@ class WebSocketDeckerController(
                 registry.broadcastWithRoles(StateMessage(
                     role = SessionRole.OBSERVER,
                     decker = decker.toDto(),
-                    visibleObjects = postVisible.toDto(),
+                    visibleObjects = postVisible.toDto(decker.analyzeSecuritySystems),
                     availableActions = postActions.toDto()
                 ))
             } catch (e: CancellationException) {

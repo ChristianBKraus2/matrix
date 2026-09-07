@@ -145,6 +145,7 @@ fun Decker.analyzeSecurity(host: Host, diceRoller: DiceRoller, hackingPoolDice: 
     requireJackedIn()
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_SECURITY, host.subsystemRatings.control, host.securityRating.value, diceRoller, hackingPoolDice)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
+        .let { if (outcome.deckerWins) it.copy(analyzeSecuritySystems = analyzeSecuritySystems + host.name) else it }
     val newTally = tallyFor(host) + outcome.hostSuccesses
     return AnalyzeSecurityResult(updatedDecker, outcome, host.securityRating, newTally, host.alertStatus).also {
         logger.info { "[$name] analyzeSecurity: tally=$newTally alert=${host.alertStatus}" }
@@ -332,6 +333,7 @@ fun Decker.analyzeSecurity(grid: Grid, diceRoller: DiceRoller, hackingPoolDice: 
     requireJackedIn()
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_SECURITY, grid.subsystemRatings.control, grid.securityRating.value, diceRoller, hackingPoolDice)
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
+        .let { if (outcome.deckerWins) it.copy(analyzeSecuritySystems = analyzeSecuritySystems + grid.name) else it }
     val newTally = tallyFor(grid) + outcome.hostSuccesses
     return AnalyzeSecurityResult(updatedDecker, outcome, grid.securityRating, newTally, grid.alertStatus).also {
         logger.info { "[$name] analyzeSecurity: tally=$newTally alert=${grid.alertStatus}" }

@@ -25,7 +25,7 @@ sealed class MatrixObjectDto {
         val region: String,
         val alertStatus: String,
         val securityCode: String,
-        val securityTally: Int,
+        val securityTally: Int?,
         val ltgCount: Int,
         val connectedRtgCount: Int
     ) : MatrixObjectDto()
@@ -37,7 +37,7 @@ sealed class MatrixObjectDto {
         val name: String,
         val parentRtgName: String,
         val alertStatus: String,
-        val securityTally: Int,
+        val securityTally: Int?,
         val hostCount: Int,
         val pltgCount: Int
     ) : MatrixObjectDto()
@@ -63,7 +63,7 @@ sealed class MatrixObjectDto {
         val offline: Boolean,
         val alertStatus: String,
         val securityCode: String,
-        val securityTally: Int
+        val securityTally: Int?
     ) : MatrixObjectDto()
 
     @Serializable
@@ -105,18 +105,19 @@ sealed class MatrixObjectDto {
     ) : MatrixObjectDto()
 }
 
-fun List<MatrixObject>.toDto(): List<MatrixObjectDto> =
-    mapIndexed { i, obj -> obj.toDto(i) }
+fun List<MatrixObject>.toDto(analyzeSecuritySystems: Set<String> = emptySet()): List<MatrixObjectDto> =
+    mapIndexed { i, obj -> obj.toDto(i, analyzeSecuritySystems) }
 
-fun MatrixObject.toDto(index: Int): MatrixObjectDto = when (this) {
+fun MatrixObject.toDto(index: Int, analyzeSecuritySystems: Set<String> = emptySet()): MatrixObjectDto = when (this) {
     is MatrixObject.GridNode ->
         MatrixObjectDto.GridNode(index, name = rtg.name, region = rtg.region,
             alertStatus = rtg.alertStatus.name, securityCode = rtg.securityRating.code.name,
-            securityTally = rtg.securityTally,
+            securityTally = if (rtg.name in analyzeSecuritySystems) rtg.securityTally else null,
             ltgCount = rtg.ltgs.size, connectedRtgCount = rtg.connectedRtgs.size)
     is MatrixObject.LocalGrid ->
         MatrixObjectDto.LocalGrid(index, name = ltg.name, parentRtgName = ltg.parentRtg.name,
-            alertStatus = ltg.alertStatus.name, securityTally = ltg.securityTally,
+            alertStatus = ltg.alertStatus.name,
+            securityTally = if (ltg.name in analyzeSecuritySystems) ltg.securityTally else null,
             hostCount = ltg.hosts.size, pltgCount = ltg.pltgs.size)
     is MatrixObject.PrivateGrid ->
         MatrixObjectDto.PrivateGrid(index, name = pltg.name, owner = pltg.owner,
@@ -125,7 +126,8 @@ fun MatrixObject.toDto(index: Int): MatrixObjectDto = when (this) {
     is MatrixObject.HostNode ->
         MatrixObjectDto.HostNode(index, name = host.name, topologyType = host.topologyType.name,
             offline = host.offline, alertStatus = host.alertStatus.name,
-            securityCode = host.securityRating.code.name, securityTally = host.securityTally)
+            securityCode = host.securityRating.code.name,
+            securityTally = if (host.name in analyzeSecuritySystems) host.securityTally else null)
     is MatrixObject.HostSubsystem ->
         MatrixObjectDto.HostSubsystem(index, subsystemType = node.subsystemType.name, description = node.description)
     is MatrixObject.IcProgram ->

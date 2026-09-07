@@ -53,6 +53,7 @@ data class Decker(
     val interrogationStates: Map<String, InterrogationState> = emptyMap(),
     val detectedIcons: Set<Icon> = emptySet(),
     val analyzedIcNames: Set<String> = emptySet(),
+    val analyzeSecuritySystems: Set<String> = emptySet(),
     val knownPasscodes: Set<String> = emptySet(),
     val hackingPoolUsed: Int = 0,
     val evadeDetectionStates: List<EvadeDetectionState> = emptyList()

@@ -77,7 +77,16 @@ The `visibleObjects` array contains polymorphic objects. The one whose `name` ma
 | `"Host: <name>"` | `HostNode` with matching `name` |
 | `"not jacked in"` | no match — show default state (only reached if jack-in fails) |
 
-All fields exposed by the matched object's DTO are displayed in the Top area. Available fields vary by kind — not every kind exposes securityCode or securityTally (e.g. `PrivateGrid` exposes `owner` and `hostCount` but not `securityTally`).
+The displayed fields vary by kind:
+
+| Kind | Displayed fields |
+|---|---|
+| `GridNode` | `region`, `securityCode`, `alertStatus`, `securityTally`†, `ltgCount`, `connectedRtgCount` |
+| `LocalGrid` | `alertStatus`, `securityTally`† |
+| `PrivateGrid` | `owner`, `parentLtgName`, `securityCode`, `alertStatus`, `hostCount` |
+| `HostNode` | `topologyType`, `alertStatus`, `securityCode`, `securityTally`†, `offline` (when true) |
+
+† `securityTally` is only shown after the decker has successfully run **Analyze Security** on that system; the field is `null` in the DTO until then.
 
 ### Right — Entities panel
 

@@ -30,7 +30,7 @@ function LocationFields({ obj }: { obj: MatrixObjectDto }) {
           <Field label="REGION" value={obj.region} />
           <Field label="SEC" value={obj.securityCode} cls={`sec-${obj.securityCode}`} />
           <Field label="ALERT" value={obj.alertStatus.replace('_', ' ')} cls={`alert-${obj.alertStatus}`} />
-          <Field label="TALLY" value={obj.securityTally} />
+          {obj.securityTally !== null && <Field label="SEC TALLY" value={obj.securityTally} />}
           <Field label="LTGs" value={obj.ltgCount} />
           <Field label="RTGs" value={obj.connectedRtgCount} />
         </>
@@ -38,11 +38,8 @@ function LocationFields({ obj }: { obj: MatrixObjectDto }) {
     case 'LocalGrid':
       return (
         <>
-          <Field label="PARENT RTG" value={obj.parentRtgName} />
           <Field label="ALERT" value={obj.alertStatus.replace('_', ' ')} cls={`alert-${obj.alertStatus}`} />
-          <Field label="TALLY" value={obj.securityTally} />
-          <Field label="HOSTS" value={obj.hostCount} />
-          <Field label="PLTGs" value={obj.pltgCount} />
+          {obj.securityTally !== null && <Field label="SEC TALLY" value={obj.securityTally} />}
         </>
       )
     case 'PrivateGrid':
@@ -61,7 +58,7 @@ function LocationFields({ obj }: { obj: MatrixObjectDto }) {
           <Field label="TOPOLOGY" value={obj.topologyType.replace('_', ' ')} />
           <Field label="ALERT" value={obj.alertStatus.replace('_', ' ')} cls={`alert-${obj.alertStatus}`} />
           <Field label="SEC CODE" value={obj.securityCode} cls={`sec-${obj.securityCode}`} />
-          <Field label="TALLY" value={obj.securityTally} />
+          {obj.securityTally !== null && <Field label="SEC TALLY" value={obj.securityTally} />}
           {obj.offline && <Field label="STATUS" value="OFFLINE" cls="loc-offline" />}
         </>
       )
