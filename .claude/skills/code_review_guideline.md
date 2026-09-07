@@ -1,3 +1,7 @@
+---
+description: Full-codebase code review of the three-layer architecture (Kotlin engine → Ktor server → React UI). Covers correctness, security, concurrency, error handling, architecture, API quality, performance, testing, and maintainability. Completeness is provable by artifact, not assertion.
+---
+
 # Code Review Guidelines — Matrix of Shadowrun
 
 A repeatable process for thorough, complete code review of the three-layer architecture:
@@ -660,17 +664,3 @@ code_review/correctness_complete.md
 - `design/design_core/`, `design/design_game/`, `design/design_ui/` — spec against which correctness is judged
 - `design/prd_core.md`, `design/prd_game.md`, `design/prd_ui.md` — authoritative rule source
 - `design/protocol.md` — wire format spec for cross-layer checks
-
-Web references consulted during authoring of this guide:
-- [Effective Kotlin (kt.academy)](https://kt.academy/book/effectivekotlin) — 51 best-practice items covering safety, readability, class design, and efficiency; key items: limit mutability, platform types, expectations/contracts, sealed classes, equals/hashCode, composition over inheritance
-- [Kotlin Coroutines Guide](https://kotlinlang.org/docs/coroutines-guide.html) — structured concurrency, dispatchers, cancellation, Flow
-- [Kotlin Coroutine Exception Handling](https://kotlinlang.org/docs/exception-handling.html) — `async` vs `launch` propagation, `SupervisorJob`, `CoroutineExceptionHandler`
-- [Kotlin Shared Mutable State](https://kotlinlang.org/docs/shared-mutable-state-and-concurrency.html) — `@Volatile` limits, `Mutex`, thread confinement patterns
-- [Kotlin Coding Conventions](https://kotlinlang.org/docs/coding-conventions.html) — naming, API visibility, explicit types, named arguments
-- [Kotlin API Guidelines](https://kotlinlang.org/docs/api-guidelines-introduction.html) — minimising mental complexity, backward compatibility
-- [kotlinx.coroutines.test](https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-test/) — `runTest`, `StandardTestDispatcher`, `UnconfinedTestDispatcher`, virtual time
-- [detekt Complexity Rules](https://detekt.dev/docs/rules/complexity) — cyclomatic complexity, method length, class size thresholds
-- [Ktor WebSockets](https://ktor.io/docs/server-websockets.html) — `pingPeriod`, `timeout`, `maxFrameSize`, `SharedFlow` for broadcast
-- [React – Synchronizing with Effects](https://react.dev/learn/synchronizing-with-effects) — cleanup, stale closures, `ignore` flag, when not to use `useEffect`
-- [React – TypeScript](https://react.dev/learn/typescript) — prop typing, event handlers, discriminated unions, `React.ReactNode`
-- [React – Rules of Hooks](https://react.dev/reference/rules) — purity, immutability, Strict Mode double-mount

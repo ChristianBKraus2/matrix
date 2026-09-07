@@ -1,8 +1,5 @@
-# Design-vs-Code Alignment Process
-
-A repeatable process for auditing a codebase against its design documents.
-Completeness must be **provable by artifact**, not by assertion.
-
+---
+description: Audit the codebase against all design documents and PRDs. Proves file-by-file that code matches every field name, default, formula, and enum variant the specs require. Completeness is provable by artifact, not assertion.
 ---
 
 ## Scope — a complete audit, not a sampled review
@@ -238,6 +235,14 @@ that every field the design specifies is supplied. Omissions are silent: a missi
 Also applies to factory functions and loader methods that produce domain objects from
 config or from other domain objects.
 
+### Rule 10 — Verify the post-fix surface after a prior audit
+
+When running an audit on a codebase that has had previous findings applied, each fixed
+finding may have been applied only to the most obvious code path. For every partial-fix
+pattern — especially conditional guards of the form `if (x != null) callResolver(…)` —
+enumerate all code paths that should trigger the resolver and verify each one. A fix that
+covers the host case but not the grid case is a new finding, not a closed one.
+
 ### Rule 11 — Verify deferred items are current before skipping
 
 Before marking any file or feature Skip:deferred, read the corresponding entry in
@@ -247,14 +252,6 @@ now exists, a stub the entry treats as intentional now has a real implementation
 restriction the entry documents has since been lifted — that gap is a DS- finding
 against `deferred.md`, and the file must receive a ✓ Read entry in the manifest
 rather than Skip:deferred.
-
-### Rule 10 — Verify the post-fix surface after a prior audit
-
-When running an audit on a codebase that has had previous findings applied, each fixed
-finding may have been applied only to the most obvious code path. For every partial-fix
-pattern — especially conditional guards of the form `if (x != null) callResolver(…)` —
-enumerate all code paths that should trigger the resolver and verify each one. A fix that
-covers the host case but not the grid case is a new finding, not a closed one.
 
 ### Rule 12 — Trace each wire field end-to-end (additive to full file coverage)
 
