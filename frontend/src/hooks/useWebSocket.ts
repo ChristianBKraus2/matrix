@@ -74,8 +74,10 @@ export function useWebSocket() {
   const [state, dispatch] = useReducer(reducer, initialState)
   const wsRef = useRef<WebSocket | null>(null)
   const pendingNameRef = useRef<string | null>(null)
+  const pendingJackPointRef = useRef<string | null>(null)
   const reconnectTokenRef = useRef<string | null>(null)
   const registeredNameRef = useRef<string | null>(null)
+  const registeredJackPointRef = useRef<string | null>(null)
   const isMountedRef = useRef(true)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectDelay = useRef(3000)
@@ -100,18 +102,25 @@ export function useWebSocket() {
         switch (msg.type) {
           case 'control':
             dispatch({ type: 'CONTROL', msg })
-            if (msg.role === 'registered_decker' && msg.reconnectToken) reconnectTokenRef.current = msg.reconnectToken
+            if (msg.role === 'registered_decker' && msg.reconnectToken) {
+              reconnectTokenRef.current = msg.reconnectToken
+              sessionStorage.setItem('matrix_reconnect_token', msg.reconnectToken)
+            }
             if (msg.deckerName) registeredNameRef.current = msg.deckerName
             if (msg.role === 'observer') {
               dispatch({ type: 'CLEAR_EVENTS' })
               const nameToSend = pendingNameRef.current ?? registeredNameRef.current
-              if (nameToSend) {
+              const jackPointToSend = pendingJackPointRef.current ?? registeredJackPointRef.current ?? ''
+              if (nameToSend && jackPointToSend) {
+                if (pendingJackPointRef.current != null) registeredJackPointRef.current = pendingJackPointRef.current
                 const join: JoinMessage = {
                   type: 'join',
                   deckerName: nameToSend,
+                  jackPointName: jackPointToSend,
                   ...(reconnectTokenRef.current ? { reconnectToken: reconnectTokenRef.current } : {}),
                 }
                 pendingNameRef.current = null
+                pendingJackPointRef.current = null
                 ws.send(JSON.stringify(join))
               }
             }
@@ -121,6 +130,8 @@ export function useWebSocket() {
             if (!isJackedIn && wasJackedInRef.current) {
               reconnectTokenRef.current = null
               suppressReconnectRef.current = true
+              sessionStorage.removeItem('matrix_reconnect_token')
+              sessionStorage.removeItem('matrix_jack_point')
               ws.close()
             }
             wasJackedInRef.current = isJackedIn
@@ -155,6 +166,10 @@ export function useWebSocket() {
   }, [])
 
   useEffect(() => {
+    const storedToken = sessionStorage.getItem('matrix_reconnect_token')
+    if (storedToken) reconnectTokenRef.current = storedToken
+    const storedJackPoint = sessionStorage.getItem('matrix_jack_point')
+    if (storedJackPoint) registeredJackPointRef.current = storedJackPoint
     connect()
     return () => {
       isMountedRef.current = false
@@ -168,15 +183,20 @@ export function useWebSocket() {
     }
   }, [connect])
 
-  const join = useCallback((name: string) => {
+  const join = useCallback((name: string, jackPointName: string) => {
     pendingNameRef.current = name
+    pendingJackPointRef.current = jackPointName
     if (wsRef.current?.readyState === WebSocket.OPEN) {
+      registeredJackPointRef.current = jackPointName
+      sessionStorage.setItem('matrix_jack_point', jackPointName)
       const msg: JoinMessage = {
         type: 'join',
         deckerName: name,
+        jackPointName: jackPointName,
         ...(reconnectTokenRef.current ? { reconnectToken: reconnectTokenRef.current } : {}),
       }
       pendingNameRef.current = null
+      pendingJackPointRef.current = null
       wsRef.current.send(JSON.stringify(msg))
     } else {
       suppressReconnectRef.current = false

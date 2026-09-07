@@ -25,9 +25,10 @@ function JoinScreen({
 }: {
   connected: boolean
   events: GameEvent[]
-  onJoin: (name: string) => void
+  onJoin: (name: string, jackPoint: string) => void
 }) {
-  const [name, setName] = useState('')
+  const [name, setName] = useState('HeadCrash')
+  const [jackPoint, setJackPoint] = useState('UCAS-SEA')
   // Suppress errors that predate the most recent join attempt: an error is shown only when the
   // latest event is an error that arrived after the last submit (F-5). Derived during render — no
   // effect, no stale error left dangling after a subsequent non-error event.
@@ -40,9 +41,9 @@ function JoinScreen({
       : ''
 
   const handleSubmit = () => {
-    if (!name.trim()) return
+    if (!name.trim() || !jackPoint.trim()) return
     setAckedEventCount(events.length)
-    onJoin(name.trim())
+    onJoin(name.trim(), jackPoint.trim())
   }
 
   return (
@@ -60,15 +61,23 @@ function JoinScreen({
               className="join-input"
               value={name}
               onChange={e => setName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              onKeyDown={e => e.key === 'Enter' && jackPoint.trim() ? handleSubmit() : undefined}
               autoFocus
               maxLength={32}
+            />
+            <label className="join-label">JACK IN LOCATION</label>
+            <input
+              className="join-input"
+              value={jackPoint}
+              onChange={e => setJackPoint(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              maxLength={64}
             />
             {error && <div className="join-error">{error}</div>}
             <button
               className="join-btn"
               onClick={handleSubmit}
-              disabled={!name.trim()}
+              disabled={!name.trim() || !jackPoint.trim()}
             >
               JACK IN
             </button>

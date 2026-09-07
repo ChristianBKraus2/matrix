@@ -3,6 +3,7 @@
 export interface JoinMessage {
   type: 'join'
   deckerName: string
+  jackPointName: string
   reconnectToken?: string
 }
 
@@ -48,6 +49,10 @@ export interface DeckerStateDto {
   mentalMaxBoxes: number
   hackingPool: number
   mcpRating: number
+  bod: number
+  evasion: number
+  masking: number
+  sensor: number
   activeUtilities: ActiveUtility[]
 }
 
