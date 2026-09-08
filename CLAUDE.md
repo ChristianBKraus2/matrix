@@ -23,27 +23,21 @@ powershell -Command "cd 'C:\VSCode\private\matrix'; .\gradlew.bat integrationTes
 powershell -Command "cd 'C:\VSCode\private\matrix'; .\gradlew.bat test integrationTest"
 ```
 
+## Project Skills
+
+Three project-specific skill files live in `.claude/skills/`. **Read the relevant one before starting the corresponding task** — they override the brief notes below.
+
+| Task | Skill file |
+|---|---|
+| Resolve a ticket (end-to-end: code + tests + docs + commit + GitHub issue) | `.claude/skills/process_tickets.md` |
+| Code review (full-codebase, completeness-provable) | `.claude/skills/code_review_guideline.md` |
+| Design-vs-code conformance audit | `.claude/skills/align_design_and_code.md` |
+
 ## Ticket format and workflow
 
 Tickets live in `.tickets/`. Naming convention: `NN_PascalCaseTitle.md` (two-digit counter prefix).
 
-Required sections:
-
-```markdown
-## Issue
-<description of the problem>
-
-## Solution
-<filled in during / after fixing>
-```
-
-Handling workflow:
-1. Read the ticket and identify the affected domain.
-2. Find the relevant PRD rules (see PRD cross-reference below).
-3. Locate affected source files (see architecture map below).
-4. Implement the fix.
-5. Run the appropriate tests (`test`, `integrationTest`, or both).
-6. Write the `## Solution` section in the ticket.
+For the full end-to-end workflow (PRD check, manual test gate, GitHub issue sync, commit format, ADR requirement) read `.claude/skills/process_tickets.md` before writing any code.
 
 ## Architecture layers
 
