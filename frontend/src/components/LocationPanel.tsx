@@ -22,7 +22,7 @@ function Field({ label, value, cls }: { label: string; value: ReactNode; cls?: s
   )
 }
 
-function LocationFields({ obj }: { obj: MatrixObjectDto }) {
+function LocationFields({ obj, visibleObjects }: { obj: MatrixObjectDto; visibleObjects: MatrixObjectDto[] }) {
   switch (obj.kind) {
     case 'GridNode':
       return (
@@ -35,13 +35,22 @@ function LocationFields({ obj }: { obj: MatrixObjectDto }) {
           <Field label="RTGs" value={obj.connectedRtgCount} />
         </>
       )
-    case 'LocalGrid':
+    case 'LocalGrid': {
+      const parentRtg = visibleObjects.find(
+        (o): o is Extract<MatrixObjectDto, { kind: 'GridNode' }> =>
+          o.kind === 'GridNode' && o.name === obj.parentRtgName
+      ) ?? null
       return (
         <>
+          {parentRtg && <Field label="REGION" value={parentRtg.region} />}
+          {parentRtg && <Field label="SEC" value={parentRtg.securityCode} cls={`sec-${parentRtg.securityCode}`} />}
           <Field label="ALERT" value={obj.alertStatus.replace('_', ' ')} cls={`alert-${obj.alertStatus}`} />
           {obj.securityTally !== null && <Field label="SEC TALLY" value={obj.securityTally} />}
+          <Field label="HOSTS" value={obj.hostCount} />
+          <Field label="PLTGs" value={obj.pltgCount} />
         </>
       )
+    }
     case 'PrivateGrid':
       return (
         <>
@@ -97,7 +106,7 @@ export default function LocationPanel({ gameState }: Props) {
               {prefix && <span className="loc-prefix">{prefix}:&nbsp;</span>}
               <span className="loc-name">{name}</span>
             </div>
-            {locationObj && <LocationFields obj={locationObj} />}
+            {locationObj && <LocationFields obj={locationObj} visibleObjects={visibleObjects} />}
           </>
         )}
       </div>

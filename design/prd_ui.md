@@ -82,7 +82,7 @@ The displayed fields vary by kind:
 | Kind | Displayed fields |
 |---|---|
 | `GridNode` | `region`, `securityCode`, `alertStatus`, `securityTally`†, `ltgCount`, `connectedRtgCount` |
-| `LocalGrid` | `alertStatus`, `securityTally`† |
+| `LocalGrid` | `region`* (from parent RTG), `securityCode`* (from parent RTG), `alertStatus`, `securityTally`†, `hostCount`, `pltgCount` |
 | `PrivateGrid` | `owner`, `parentLtgName`, `securityCode`, `alertStatus`, `hostCount` |
 | `HostNode` | `topologyType`, `alertStatus`, `securityCode`, `securityTally`†, `offline` (when true) |
 
