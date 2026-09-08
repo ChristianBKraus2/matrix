@@ -4,8 +4,6 @@ import com.shadowrun.matrix.common.AlertStatus
 import com.shadowrun.matrix.common.SecurityRating
 import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.decker.Decker
-import com.shadowrun.matrix.network.DataFile
-import com.shadowrun.matrix.network.RemoteDevice
 
 /** Common return type for system operations that involve a System Test. PRD: operations.md */
 sealed class OperationResult {
@@ -61,25 +59,28 @@ data class EditFileResult(
     val authenticationSuccesses: Int?
 )
 
-/** Typed target for the result of a successful interrogation operation. */
-sealed class LocatedTarget {
-    /** A data file found on the host. */
-    data class FileTarget(val file: DataFile) : LocatedTarget()
-    /** A remote device (slave) found on the host. */
-    data class SlaveTarget(val device: RemoteDevice) : LocatedTarget()
-    /** An access node identified by its address string. */
-    data class AccessNodeTarget(val address: String) : LocatedTarget()
+/**
+ * Shared result type for interrogation operations (Locate File/Slave/Access Node).
+ *
+ * A single successful System Test reveals up to 5 candidate names matching the decker's regex
+ * query. The decker then chooses one (see [Decker.selectLocateTarget]) which is stored for later
+ * access. PRD: SO-05 through SO-09, ticket 06.
+ */
+sealed class LocateResult {
+    /** Test succeeded; [names] are the ranked candidate names (≤ 5) the decker may choose from. */
+    data class Candidates(val names: List<String>) : LocateResult()
+    /** Test failed, or succeeded but nothing matched the query. */
+    object None : LocateResult()
 }
 
-/** Shared result type for interrogation operations (Locate File/Slave/Access Node). */
-sealed class LocateResult {
-    /** Accumulated successes below threshold; still searching. */
-    data class Ongoing(val accumulatedSuccesses: Int) : LocateResult()
-    /** Accumulated successes ≥ threshold; target located. */
-    data class Located(val target: LocatedTarget, val accumulatedSuccesses: Int) : LocateResult()
-    /** Host confirmed the queried data does not exist (≥ 3 successes with no data present). */
-    object NotFound : LocateResult()
-}
+/**
+ * Transient state held on a [Decker] after a successful Locate: the candidate names awaiting the
+ * decker's selection. Cleared once a candidate is chosen (or on logoff/jack-out). Ticket 06.
+ */
+data class PendingLocate(
+    val operation: SystemOperation,
+    val candidates: List<String>
+)
 
 /**
  * Result of a Locate Decker operation (MP-10, SO individual table).

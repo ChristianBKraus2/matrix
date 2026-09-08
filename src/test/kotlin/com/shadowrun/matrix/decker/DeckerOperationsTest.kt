@@ -423,32 +423,67 @@ class DeckerOperationsTest {
     // ── locateAccessNode ──────────────────────────────────────────────────────────
 
     @Test
-    fun `locateAccessNode returns Ongoing when below 5 accumulated successes`() {
+    fun `locateAccessNode returns None when decker loses the System Test`() {
         val h = host(secValue = 8, index = 12)
         val d = decker(host = h)
-        val (_, locate) = d.locateAccessNode(h, "LTG-Seattle", QueryPrecision.NORMAL, loseRoller)
-        assertIs<LocateResult.Ongoing>(locate)
+        val (_, locate) = d.locateAccessNode(h, "SomeHost", loseRoller)
+        assertIs<LocateResult.None>(locate)
     }
 
     @Test
-    fun `locateAccessNode returns Located when 5 accumulated successes reached`() {
-        // Start at 4; winRoller gives 6+ successes → jumps past 5
-        val h = host(secValue = 2, index = 2)
-        val d = decker(host = h).copy(interrogationStates = mapOf(
-            "LOCATE_ACCESS_NODE@HOST" to InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, "", 4)
-        ))
-        val (_, locate) = d.locateAccessNode(h, "", QueryPrecision.NORMAL, winRoller)
-        assertIs<LocateResult.Located>(locate)
+    fun `locateAccessNode returns Candidates naming reachable hosts on a win`() {
+        val target = host(secValue = 2, index = 2).copy(name = "Fuchi Data Vault")
+        val h = host(secValue = 2, index = 2).copy(connectedHosts = listOf(target))
+        val d = decker(host = h)
+        val (_, locate) = d.locateAccessNode(h, ".*Vault.*", winRoller)
+        assertIs<LocateResult.Candidates>(locate)
+        assertEquals(listOf("Fuchi Data Vault"), (locate as LocateResult.Candidates).names)
     }
 
     @Test
-    fun `locateAccessNode returns NotFound when query does not match any node`() {
+    fun `locateAccessNode returns None when query matches no reachable host`() {
+        val target = host(secValue = 2, index = 2).copy(name = "Fuchi Data Vault")
+        val h = host(secValue = 2, index = 2).copy(connectedHosts = listOf(target))
+        val d = decker(host = h)
+        val (_, locate) = d.locateAccessNode(h, "XYZNOTAHOST", winRoller)
+        assertIs<LocateResult.None>(locate)
+    }
+
+    // ── selectLocateTarget ────────────────────────────────────────────────────────
+
+    @Test
+    fun `selectLocateTarget stores an access-node choice in knownAddresses and clears pendingLocate`() {
+        val d = decker(host = host(secValue = 2, index = 2)).copy(
+            pendingLocate = com.shadowrun.matrix.operations.PendingLocate(
+                SystemOperation.LOCATE_ACCESS_NODE, listOf("Fuchi Data Vault", "Renraku Arcology")
+            )
+        )
+        val updated = d.selectLocateTarget("Fuchi Data Vault")
+        assertTrue("Fuchi Data Vault" in updated.knownAddresses)
+        assertNull(updated.pendingLocate)
+    }
+
+    @Test
+    fun `selectLocateTarget stores a file choice host-qualified in locatedFiles`() {
         val h = host(secValue = 2, index = 2)
-        val d = decker(host = h).copy(interrogationStates = mapOf(
-            "LOCATE_ACCESS_NODE@HOST" to InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, "XYZNOTANODE", 4)
-        ))
-        val (_, locate) = d.locateAccessNode(h, "XYZNOTANODE", QueryPrecision.NORMAL, winRoller)
-        assertIs<LocateResult.NotFound>(locate)
+        val d = decker(host = h).copy(
+            pendingLocate = com.shadowrun.matrix.operations.PendingLocate(
+                SystemOperation.LOCATE_FILE, listOf("paydata file")
+            )
+        )
+        val updated = d.selectLocateTarget("paydata file")
+        assertTrue("TestHost::paydata file" in updated.locatedFiles)
+        assertNull(updated.pendingLocate)
+    }
+
+    @Test
+    fun `selectLocateTarget rejects a name that is not among the candidates`() {
+        val d = decker(host = host(secValue = 2, index = 2)).copy(
+            pendingLocate = com.shadowrun.matrix.operations.PendingLocate(
+                SystemOperation.LOCATE_ACCESS_NODE, listOf("Fuchi Data Vault")
+            )
+        )
+        assertFailsWith<IllegalArgumentException> { d.selectLocateTarget("Renraku Arcology") }
     }
 
     // ── makeComcall ───────────────────────────────────────────────────────────────

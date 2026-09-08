@@ -144,17 +144,11 @@ object SystemTestResolver {
         diceRoller: DiceRoller,
         hackingPoolDice: Int = 0
     ): Pair<SystemTestOutcome, InterrogationState> {
-        val utilityRating = if (operation.utility != null)
-            decker.cyberdeck.activeUtilities
-                .firstOrNull { it.type == operation.utility }
-                ?.let { effectiveRating(it, decker.cyberdeck) } ?: 0
-        else 0
-        val clampedBase = maxOf(2, baseSubsystemRating - utilityRating)
-        val adjustedTn = maxOf(2, clampedBase + queryPrecision.modifier)
+        val adjustedTn = interrogationTn(decker, operation, baseSubsystemRating, queryPrecision)
 
         val totalDeckerDice = decker.computerSkill + hackingPoolDice
         val deckerResult = diceRoller.roll(totalDeckerDice, adjustedTn)
-        logger.info { "[${decker.name}] Interrogation ${operation.name}: TN=$adjustedTn (base=$baseSubsystemRating precision=${queryPrecision.modifier} utility=$utilityRating hackingPool=$hackingPoolDice) → ${deckerResult.successes} successes" }
+        logger.info { "[${decker.name}] Interrogation ${operation.name}: TN=$adjustedTn (base=$baseSubsystemRating precision=${queryPrecision.modifier} hackingPool=$hackingPoolDice) → ${deckerResult.successes} successes" }
 
         val hostResult = diceRoller.roll(securityValue, decker.effectiveDetectionFactor)
         logger.info { "[${decker.name}] Host Security Test: $securityValue dice vs DF=${decker.effectiveDetectionFactor} → ${hostResult.successes} successes" }
@@ -167,6 +161,53 @@ object SystemTestResolver {
         val newState = state.copy(accumulatedSuccesses = state.accumulatedSuccesses + maxOf(0, deckerResult.successes - hostResult.successes))
         logger.info { "[${decker.name}] Interrogation accumulated successes: ${newState.accumulatedSuccesses}" }
         return Pair(outcome, newState)
+    }
+
+    /**
+     * Resolves a single-shot Locate System Test (ticket 06). One successful test reveals candidate
+     * matches — there is no cross-turn accumulation. Utility reduction is applied first, then
+     * [queryPrecision] (derived from the query's shape) modifies the TN. PRD: SO-05 through SO-09.
+     */
+    fun resolveLocate(
+        decker: Decker,
+        operation: SystemOperation,
+        baseSubsystemRating: Int,
+        securityValue: Int,
+        queryPrecision: QueryPrecision,
+        diceRoller: DiceRoller,
+        hackingPoolDice: Int = 0
+    ): SystemTestOutcome {
+        val adjustedTn = interrogationTn(decker, operation, baseSubsystemRating, queryPrecision)
+
+        val totalDeckerDice = decker.computerSkill + hackingPoolDice
+        val deckerResult = diceRoller.roll(totalDeckerDice, adjustedTn)
+        logger.info { "[${decker.name}] Locate ${operation.name}: TN=$adjustedTn (base=$baseSubsystemRating precision=${queryPrecision.modifier} hackingPool=$hackingPoolDice) → ${deckerResult.successes} successes" }
+
+        val hostResult = diceRoller.roll(securityValue, decker.effectiveDetectionFactor)
+        logger.info { "[${decker.name}] Host Security Test: $securityValue dice vs DF=${decker.effectiveDetectionFactor} → ${hostResult.successes} successes" }
+
+        return SystemTestOutcome(
+            deckerSuccesses = deckerResult.successes,
+            hostSuccesses = hostResult.successes,
+            deckerWins = deckerResult.successes >= hostResult.successes
+        )
+    }
+
+    /** Interrogation/Locate TN: base subsystem rating reduced by the operation's utility, then the
+     *  query-precision modifier applied — each step floored at 2 (SO-07). */
+    private fun interrogationTn(
+        decker: Decker,
+        operation: SystemOperation,
+        baseSubsystemRating: Int,
+        queryPrecision: QueryPrecision
+    ): Int {
+        val utilityRating = if (operation.utility != null)
+            decker.cyberdeck.activeUtilities
+                .firstOrNull { it.type == operation.utility }
+                ?.let { effectiveRating(it, decker.cyberdeck) } ?: 0
+        else 0
+        val clampedBase = maxOf(2, baseSubsystemRating - utilityRating)
+        return maxOf(2, clampedBase + queryPrecision.modifier)
     }
 
     /**

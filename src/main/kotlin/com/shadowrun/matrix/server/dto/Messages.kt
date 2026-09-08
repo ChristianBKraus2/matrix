@@ -64,7 +64,9 @@ data class ActionParams(
     val precision: String? = null,
     val query: String? = null,
     val dataSize: Int? = null,
-    val hackingPoolDice: Int? = null
+    val hackingPoolDice: Int? = null,
+    /** Selected name for Access LTG/Host dropdowns and Select Locate Target (ticket 06). */
+    val targetName: String? = null
 )
 
 @Serializable

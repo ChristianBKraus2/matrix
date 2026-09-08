@@ -237,20 +237,20 @@ class DtoMappingTest {
     }
 
     @Test
-    fun `AvailableAction LogonToPltg toDto`() {
+    fun `AvailableAction AccessLtg toDto`() {
         val ltg = GridMock.matrix.rtgs.first().ltgs.first()
         val pltg = PLTG("Corp-PLTG", "Renraku", ltg,
             ltg.securityRating, ltg.subsystemRatings)
-        val dto = AvailableAction.LogonToPltg(pltg).toDto(9)
-        assertIs<AvailableActionDto.LogonToPltg>(dto)
-        assertEquals("Corp-PLTG", dto.pltgName)
+        val dto = AvailableAction.AccessLtg(listOf(pltg)).toDto(9)
+        assertIs<AvailableActionDto.AccessLtg>(dto)
+        assertEquals(listOf("Corp-PLTG"), dto.ltgNames)
     }
 
     @Test
-    fun `AvailableAction LogonToHost toDto`() {
+    fun `AvailableAction AccessHost toDto`() {
         val host = GridMock.getDefaultHost()
-        val dto = AvailableAction.LogonToHost(host).toDto(10)
-        assertIs<AvailableActionDto.LogonToHost>(dto)
-        assertEquals(host.name, dto.hostName)
+        val dto = AvailableAction.AccessHost(listOf(host)).toDto(10)
+        assertIs<AvailableActionDto.AccessHost>(dto)
+        assertEquals(listOf(host.name), dto.hostNames)
     }
 }

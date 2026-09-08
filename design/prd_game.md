@@ -33,6 +33,12 @@ If a target is found but is not in the IC's current node, a proactive IC moves t
 
 The `availableActions` list returned to the client must only include operations that have a complete server-side implementation. `SWAP_MEMORY` and `LOCATE_DECKER` are out of scope — see [out_of_scope.md §5](out_of_scope.md) and [§4](out_of_scope.md) respectively.
 
-## Decker State — Multi-Turn Interrogation
+## Decker State — Locate Discovery and Address Gating
 
-The `Decker` data class holds `interrogationStates: Map<String, InterrogationState>`. Keys use the format `"OPERATION_NAME@CONTEXT"`, e.g. `"LOCATE_FILE@HOST"` or `"LOCATE_ACCESS_NODE@GRID"`, allowing `LOCATE_ACCESS_NODE` to maintain independent state for host-context and grid-context searches. This map tracks accumulated successes across multiple turns for locate operations (`LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`). The relevant entries are cleared when the decker logs off, jacks out, or is dumped.
+Locate operations (`LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`) are **single System Tests**, not multi-turn interrogations — there is no accumulated-success state. Instead the `Decker` data class holds:
+
+- `knownAddresses: Set<String>` (persisted) — full names of LTGs/PLTGs/hosts the decker may access. Seeded on a successful jack-in / logon and by selecting a located access node.
+- `locatedFiles` / `locatedSlaves: Set<String>` (run-scoped) — host-qualified keys (`"<hostName>::<name>"`) for files/devices the decker has located.
+- `pendingLocate: PendingLocate?` (transient) — the ≤5 candidate names from the most recent successful Locate, awaiting the decker's selection. Cleared when the decker logs off, jacks out, or is dumped.
+
+`availableActions()` emits **at most one** `AccessLtg(targets)` and **one** `AccessHost(targets)`, where `targets` are the structurally-reachable LTGs/PLTGs/hosts filtered to those whose `name` is in `knownAddresses` (each emitted only when non-empty). Gating is **strict** — an address is required even for a directly-attached target. The old per-target `LogonToLtg` / `LogonToPltg` / `LogonToHost` actions are removed; `LogonToRtg` stays per-target and ungated (RTG backbone). Downstream host operations are gated too: `DOWNLOAD_DATA` / `EDIT_FILE` / `DECRYPT_FILE` appear only for files in `locatedFiles`, and `CONTROL_SLAVE` / `EDIT_SLAVE` / `MONITOR_SLAVE` only for devices in `locatedSlaves`; `LOCATE_FILE` / `LOCATE_SLAVE` themselves stay available so targets can be discovered.

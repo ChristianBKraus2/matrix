@@ -6,11 +6,8 @@ import com.shadowrun.matrix.integration.utility.IntegrationTestBase
 import com.shadowrun.matrix.network.DataFile
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.operations.DownloadHandle
-import com.shadowrun.matrix.operations.InterrogationState
 import com.shadowrun.matrix.operations.LocateResult
 import com.shadowrun.matrix.operations.OperationResult
-import com.shadowrun.matrix.operations.QueryPrecision
-import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.decker.*
 import kotlin.test.Test
 import kotlin.test.assertIs
@@ -25,7 +22,7 @@ class FileOperationsTest : IntegrationTestBase() {
     // ── locateFile ────────────────────────────────────────────────────────────
 
     @Test
-    fun `locateFile accumulates successes and locates Personnel Records`() {
+    fun `locateFile returns candidates including Personnel Records on a win`() {
         val icon = scenario {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
@@ -35,37 +32,34 @@ class FileOperationsTest : IntegrationTestBase() {
             "Mitsuhama Pagoda must have a Personnel Records file for this test")
 
         // BROWSE-4 + SLEAZE-6: DF = ceil((masking=6 + sleaze=6) / 2) = 6.
-        // Host: 6 dice vs TN=6, hitRoller face=5 → 0 successes. Decker: 8 dice vs TN=2 → 8 net → ≥ 5 → Located.
+        // Host: 6 dice vs TN=6, hitRoller face=5 → 0 successes. Decker wins → candidates revealed.
         val browse = com.shadowrun.matrix.programs.Utility(com.shadowrun.matrix.programs.UtilityType.BROWSE, rating = 4)
         val sleaze = com.shadowrun.matrix.programs.Utility(com.shadowrun.matrix.programs.UtilityType.SLEAZE, rating = 6)
         icon.equipUtility(browse)
         icon.equipUtility(sleaze)
 
-        val state = InterrogationState(SystemOperation.LOCATE_FILE, "Personnel")
         val decker = icon.currentDecker()
-        val result = decker.locateFile(host, "Personnel", QueryPrecision.VERY_SPECIFIC, hitRoller())
+        val result = decker.locateFile(host, "Personnel", hitRoller())
         icon.context.updateDecker(decker, result.first.decker)
 
-        assertIs<LocateResult.Located>(result.second, "Should accumulate 5+ successes and locate the file")
+        val locate = result.second
+        assertIs<LocateResult.Candidates>(locate, "A successful Locate File should return candidates")
+        assertTrue(locate.names.any { it.contains("Personnel", ignoreCase = true) },
+            "Candidates should include the Personnel Records file")
     }
 
     @Test
-    fun `locateFile returns Ongoing when decker has fewer than 5 accumulated successes`() {
+    fun `locateFile returns None when the host wins the System Test`() {
         val icon = scenario {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
         }
         val host = host(icon)
-        // Give partial successes by using a roller that wins narrowly (face 5 = 1 success per die most of the time)
-        val state = InterrogationState(SystemOperation.LOCATE_FILE, "Project", accumulatedSuccesses = 1)
-        val seedDecker = icon.currentDecker().copy(interrogationStates = mapOf(
-            "LOCATE_FILE@HOST" to InterrogationState(SystemOperation.LOCATE_FILE, "", 1)
-        ))
-        val result = seedDecker.locateFile(host, "", QueryPrecision.VAGUE, failRoller())
+        val result = icon.currentDecker().locateFile(host, "Project", failRoller())
 
-        // failRoller → host wins → decker gets 0 net successes — stays Ongoing or NotFound but not Located
+        // failRoller → host wins → decker cannot reveal candidates.
         assertIs<OperationResult.Failure>(result.first, "failRoller should make the decker lose")
-        assertTrue(result.second !is LocateResult.Located, "Should not locate file when host wins")
+        assertIs<LocateResult.None>(result.second, "Should not reveal candidates when host wins")
     }
 
     // ── downloadData ──────────────────────────────────────────────────────────

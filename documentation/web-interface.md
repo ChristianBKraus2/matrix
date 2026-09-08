@@ -143,6 +143,7 @@ Snapshot of the decker's current state.
 | `hackingPool`      | number          | Current hacking pool dice                        |
 | `mcpRating`        | number          | Cyberdeck MCP rating                             |
 | `activeUtilities`  | array           | Currently loaded utilities                       |
+| `knownAddresses`   | string[]        | Full names of LTGs/PLTGs/hosts the decker may access; gates `AccessLtg` / `AccessHost` |
 
 **`location` values:** `"not jacked in"` | `"RTG: <name>"` | `"LTG: <name>"` | `"PLTG: <name>"` | `"Host: <name>"`
 
@@ -247,17 +248,19 @@ Each entry has `index`, `kind`, and `actionType` (`FREE` / `SIMPLE` / `COMPLEX`)
 #### Navigation actions
 
 ```json
-{ "index": 0, "kind": "LogonToHost", "actionType": "COMPLEX", "hostName": "Aztechnology-Seattle" }
+{ "index": 0, "kind": "AccessHost", "actionType": "COMPLEX", "hostNames": ["Aztechnology-Seattle", "Mitsuhama Pagoda"] }
 ```
 
-| kind            | Extra field             |
-|-----------------|-------------------------|
-| `LogonToRtg`    | `rtgName: string`       |
-| `LogonToLtg`    | `ltgName: string`       |
-| `LogonToPltg`   | `pltgName: string`      |
-| `LogonToHost`   | `hostName: string`      |
-| `GracefulLogoff`| —                       |
-| `JackOut`       | —                       |
+| kind                 | Extra field                                                         |
+|----------------------|---------------------------------------------------------------------|
+| `LogonToRtg`         | `rtgName: string` (per-target; ungated RTG backbone)                |
+| `AccessLtg`          | `ltgNames: string[]` — reachable LTG/PLTG names in `knownAddresses` |
+| `AccessHost`         | `hostNames: string[]` — reachable host names in `knownAddresses`    |
+| `SelectLocateTarget` | `operation: string`, `candidates: string[]` — ≤5 located names      |
+| `GracefulLogoff`     | —                                                                   |
+| `JackOut`            | —                                                                   |
+
+The per-target `LogonToLtg` / `LogonToPltg` / `LogonToHost` actions are removed. `AccessLtg` / `AccessHost` are each emitted at most once and only list destinations whose address the decker already knows; the controller chooses one by sending `targetName` in the `ActionCommand` params. `SelectLocateTarget` is offered after a successful Locate so the controller can pick one of the returned candidate names (also via `targetName`; an empty/omitted value cancels the selection).
 
 #### Operation actions
 
@@ -306,9 +309,11 @@ Only certain operations read `params`. All fields are optional within the object
 |--------------------------------------------------------|---------------------|----------------|------------|---------------------------------------------|
 | `EDIT_FILE`                                            | `newContent`        | string or null | `null`     | UTF-8 text to write; `null` erases the file |
 | `NULL_OPERATION`                                       | `inactivitySeconds` | number         | `0`        | Seconds of declared inactivity              |
-| `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`   | `precision`         | string         | `"NORMAL"` | `"NORMAL"` or `"HIGH"`                      |
+| `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`   | `query`             | string         | `""`       | Search term (regex accepted); server derives query precision from its shape — no precision field |
 | `MAKE_COMCALL`                                         | `hasValidPasscode`  | boolean        | `false`    | Whether the decker has a valid passcode      |
 | `TAP_COMCALL`                                          | `scannerDeviceRating`| number        | `0`        | Scanner device rating to use                |
+
+The `AccessLtg`, `AccessHost`, and `SelectLocateTarget` actions read `params.targetName` (string) — the chosen destination or candidate name.
 
 All other operations ignore `params` entirely.
 

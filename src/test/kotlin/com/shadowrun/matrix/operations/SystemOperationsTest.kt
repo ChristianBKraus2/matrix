@@ -301,47 +301,42 @@ class SystemOperationsTest {
         assertTrue(result.currentTally > 0)
     }
 
-    // ── Interrogation / Locate File ───────────────────────────────────────────────
+    // ── Locate File / Locate Slave ────────────────────────────────────────────────
 
     @Test
-    fun `locateFile returns Ongoing when accumulated successes below 5`() {
+    fun `locateFile returns None when the decker loses the System Test`() {
         val h = host()
         val d = decker(jackedIn = true, host = h)
-        val (_, locate) = d.locateFile(h, "paydata", QueryPrecision.NORMAL, loseRoller)
-        assertIs<LocateResult.Ongoing>(locate)
+        val (_, locate) = d.locateFile(h, "paydata", loseRoller)
+        assertIs<LocateResult.None>(locate)
     }
 
     @Test
-    fun `locateFile returns Located when accumulated successes reach 5`() {
+    fun `locateFile returns Candidates on a win when a file matches the query`() {
         val file = DataFile("paydata file", sizeMp = 50)
         val h = host(dataFiles = listOf(file), secValue = 2, control = 2, index = 2)
-        // Start at 4, need 1 more; winRoller gives 6 successes → jumps past 5
-        val d2 = decker(jackedIn = true, host = h).copy(interrogationStates = mapOf(
-            "LOCATE_FILE@HOST" to InterrogationState(SystemOperation.LOCATE_FILE, "", 4)
-        ))
-        val (_, locate) = d2.locateFile(h, "", QueryPrecision.NORMAL, winRoller)
-        assertIs<LocateResult.Located>(locate)
+        val d = decker(jackedIn = true, host = h)
+        val (_, locate) = d.locateFile(h, "paydata", winRoller)
+        assertIs<LocateResult.Candidates>(locate)
+        assertEquals(listOf("paydata file"), (locate as LocateResult.Candidates).names)
     }
 
     @Test
-    fun `locateFile returns NotFound when data absent and 3 successes accumulated`() {
+    fun `locateFile returns None on a win when no file matches the query`() {
         val h = host(secValue = 2, index = 2)
-        val d2 = decker(jackedIn = true, host = h).copy(interrogationStates = mapOf(
-            "LOCATE_FILE@HOST" to InterrogationState(SystemOperation.LOCATE_FILE, "", 2)
-        ))
-        val (_, locate) = d2.locateFile(h, "", QueryPrecision.NORMAL, winRoller)
-        assertIs<LocateResult.NotFound>(locate)
+        val d = decker(jackedIn = true, host = h)
+        val (_, locate) = d.locateFile(h, "paydata", winRoller)
+        assertIs<LocateResult.None>(locate)
     }
 
     @Test
-    fun `locateSlave requires only 3 successes`() {
+    fun `locateSlave returns Candidates naming the matched device`() {
         val device = RemoteDevice("camera-3", "SLAVE-003")
         val h = host(dataFiles = emptyList(), remoteDevices = listOf(device), secValue = 2, index = 2)
-        val d2 = decker(jackedIn = true, host = h).copy(interrogationStates = mapOf(
-            "LOCATE_SLAVE@HOST" to InterrogationState(SystemOperation.LOCATE_SLAVE, "", 2)
-        ))
-        val (_, locate) = d2.locateSlave(h, "", QueryPrecision.NORMAL, winRoller)
-        assertIs<LocateResult.Located>(locate)
+        val d = decker(jackedIn = true, host = h)
+        val (_, locate) = d.locateSlave(h, "camera", winRoller)
+        assertIs<LocateResult.Candidates>(locate)
+        assertEquals(listOf("camera-3"), (locate as LocateResult.Candidates).names)
     }
 
     // ── downloadData ──────────────────────────────────────────────────────────────

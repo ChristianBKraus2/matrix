@@ -3,11 +3,8 @@ package com.shadowrun.matrix.integration
 import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.integration.utility.IntegrationTestBase
 import com.shadowrun.matrix.network.MatrixLocation
-import com.shadowrun.matrix.operations.InterrogationState
 import com.shadowrun.matrix.operations.LocateResult
 import com.shadowrun.matrix.operations.OperationResult
-import com.shadowrun.matrix.operations.QueryPrecision
-import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.decker.*
 import kotlin.test.Test
 import kotlin.test.assertIs
@@ -22,7 +19,7 @@ class SlaveOperationsTest : IntegrationTestBase() {
     // ── locateSlave ───────────────────────────────────────────────────────────
 
     @Test
-    fun `locateSlave accumulates successes and locates Security Camera Network`() {
+    fun `locateSlave returns candidates including Security Camera Network on a win`() {
         val icon = scenario {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
@@ -32,29 +29,32 @@ class SlaveOperationsTest : IntegrationTestBase() {
             "Mitsuhama Pagoda must have a Security Camera Network device for this test")
 
         // BROWSE-4 + SLEAZE-6: DF = ceil((masking=6 + sleaze=6) / 2) = 6.
-        // Host: 6 dice vs TN=6, hitRoller face=5 → 0 successes. Decker: 8 dice vs TN=2 → 8 net → ≥ 3 → Located.
+        // Host: 6 dice vs TN=6, hitRoller face=5 → 0 successes. Decker wins → candidates revealed.
         val browse = com.shadowrun.matrix.programs.Utility(com.shadowrun.matrix.programs.UtilityType.BROWSE, rating = 4)
         val sleaze = com.shadowrun.matrix.programs.Utility(com.shadowrun.matrix.programs.UtilityType.SLEAZE, rating = 6)
         icon.equipUtility(browse)
         icon.equipUtility(sleaze)
 
-        val result = icon.currentDecker().locateSlave(host, "Security Camera", QueryPrecision.VERY_SPECIFIC, hitRoller())
+        val result = icon.currentDecker().locateSlave(host, "Security Camera", hitRoller())
         icon.context.updateDecker(icon.currentDecker(), result.first.decker)
 
-        assertIs<LocateResult.Located>(result.second, "Should accumulate 3+ successes and locate the device")
+        val locate = result.second
+        assertIs<LocateResult.Candidates>(locate, "A successful Locate Slave should return candidates")
+        assertTrue(locate.names.any { it.contains("Security Camera", ignoreCase = true) },
+            "Candidates should include the Security Camera Network device")
     }
 
     @Test
-    fun `locateSlave fails when host wins`() {
+    fun `locateSlave returns None when host wins`() {
         val icon = scenario {
             jackInToLtg("UCAS/UCAS-SEA")
             logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
         }
         val host = host(icon)
-        val result = icon.currentDecker().locateSlave(host, "Camera", QueryPrecision.NORMAL, failRoller())
+        val result = icon.currentDecker().locateSlave(host, "Camera", failRoller())
 
         assertIs<OperationResult.Failure>(result.first, "failRoller should make host win")
-        assertTrue(result.second !is LocateResult.Located, "Should not locate device when host wins")
+        assertIs<LocateResult.None>(result.second, "Should not reveal candidates when host wins")
     }
 
     // ── controlSlave ─────────────────────────────────────────────────────────

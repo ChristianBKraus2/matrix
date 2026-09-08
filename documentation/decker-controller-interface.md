@@ -89,12 +89,14 @@ Every entry has `actionType: ActionType` — one of `FREE`, `SIMPLE`, or `COMPLE
 
 | Variant | Carried data | When it appears |
 |---|---|---|
-| `LogonToRtg(rtg, COMPLEX)` | Target `RTG` | On `OnLTG` (one entry: parent RTG); on `OnRTG` (one per connected RTG) |
-| `LogonToLtg(ltg, COMPLEX)` | Target `LTG` | On `OnRTG` (one per child LTG); on `OnPLTG` (one: parent LTG) |
-| `LogonToPltg(pltg, COMPLEX)` | Target `PLTG` | On `OnLTG` (one per child PLTG) |
-| `LogonToHost(host, COMPLEX)` | Target `Host` | On `OnLTG`/`OnPLTG` (one per child host); on `OnHost` (one per connected host) |
+| `LogonToRtg(rtg, COMPLEX)` | Target `RTG` | On `OnLTG` (one entry: parent RTG); on `OnRTG` (one per connected RTG). Per-target and ungated (RTG backbone). |
+| `AccessLtg(targets, COMPLEX)` | `targets: List<Grid>` | At most one entry, listing the structurally-reachable LTGs/PLTGs whose `name` is in `knownAddresses` (omitted if none) |
+| `AccessHost(targets, COMPLEX)` | `targets: List<Host>` | At most one entry, listing the structurally-reachable hosts whose `name` is in `knownAddresses` (omitted if none) |
+| `SelectLocateTarget(operation, candidates, FREE)` | `operation: SystemOperation`, `candidates: List<String>` | After a successful Locate, so the decker can pick one of the ≤5 returned names |
 | `GracefulLogoff(COMPLEX)` | — | Always when jacked in |
 | `JackOut(FREE)` | — | Always when jacked in (still appears when pinned by Black IC; the call will throw — check `isPinnedByBlackIc` first) |
+
+> **Ticket 06 — strict address gating.** The former per-target `LogonToLtg` / `LogonToPltg` / `LogonToHost` variants are removed. Navigation to LTGs/PLTGs/hosts is collapsed into a single `AccessLtg` and a single `AccessHost`, each filtered to targets the decker already has an address for. An address is required even for a directly-attached target; a name is seeded into `knownAddresses` by a successful jack-in / logon or by `selectLocateTarget` on a located access node.
 
 ### System operation actions (all `Operation(operation, target?, actionType)`)
 
@@ -137,6 +139,8 @@ On a host (`OnHost`) the following operations are available:
 | `RELOCATE_ICON` | SIMPLE | `null` | RELOCATE |
 | `SWAP_MEMORY` | SIMPLE | `null` | *(none)* |
 
+> **Ticket 06 — resource gating.** `DOWNLOAD_DATA` / `EDIT_FILE` / `DECRYPT_FILE` are emitted only for files the decker has located (`locatedFiles`), and `CONTROL_SLAVE` / `EDIT_SLAVE` / `MONITOR_SLAVE` only for devices in `locatedSlaves` — so "one per file/device" means one per *located* file/device. `LOCATE_FILE` / `LOCATE_SLAVE` remain available so those resources can first be discovered (Locate → `SelectLocateTarget` → `selectLocateTarget`).
+
 ---
 
 ## 5. Executing an action — calling Decker methods
@@ -148,11 +152,13 @@ Once the controller has chosen an `AvailableAction`, it calls the corresponding 
 | AvailableAction variant | Decker method | Return type |
 |---|---|---|
 | `LogonToRtg(rtg)` | `decker.logonToRtg(rtg, diceRoller)` | `LogonResult` |
-| `LogonToLtg(ltg)` | `decker.logonToLtg(ltg, diceRoller)` | `LogonResult` |
-| `LogonToPltg(pltg)` | `decker.logonToPltg(pltg, diceRoller)` | `LogonResult` |
-| `LogonToHost(host)` | `decker.logonToHost(host, diceRoller)` | `LogonResult` |
+| `AccessLtg(targets)` | resolve the chosen `targetName` against `targets`, then `decker.logonToLtg(ltg, diceRoller)` or `decker.logonToPltg(pltg, diceRoller)` | `LogonResult` |
+| `AccessHost(targets)` | resolve the chosen `targetName` against `targets`, then `decker.logonToHost(host, diceRoller)` | `LogonResult` |
+| `SelectLocateTarget(operation, candidates)` | `decker.selectLocateTarget(targetName)` — or `decker.cancelLocateSelection()` if dismissed | `Decker` |
 | `GracefulLogoff` | `decker.gracefulLogoff(diceRoller)` | `LogoffResult` |
 | `JackOut` | `decker.jackOut()` | `LogoffResult` |
+
+`AccessLtg` / `AccessHost` carry the reachable, address-known target list; the controller picks one (its `name`) and invokes the matching per-target logon method. A successful jack-in / logon seeds the target `name` into `knownAddresses`. `selectLocateTarget(name)` stores the chosen candidate (into `knownAddresses` for an access node, or the host-qualified key `"<hostName>::<name>"` in `locatedFiles` / `locatedSlaves` for a file/slave) and clears `pendingLocate`; `cancelLocateSelection()` clears it without storing.
 
 ### Operations
 
@@ -170,11 +176,11 @@ Once the controller has chosen an `AvailableAction`, it calls the corresponding 
 | `DOWNLOAD_DATA` | `decker.downloadData(file, host, diceRoller)` | `Pair<OperationResult, DownloadHandle?>` |
 | `EDIT_FILE` | `decker.editFile(file, host, newContent: ByteArray?, diceRoller)` | `EditFileResult` |
 | `EDIT_SLAVE` | `decker.editSlave(device, host, diceRoller)` | `Pair<OperationResult, MonitoredOperationHandle?>` |
-| `LOCATE_ACCESS_NODE` | `decker.locateAccessNode(host, state, precision, diceRoller)` | `Pair<OperationResult, LocateResult>` |
+| `LOCATE_ACCESS_NODE` | `decker.locateAccessNode(host, query, diceRoller, hackingPoolDice)` | `Pair<OperationResult, LocateResult>` |
 | `LOCATE_DECKER` | `decker.locateDecker(host, targetPersona: Persona, diceRoller, targetSleazeRating)` | `LocateDeckerResult` |
-| `LOCATE_FILE` | `decker.locateFile(host, state, precision, diceRoller)` | `Pair<OperationResult, LocateResult>` |
+| `LOCATE_FILE` | `decker.locateFile(host, query, diceRoller, hackingPoolDice)` | `Pair<OperationResult, LocateResult>` |
 | `LOCATE_IC` | `decker.locateIc(host, diceRoller)` | `OperationResult` |
-| `LOCATE_SLAVE` | `decker.locateSlave(host, state, precision, diceRoller)` | `Pair<OperationResult, LocateResult>` |
+| `LOCATE_SLAVE` | `decker.locateSlave(host, query, diceRoller, hackingPoolDice)` | `Pair<OperationResult, LocateResult>` |
 | `MAKE_COMCALL` | `decker.makeComcall(host, diceRoller, hasValidPasscode)` | `Pair<OperationResult, MonitoredOperationHandle?>` |
 | `MONITOR_SLAVE` | `decker.monitorSlave(device, host, diceRoller)` | `Pair<OperationResult, MonitoredOperationHandle?>` |
 | `NULL_OPERATION` | `decker.nullOperation(host, inactivitySeconds, diceRoller)` | `OperationResult` |
@@ -266,13 +272,14 @@ EditFileResult(decker, outcome, authenticationSuccesses?)
 
 ### LocateResult (for LOCATE_FILE, LOCATE_SLAVE, LOCATE_ACCESS_NODE)
 
-These operations are **interrogation** operations that accumulate successes across multiple turns. Pass the previous `InterrogationState` on each call.
+These operations resolve in a **single System Test** (ticket 06) — no `InterrogationState`, no cross-turn accumulation. Pass the decker's regex `query`; the server derives the query precision from its shape.
 
 ```
-LocateResult.Ongoing(accumulatedSuccesses)   // keep trying
-LocateResult.Located(target, accumulatedSuccesses)   // found; cast target to the appropriate type
-LocateResult.NotFound   // host confirmed the resource does not exist
+LocateResult.Candidates(names)   // test won and ≥ 1 name matched; ≤ 5 ranked names, parked in pendingLocate
+LocateResult.None                // test lost, or won but nothing matched the query
 ```
+
+On `Candidates`, the returned decker carries `pendingLocate`; call `decker.selectLocateTarget(name)` to store the pick, or `decker.cancelLocateSelection()` to discard it. The old `Ongoing` / `Located` / `NotFound` variants and the `LocatedTarget` hierarchy no longer exist.
 
 ### LocateDeckerResult
 
@@ -347,13 +354,17 @@ val hostEntry = decker.visibleObjects()
     .filterIsInstance<MatrixObject.HostNode>()
     .first { !it.host.offline }
 
-// 3. Check that logging on is an available action (it always is for a visible host)
-val logonAction = decker.availableActions()
-    .filterIsInstance<AvailableAction.LogonToHost>()
-    .first { it.host.name == hostEntry.host.name }
+// 3. Log on to the host. AccessHost only lists hosts whose address is already known
+//    (seeded by the jack-in above, or via locateAccessNode + selectLocateTarget). If the
+//    host is not yet known, run locateAccessNode(query) → selectLocateTarget(name) first.
+val accessHost = decker.availableActions()
+    .filterIsInstance<AvailableAction.AccessHost>()
+    .firstOrNull()
+val targetHost = accessHost?.targets?.first { it.name == hostEntry.host.name }
+    ?: error("host address not yet known — locate it first")
 
 // 4. Log on
-val logonResult = decker.logonToHost(logonAction.host, diceRoller)
+val logonResult = decker.logonToHost(targetHost, diceRoller)
 decker = (logonResult as LogonResult.Success).decker
 
 // 5. Inside the host — look for IC

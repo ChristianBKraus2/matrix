@@ -429,6 +429,72 @@ body {
 }
 .edit-hint { font-size: 11px; color: var(--green-dim); margin-top: 2px; }
 
+/* ── Select-locate modal (ticket 06) ─────────────────────────────────────────── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.82);
+}
+
+.modal-dialog {
+  width: 420px;
+  background: var(--bg-panel);
+  border: 1px solid var(--green);
+  box-shadow: var(--glow);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-title {
+  font-size: 20px;
+  letter-spacing: 2px;
+  color: var(--green-dim);
+  text-align: center;
+  border-bottom: 1px solid var(--green-faint);
+  padding-bottom: 8px;
+}
+
+.select-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.select-row {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--green-dim);
+  background: var(--bg);
+  color: var(--green);
+  font-size: 16px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  outline: none;
+}
+.select-row:hover,
+.select-row:focus { border-color: var(--green); background: var(--green-faint); box-shadow: var(--glow); }
+
+.select-row.empty {
+  border-color: var(--green-faint);
+  background: transparent;
+  cursor: default;
+  pointer-events: none;
+}
+
+.modal-hint { font-size: 12px; color: var(--green-dim); text-align: center; }
+
 /* ── Narrative panel ─────────────────────────────────────────────────────────── */
 
 .narrative-panel .panel-body {

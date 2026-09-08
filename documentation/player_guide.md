@@ -101,12 +101,14 @@ Some actions expose inline controls when you click them:
 
 | Parameter type | Control | When it appears |
 |---|---|---|
-| **Precision** | Numeric stepper | Locate operations (Locate File, Locate Slave, Locate IC, Locate Access Node) |
-| **Search query** | Text field | Locate Access Node — specify what you are searching for |
+| **Search term** | Text field | Locate operations (Locate File, Locate Slave, Locate Access Node) — type what you are looking for; a regex is accepted. You do not set a vagueness level; the system judges how vague your term is from its shape. |
 | **New content** | Text area | Edit File — type the replacement file contents |
 | **Data size** | Numeric stepper | Upload Data — specify how many Mp to upload |
+| **Target choice** | Dropdown + confirm | Access LTG / Access Host — pick which known LTG or host to enter |
 
 Fill in the parameter and click the confirm button that appears on the card.
+
+When a Locate search succeeds, a **pop-up list** of up to five matches appears. Click the one you want to select it (or press Esc / click outside the list to cancel without choosing anything).
 
 ### Action timeout
 
@@ -127,12 +129,13 @@ RTG (Regional Telecommunications Grid)
 
 | Action | What it does |
 |---|---|
-| Logon to RTG | Move to a connected RTG |
-| Logon to LTG | Move to a child LTG under your current RTG |
-| Logon to PLTG | Move to a private LTG |
-| Logon to Host | Enter a host system |
+| Logon to RTG | Move to a connected RTG (the backbone; always available, no address needed) |
+| Access LTG | Enter a known LTG or private LTG — pick the destination from a dropdown |
+| Access Host | Enter a known host — pick the destination from a dropdown |
 | Graceful Logoff | Cleanly disconnect and exit the Matrix |
 | Jack Out | Emergency disconnect — skips the logoff protocol; may cause dump shock |
+
+**Access LTG** and **Access Host** only list destinations whose address you already know. You learn an address by jacking in / logging on to it, or by running **Locate Access Node** and picking the result. If a host or LTG is not in your known addresses, it will not appear as a destination.
 
 ---
 
@@ -151,12 +154,14 @@ Most objects start as unknowns. Use these to learn what you are dealing with:
 
 ### Finding things: Locate operations
 
-Locate operations are multi-step searches. You choose a **precision** value (higher = more dice committed = better chance of a useful result). Results accumulate across turns until the target is found or you give up.
+Locate operations are searches. You type a **search term** describing your target (a regex works; the system decides how vague it is from the shape of the term — a full exact name is treated as very specific, a bare fragment wrapped in `*` as very vague). A single test resolves the search; there is no multi-turn grind and no threshold to reach.
 
-- **Locate File** — find a specific file
-- **Locate Slave** — find a remote-controlled device
-- **Locate IC** — find a lurking IC program
-- **Locate Access Node** — find a gateway to another system; the search query narrows the target
+If the search succeeds it shows up to **five matches** in a pop-up list. Pick one (or press Esc to cancel). Your choice is remembered:
+
+- **Locate Access Node** — find a gateway (LTG, private LTG, or host). The chosen address is stored, and only then does an **Access LTG** / **Access Host** action offer that destination. You cannot enter a host or LTG you have not located first (aside from the RTG backbone).
+- **Locate File** — find a specific file. You must locate a file before you can Download, Edit, or Decrypt it.
+- **Locate Slave** — find a remote-controlled device. You must locate a slave before you can Control, Edit, or Monitor it.
+- **Locate IC** — find a lurking IC program.
 
 ### File operations
 

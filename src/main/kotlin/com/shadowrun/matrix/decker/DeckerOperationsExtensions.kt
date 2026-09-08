@@ -18,18 +18,18 @@ import com.shadowrun.matrix.operations.DownloadHandle
 import com.shadowrun.matrix.operations.EditFileResult
 import com.shadowrun.matrix.operations.HostInfoItem
 import com.shadowrun.matrix.operations.IcDetectionResult
-import com.shadowrun.matrix.operations.InterrogationState
 import com.shadowrun.matrix.operations.LinkedObserver
 import com.shadowrun.matrix.operations.LocateDeckerResult
 import com.shadowrun.matrix.operations.LocateResult
-import com.shadowrun.matrix.operations.LocatedTarget
 import com.shadowrun.matrix.operations.Icon
 import com.shadowrun.matrix.operations.MonitoredOperationHandle
 import com.shadowrun.matrix.operations.MonitoredTarget
 import com.shadowrun.matrix.operations.OperationResult
+import com.shadowrun.matrix.operations.PendingLocate
 import com.shadowrun.matrix.operations.PointerChain
-import com.shadowrun.matrix.operations.QueryPrecision
 import com.shadowrun.matrix.operations.ScrambleDestructResult
+import com.shadowrun.matrix.operations.queryPrecisionFromRegex
+import com.shadowrun.matrix.operations.rankMatches
 import com.shadowrun.matrix.operations.SensorTestResult
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.operations.SystemTestResolver
@@ -212,120 +212,117 @@ fun Decker.decryptSlave(host: Host, diceRoller: DiceRoller, hackingPoolDice: Int
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
 }
 
-// ── Interrogation operations ───────────────────────────────────────────────────
+// ── Locate operations ──────────────────────────────────────────────────────────
+//
+// Ticket 06: a single successful System Test reveals up to 5 candidate names matching the
+// decker's regex query. Query vagueness is derived from the query shape (queryPrecisionFromRegex),
+// not supplied by the decker. The candidates are parked in pendingLocate; the decker then picks
+// one via selectLocateTarget, which stores it (knownAddresses / locatedFiles / locatedSlaves).
 
-fun Decker.locateFile(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, LocateResult> {
-    val existingState = interrogationStates["LOCATE_FILE@HOST"]
-    require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
-    val state = existingState ?: InterrogationState(SystemOperation.LOCATE_FILE, query)
-    logger.info { "[$name] locateFile on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
+/**
+ * Runs one Locate System Test against [operation]'s INDEX subsystem, ranks [candidatePool] against
+ * the regex [query], and — on a decker win with ≥1 match — parks the candidates in pendingLocate.
+ */
+private fun Decker.runLocate(
+    operation: SystemOperation,
+    query: String,
+    baseSubsystemRating: Int,
+    securityValue: Int,
+    candidatePool: List<String>,
+    diceRoller: DiceRoller,
+    hackingPoolDice: Int
+): Pair<OperationResult, LocateResult> {
+    require(query.isNotBlank()) { "Query must not be blank for a locate operation" }
     requireJackedIn()
-    val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_FILE, host, state, precision, diceRoller, hackingPoolDice)
-    val locateResult = when {
-        newState.accumulatedSuccesses >= 5 -> {
-            val file = host.dataFiles.firstOrNull { it.name.contains(state.query, ignoreCase = true) }
-            if (file != null) LocateResult.Located(LocatedTarget.FileTarget(file), newState.accumulatedSuccesses)
-            else LocateResult.NotFound
-        }
-        newState.accumulatedSuccesses >= 3 && host.dataFiles.none { it.name.contains(state.query, ignoreCase = true) } ->
-            LocateResult.NotFound
-        else -> LocateResult.Ongoing(newState.accumulatedSuccesses)
-    }
-    logger.info { "[$name] locateFile result: $locateResult" }
-    val newStates = when (locateResult) {
-        is LocateResult.Ongoing -> interrogationStates + ("LOCATE_FILE@HOST" to newState)
-        else -> interrogationStates - "LOCATE_FILE@HOST"
-    }
-    val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
-    val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)
+    val precision = queryPrecisionFromRegex(query)
+    logger.info { "[$name] ${operation.name}: query=\"$query\" derived precision=$precision" }
+    val outcome = SystemTestResolver.resolveLocate(this, operation, baseSubsystemRating, securityValue, precision, diceRoller, hackingPoolDice)
+    var updated = withUpdatedTally(outcome.hostSuccesses)
+    val locateResult = if (outcome.deckerWins) {
+        val matches = rankMatches(query, candidatePool)
+        if (matches.isNotEmpty()) {
+            updated = updated.copy(pendingLocate = PendingLocate(operation, matches))
+            LocateResult.Candidates(matches)
+        } else LocateResult.None
+    } else LocateResult.None
+    logger.info { "[$name] ${operation.name} result: $locateResult" }
+    val opResult = if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
     return Pair(opResult, locateResult)
 }
 
-fun Decker.locateSlave(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, LocateResult> {
-    val existingState = interrogationStates["LOCATE_SLAVE@HOST"]
-    require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
-    val state = existingState ?: InterrogationState(SystemOperation.LOCATE_SLAVE, query)
-    logger.info { "[$name] locateSlave on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
-    requireJackedIn()
-    val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_SLAVE, host, state, precision, diceRoller, hackingPoolDice)
-    val locateResult = when {
-        newState.accumulatedSuccesses >= 3 -> {
-            val device = host.remoteDevices.firstOrNull { it.name.contains(state.query, ignoreCase = true) }
-            if (device != null) LocateResult.Located(LocatedTarget.SlaveTarget(device), newState.accumulatedSuccesses)
-            else LocateResult.NotFound
-        }
-        else -> LocateResult.Ongoing(newState.accumulatedSuccesses)
+fun Decker.locateFile(host: Host, query: String = "", diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, LocateResult> =
+    runLocate(
+        SystemOperation.LOCATE_FILE, query,
+        host.subsystemRatings.index, host.securityRating.value,
+        host.dataFiles.map { it.name },
+        diceRoller, hackingPoolDice
+    )
+
+fun Decker.locateSlave(host: Host, query: String = "", diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, LocateResult> =
+    runLocate(
+        SystemOperation.LOCATE_SLAVE, query,
+        host.subsystemRatings.index, host.securityRating.value,
+        host.remoteDevices.map { it.name },
+        diceRoller, hackingPoolDice
+    )
+
+fun Decker.locateAccessNode(host: Host, query: String = "", diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, LocateResult> =
+    runLocate(
+        SystemOperation.LOCATE_ACCESS_NODE, query,
+        host.subsystemRatings.index, host.securityRating.value,
+        host.connectedHosts.map { it.name },
+        diceRoller, hackingPoolDice
+    )
+
+fun Decker.locateAccessNode(grid: Grid, query: String = "", diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, LocateResult> {
+    val candidatePool = when (grid) {
+        is RTG  -> grid.ltgs.map { it.name }
+        is LTG  -> grid.hosts.map { it.name } + grid.pltgs.map { it.name }
+        is PLTG -> grid.hosts.map { it.name }
     }
-    logger.info { "[$name] locateSlave result: $locateResult" }
-    val newStates = when (locateResult) {
-        is LocateResult.Ongoing -> interrogationStates + ("LOCATE_SLAVE@HOST" to newState)
-        else -> interrogationStates - "LOCATE_SLAVE@HOST"
-    }
-    val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
-    val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)
-    return Pair(opResult, locateResult)
+    return runLocate(
+        SystemOperation.LOCATE_ACCESS_NODE, query,
+        grid.subsystemRatings.index, grid.securityRating.value,
+        candidatePool,
+        diceRoller, hackingPoolDice
+    )
 }
 
-fun Decker.locateAccessNode(host: Host, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, LocateResult> {
-    val existingState = interrogationStates["LOCATE_ACCESS_NODE@HOST"]
-    require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
-    val state = existingState ?: InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, query)
-    logger.info { "[$name] locateAccessNode on ${host.name} (accumulated=${state.accumulatedSuccesses})" }
-    requireJackedIn()
-    val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_ACCESS_NODE, host, state, precision, diceRoller, hackingPoolDice)
-    val nodeExists = host.nodes.any {
-        it.subsystemType.name.contains(state.query, ignoreCase = true) ||
-        it.description.contains(state.query, ignoreCase = true)
-    }
-    // NotFound can only fire for a free-text description query; a standard subsystem-type query
-    // (e.g. "FILES") always matches because Host.init enforces all 5 subsystem types are present.
-    val locateResult = when {
-        newState.accumulatedSuccesses >= 5 -> {
-            if (nodeExists) LocateResult.Located(LocatedTarget.AccessNodeTarget(state.query), newState.accumulatedSuccesses)
-            else LocateResult.NotFound
+/**
+ * Stores the chosen candidate [targetName] from a pending Locate and clears pendingLocate.
+ * Access-node targets are added to [Decker.knownAddresses]; located files/slaves are stored under
+ * the host-qualified key `"<hostName>::<name>"` in [Decker.locatedFiles] / [Decker.locatedSlaves].
+ * Ticket 06.
+ */
+fun Decker.selectLocateTarget(targetName: String): Decker {
+    val pending = requireNotNull(pendingLocate) { "selectLocateTarget called with no pending locate" }
+    require(targetName in pending.candidates) { "\"$targetName\" is not among the located candidates" }
+    logger.info { "[$name] selectLocateTarget: ${pending.operation.name} → $targetName" }
+    return when (pending.operation) {
+        SystemOperation.LOCATE_ACCESS_NODE ->
+            copy(knownAddresses = knownAddresses + targetName, pendingLocate = null)
+        SystemOperation.LOCATE_FILE -> {
+            val hostName = (currentLocation as? MatrixLocation.OnHost)?.host?.name
+                ?: error("selectLocateTarget for a file requires the decker to be on a host")
+            copy(locatedFiles = locatedFiles + "$hostName::$targetName", pendingLocate = null)
         }
-        newState.accumulatedSuccesses >= 3 && !nodeExists -> LocateResult.NotFound
-        else -> LocateResult.Ongoing(newState.accumulatedSuccesses)
+        SystemOperation.LOCATE_SLAVE -> {
+            val hostName = (currentLocation as? MatrixLocation.OnHost)?.host?.name
+                ?: error("selectLocateTarget for a slave requires the decker to be on a host")
+            copy(locatedSlaves = locatedSlaves + "$hostName::$targetName", pendingLocate = null)
+        }
+        else -> error("selectLocateTarget: unsupported pending operation ${pending.operation}")
     }
-    val newStates = when (locateResult) {
-        is LocateResult.Ongoing -> interrogationStates + ("LOCATE_ACCESS_NODE@HOST" to newState)
-        else -> interrogationStates - "LOCATE_ACCESS_NODE@HOST"
-    }
-    val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
-    val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)
-    return Pair(opResult, locateResult)
 }
 
-fun Decker.locateAccessNode(grid: Grid, query: String = "", precision: QueryPrecision, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, LocateResult> {
-    val contextTag = when (grid) { is LTG -> "LTG"; is RTG -> "RTG"; is PLTG -> "PLTG" }
-    val stateKey = "LOCATE_ACCESS_NODE@$contextTag"
-    val existingState = interrogationStates[stateKey]
-    require(existingState != null || query.isNotBlank()) { "Query must not be blank for a new locate operation" }
-    val state = existingState ?: InterrogationState(SystemOperation.LOCATE_ACCESS_NODE, query)
-    logger.info { "[$name] locateAccessNode on ${grid.name} (accumulated=${state.accumulatedSuccesses})" }
-    requireJackedIn()
-    val (outcome, newState) = SystemTestResolver.resolveInterrogation(this, SystemOperation.LOCATE_ACCESS_NODE, grid, state, precision, diceRoller, hackingPoolDice)
-    val accessibleHosts = when (grid) {
-        is LTG  -> grid.hosts
-        is RTG  -> grid.ltgs.flatMap { it.hosts }
-        is PLTG -> grid.hosts
-    }
-    val nodeExists = accessibleHosts.any { it.name.contains(state.query, ignoreCase = true) }
-    val locateResult = when {
-        newState.accumulatedSuccesses >= 5 -> {
-            if (nodeExists) LocateResult.Located(LocatedTarget.AccessNodeTarget(state.query), newState.accumulatedSuccesses)
-            else LocateResult.NotFound
-        }
-        newState.accumulatedSuccesses >= 3 && !nodeExists -> LocateResult.NotFound
-        else -> LocateResult.Ongoing(newState.accumulatedSuccesses)
-    }
-    val newStates = when (locateResult) {
-        is LocateResult.Ongoing -> interrogationStates + (stateKey to newState)
-        else -> interrogationStates - stateKey
-    }
-    val updatedDecker = withUpdatedTally(outcome.hostSuccesses).copy(interrogationStates = newStates)
-    val opResult = if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome) else OperationResult.Failure(updatedDecker, outcome)
-    return Pair(opResult, locateResult)
+/**
+ * Dismisses a pending Locate without storing any address (ticket 06 — the decker can escape the
+ * selection modal). Clears [Decker.pendingLocate]; a no-op if nothing is pending.
+ */
+fun Decker.cancelLocateSelection(): Decker {
+    if (pendingLocate == null) return this
+    logger.info { "[$name] cancelLocateSelection: discarding ${pendingLocate?.operation?.name} candidates" }
+    return copy(pendingLocate = null)
 }
 
 fun Decker.analyzeSecurity(grid: Grid, diceRoller: DiceRoller, hackingPoolDice: Int = 0): AnalyzeSecurityResult {

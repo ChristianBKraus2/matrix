@@ -157,12 +157,14 @@ class DeckerVisibilityTest {
 
     @Test
     fun `availableActions on RTG includes logon navigation and grid system actions`() {
-        val d = decker(MatrixLocation.OnRTG(rtgWithLtgs))
+        val d = decker(MatrixLocation.OnRTG(rtgWithLtgs)).copy(knownAddresses = setOf("Seattle"))
         val actions = d.availableActions()
 
         assertTrue(actions.any { it is AvailableAction.GracefulLogoff })
         assertTrue(actions.any { it is AvailableAction.JackOut })
-        assertEquals(1, actions.filterIsInstance<AvailableAction.LogonToLtg>().size)
+        val accessLtg = actions.filterIsInstance<AvailableAction.AccessLtg>()
+        assertEquals(1, accessLtg.size)
+        assertEquals(listOf("Seattle"), accessLtg.single().targets.map { it.name })
         assertEquals(1, actions.filterIsInstance<AvailableAction.LogonToRtg>().size)
 
         val ops = actions.filterIsInstance<AvailableAction.Operation>().map { it.operation }
@@ -173,14 +175,14 @@ class DeckerVisibilityTest {
 
     @Test
     fun `availableActions on LTG includes logon to parent RTG, PLTGs, hosts, and grid system actions`() {
-        val d = decker(MatrixLocation.OnLTG(ltgWithContent))
+        val d = decker(MatrixLocation.OnLTG(ltgWithContent)).copy(knownAddresses = setOf("Corp-PLTG", "Test Host"))
         val actions = d.availableActions()
 
         assertTrue(actions.any { it is AvailableAction.GracefulLogoff })
         assertTrue(actions.any { it is AvailableAction.JackOut })
         assertEquals(1, actions.filterIsInstance<AvailableAction.LogonToRtg>().size)
-        assertEquals(1, actions.filterIsInstance<AvailableAction.LogonToPltg>().size)
-        assertEquals(1, actions.filterIsInstance<AvailableAction.LogonToHost>().size)
+        assertEquals(1, actions.filterIsInstance<AvailableAction.AccessLtg>().size)
+        assertEquals(1, actions.filterIsInstance<AvailableAction.AccessHost>().size)
 
         val ops = actions.filterIsInstance<AvailableAction.Operation>().map { it.operation }
         assertTrue(SystemOperation.NULL_OPERATION in ops)
@@ -189,11 +191,11 @@ class DeckerVisibilityTest {
 
     @Test
     fun `availableActions on PLTG includes logon to parent LTG, hosts, and grid system actions`() {
-        val d = decker(MatrixLocation.OnPLTG(pltgWithHost))
+        val d = decker(MatrixLocation.OnPLTG(pltgWithHost)).copy(knownAddresses = setOf("Seattle", "Test Host"))
         val actions = d.availableActions()
 
-        assertEquals(1, actions.filterIsInstance<AvailableAction.LogonToLtg>().size)
-        assertEquals(1, actions.filterIsInstance<AvailableAction.LogonToHost>().size)
+        assertEquals(1, actions.filterIsInstance<AvailableAction.AccessLtg>().size)
+        assertEquals(1, actions.filterIsInstance<AvailableAction.AccessHost>().size)
 
         val ops = actions.filterIsInstance<AvailableAction.Operation>().map { it.operation }
         assertTrue(SystemOperation.NULL_OPERATION in ops)
@@ -202,7 +204,9 @@ class DeckerVisibilityTest {
 
     @Test
     fun `availableActions on Host includes host system operations`() {
-        val d = decker(MatrixLocation.OnHost(host))
+        val d = decker(MatrixLocation.OnHost(host)).copy(
+            locatedFiles = setOf("Test Host::SensitiveData.txt", "Test Host::Secret.txt")
+        )
         val actions = d.availableActions()
 
         val ops = actions.filterIsInstance<AvailableAction.Operation>().map { it.operation }
@@ -217,7 +221,9 @@ class DeckerVisibilityTest {
 
     @Test
     fun `availableActions on Host lists DECRYPT_FILE only for scramble-protected files`() {
-        val d = decker(MatrixLocation.OnHost(host))
+        val d = decker(MatrixLocation.OnHost(host)).copy(
+            locatedFiles = setOf("Test Host::SensitiveData.txt", "Test Host::Secret.txt")
+        )
         val actions = d.availableActions()
 
         val decryptFileActions = actions.filterIsInstance<AvailableAction.Operation>()
@@ -229,7 +235,9 @@ class DeckerVisibilityTest {
 
     @Test
     fun `availableActions on Host lists slave actions per device`() {
-        val d = decker(MatrixLocation.OnHost(host))
+        val d = decker(MatrixLocation.OnHost(host)).copy(
+            locatedSlaves = setOf("Test Host::Security Camera 1")
+        )
         val actions = d.availableActions()
 
         val slaveActions = actions.filterIsInstance<AvailableAction.Operation>()
@@ -246,6 +254,31 @@ class DeckerVisibilityTest {
         val subsystemAnalyzeActions = actions.filterIsInstance<AvailableAction.Operation>()
             .filter { it.operation == SystemOperation.ANALYZE_SUBSYSTEM }
         assertEquals(SubsystemType.entries.size, subsystemAnalyzeActions.size)
+    }
+
+    @Test
+    fun `availableActions on Host hides file and slave operations until located`() {
+        // No locatedFiles / locatedSlaves seeded → ticket 06 gates these ops out entirely.
+        val d = decker(MatrixLocation.OnHost(host))
+        val ops = d.availableActions().filterIsInstance<AvailableAction.Operation>().map { it.operation }
+
+        assertFalse(SystemOperation.DOWNLOAD_DATA in ops)
+        assertFalse(SystemOperation.EDIT_FILE in ops)
+        assertFalse(SystemOperation.DECRYPT_FILE in ops)
+        assertFalse(SystemOperation.CONTROL_SLAVE in ops)
+        assertFalse(SystemOperation.EDIT_SLAVE in ops)
+        assertFalse(SystemOperation.MONITOR_SLAVE in ops)
+        // Locate File / Locate Slave themselves stay available so the decker can discover targets.
+        assertTrue(SystemOperation.LOCATE_FILE in ops)
+        assertTrue(SystemOperation.LOCATE_SLAVE in ops)
+    }
+
+    @Test
+    fun `availableActions omits Access actions when no address is known`() {
+        val d = decker(MatrixLocation.OnLTG(ltgWithContent))
+        val actions = d.availableActions()
+        assertFalse(actions.any { it is AvailableAction.AccessLtg })
+        assertFalse(actions.any { it is AvailableAction.AccessHost })
     }
 
     @Test

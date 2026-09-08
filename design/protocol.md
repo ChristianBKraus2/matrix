@@ -96,9 +96,11 @@ After the server sends `ControlMessage(role: "registered_decker")`, it immediate
 
 `params` is optional. When present, the relevant fields are:
 
-| Operation | params fields |
+| Operation / action | params fields |
 |---|---|
-| `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE` | `precision` (QueryPrecision), `query` (string — required on first call, ignored on continuation) |
+| `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE` | `query` (string search term; regex accepted; may be blank). No `precision` — the server derives query precision from the query shape. |
+| `AccessLtg`, `AccessHost` | `targetName` (string — the LTG/PLTG or host name chosen from the dropdown) |
+| `SelectLocateTarget` | `targetName` (string — the chosen candidate name; empty/omitted cancels the selection, invoking `cancelLocateSelection()`) |
 | `EDIT_FILE` | `newContent` (string or null to erase) |
 | `UPLOAD_DATA` | `dataSize` (int Mp, default 100) |
 | `NULL_OPERATION` | `inactivitySeconds` (int seconds of inactivity, default 0) |
@@ -193,6 +195,7 @@ The `decker` object within `StateMessage` has the following key fields:
 | `mentalDamage` | int | Mental CM damage boxes filled |
 | `physicalMaxBoxes` | int | Physical CM capacity |
 | `mentalMaxBoxes` | int | Mental CM capacity |
+| `knownAddresses` | string[] | Full names of LTGs/PLTGs/hosts the decker may access; gates the `AccessLtg` / `AccessHost` actions |
 
 `locationIndex` is the preferred lookup key. Fall back to name-based matching in `visibleObjects` only if `locationIndex` is null.
 
@@ -205,12 +208,14 @@ Sealed by `"kind"` field (not `"type"`):
 | kind | Fields |
 |---|---|
 | `LogonToRtg` | `rtgName` |
-| `LogonToLtg` | `ltgName` |
-| `LogonToPltg` | `pltgName` |
-| `LogonToHost` | `hostName` |
+| `AccessLtg` | `ltgNames` (string[]) — reachable LTG/PLTG names in `knownAddresses`; the per-target logon cards are collapsed into this one action |
+| `AccessHost` | `hostNames` (string[]) — reachable host names in `knownAddresses`; collapsed into one action |
+| `SelectLocateTarget` | `operation` (SystemOperation), `candidates` (string[]) — the ≤5 located names to choose from |
 | `GracefulLogoff` | — |
 | `JackOut` | — |
-| `Operation` | `operation` (SystemOperation), `targetKind`, `targetName`, `paramKind` (`"precision"` / `"newContent"` / `"dataSize"` / null) |
+| `Operation` | `operation` (SystemOperation), `targetKind`, `targetName`, `paramKind` (`"query"` / `"newContent"` / `"dataSize"` / null) |
+
+`LogonToLtg` / `LogonToPltg` / `LogonToHost` are no longer emitted — navigation to gated targets uses `AccessLtg` / `AccessHost`. `ActionCommand.params` additionally carries `targetName` (string, nullable), consumed by `AccessLtg` / `AccessHost` / `SelectLocateTarget`.
 
 **Deferred operations** — never appear in `availableActions`:
 

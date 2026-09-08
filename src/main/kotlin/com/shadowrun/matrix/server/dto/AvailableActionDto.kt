@@ -21,19 +21,19 @@ sealed class AvailableActionDto {
         override val actionType: String, val rtgName: String) : AvailableActionDto()
 
     @Serializable
-    @SerialName("LogonToLtg")
-    data class LogonToLtg(override val index: Int,
-        override val actionType: String, val ltgName: String) : AvailableActionDto()
+    @SerialName("AccessLtg")
+    data class AccessLtg(override val index: Int,
+        override val actionType: String, val ltgNames: List<String>) : AvailableActionDto()
 
     @Serializable
-    @SerialName("LogonToPltg")
-    data class LogonToPltg(override val index: Int,
-        override val actionType: String, val pltgName: String) : AvailableActionDto()
+    @SerialName("AccessHost")
+    data class AccessHost(override val index: Int,
+        override val actionType: String, val hostNames: List<String>) : AvailableActionDto()
 
     @Serializable
-    @SerialName("LogonToHost")
-    data class LogonToHost(override val index: Int,
-        override val actionType: String, val hostName: String) : AvailableActionDto()
+    @SerialName("SelectLocateTarget")
+    data class SelectLocateTarget(override val index: Int,
+        override val actionType: String, val operation: String, val candidates: List<String>) : AvailableActionDto()
 
     @Serializable
     @SerialName("GracefulLogoff")
@@ -58,9 +58,9 @@ fun List<AvailableAction>.toDto(): List<AvailableActionDto> =
 
 fun AvailableAction.toDto(index: Int): AvailableActionDto = when (this) {
     is AvailableAction.LogonToRtg    -> AvailableActionDto.LogonToRtg(index, actionType = actionType.name, rtgName = rtg.name)
-    is AvailableAction.LogonToLtg    -> AvailableActionDto.LogonToLtg(index, actionType = actionType.name, ltgName = ltg.name)
-    is AvailableAction.LogonToPltg   -> AvailableActionDto.LogonToPltg(index, actionType = actionType.name, pltgName = pltg.name)
-    is AvailableAction.LogonToHost   -> AvailableActionDto.LogonToHost(index, actionType = actionType.name, hostName = host.name)
+    is AvailableAction.AccessLtg     -> AvailableActionDto.AccessLtg(index, actionType = actionType.name, ltgNames = targets.map { it.name })
+    is AvailableAction.AccessHost    -> AvailableActionDto.AccessHost(index, actionType = actionType.name, hostNames = targets.map { it.name })
+    is AvailableAction.SelectLocateTarget -> AvailableActionDto.SelectLocateTarget(index, actionType = actionType.name, operation = operation.name, candidates = candidates)
     is AvailableAction.GracefulLogoff -> AvailableActionDto.GracefulLogoff(index, actionType = actionType.name)
     is AvailableAction.JackOut       -> AvailableActionDto.JackOut(index, actionType = actionType.name)
     is AvailableAction.Operation     -> AvailableActionDto.Operation(index, actionType = actionType.name,
@@ -70,7 +70,7 @@ fun AvailableAction.toDto(index: Int): AvailableActionDto = when (this) {
         paramKind = when (operation) {
             SystemOperation.LOCATE_FILE,
             SystemOperation.LOCATE_SLAVE,
-            SystemOperation.LOCATE_ACCESS_NODE -> "precision"
+            SystemOperation.LOCATE_ACCESS_NODE -> "query"
             SystemOperation.EDIT_FILE          -> "newContent"
             SystemOperation.UPLOAD_DATA        -> "dataSize"
             else                               -> null

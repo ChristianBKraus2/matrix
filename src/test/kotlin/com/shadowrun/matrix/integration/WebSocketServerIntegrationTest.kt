@@ -76,14 +76,14 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
             decker = deckerState("Kylie"),
             visibleObjects = emptyList(),
             availableActions = listOf(
-                AvailableActionDto.LogonToLtg(index = 0, actionType = "COMPLEX", ltgName = "UCAS-SEA")
+                AvailableActionDto.AccessLtg(index = 0, actionType = "COMPLEX", ltgNames = listOf("UCAS-SEA"))
             )
         ))
         val obj = receiveJson()
         val actionsEl = assertNotNull(obj["availableActions"], "availableActions must be present in state message")
         val actions = actionsEl.jsonArray
-        assertEquals("LogonToLtg", actions[0].jsonObject["kind"]?.jsonPrimitive?.content)
-        assertEquals("UCAS-SEA", actions[0].jsonObject["ltgName"]?.jsonPrimitive?.content)
+        assertEquals("AccessLtg", actions[0].jsonObject["kind"]?.jsonPrimitive?.content)
+        assertEquals("UCAS-SEA", actions[0].jsonObject["ltgNames"]?.jsonArray?.get(0)?.jsonPrimitive?.content)
     }
 
     @Test
@@ -103,7 +103,9 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
         val jackpoint = GridMock.getDefaultJackpoint()
         val decker = DeckerMock.build(jackpoint, DeckerMock.HIGH_END)
         val ltg = assertNotNull(jackpoint.connectsToLtg, "jackpoint must connect to an LTG")
+        // Ticket 06: Access is address-gated. Seed the four LTG addresses as if already located.
         val jackedInDecker = (decker.jackInToLtg(ltg, winRoller()) as LogonResult.Success).decker
+            .copy(knownAddresses = setOf("UCAS-SEA", "UCAS-CHI", "UCAS-NYC", "UCAS-BOS"))
         val context = buildDefaultContext(jackedInDecker)
         val controller = WebSocketDeckerController(registry, jackedInDecker, actionTimeoutSeconds = 5)
 
@@ -123,14 +125,17 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
         turn1.join(5000)
         assertFalse(turn1.isAlive, "turn1 did not terminate in time")
 
-        // Turn 2: now on UCAS RTG — all 4 LTGs must appear as available actions
+        // Turn 2: now on UCAS RTG — all 4 LTGs must appear inside a single AccessLtg action
         val turn2 = Thread { runBlocking { controller.conductTurn(context, winRoller()) } }.also { it.start() }
         incoming.receive() // active_controller
         val state2 = receiveJson()
         val availableActions2 = assertNotNull(state2["availableActions"], "state2 must contain availableActions")
         val ltgNames = availableActions2.jsonArray
-            .filter { it.jsonObject["kind"]?.jsonPrimitive?.content == "LogonToLtg" }
-            .map { assertNotNull(it.jsonObject["ltgName"], "ltgName must be present in LogonToLtg action").jsonPrimitive.content }
+            .filter { it.jsonObject["kind"]?.jsonPrimitive?.content == "AccessLtg" }
+            .flatMap { action ->
+                assertNotNull(action.jsonObject["ltgNames"], "ltgNames must be present in AccessLtg action")
+                    .jsonArray.map { it.jsonPrimitive.content }
+            }
         assertEquals(setOf("UCAS-SEA", "UCAS-CHI", "UCAS-NYC", "UCAS-BOS"), ltgNames.toSet())
 
         val jackOutIndex = availableActions2.jsonArray

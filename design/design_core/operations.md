@@ -63,25 +63,21 @@ data class AnalyzeHostResult(
 
 **File:** `src/main/kotlin/com/shadowrun/matrix/operations/OperationResult.kt`
 
-```kotlin
-sealed class LocatedTarget {
-    data class FileTarget(val file: DataFile) : LocatedTarget()
-    data class SlaveTarget(val device: RemoteDevice) : LocatedTarget()
-    data class AccessNodeTarget(val address: String) : LocatedTarget()
-}
-```
-
-Shared by Locate File, Locate Slave, and Locate Access Node (interrogation operations).
+Shared by Locate File, Locate Slave, and Locate Access Node. A single successful System Test reveals up to 5 candidate names matching the decker's regex query; the decker then chooses one via `Decker.selectLocateTarget(...)`.
 
 ```kotlin
 sealed class LocateResult {
-    /** Accumulated successes < threshold; still searching. */
-    data class Ongoing(val accumulatedSuccesses: Int) : LocateResult()
-    /** Accumulated successes ≥ threshold; target located. */
-    data class Located(val target: LocatedTarget, val accumulatedSuccesses: Int) : LocateResult()
-    /** Host confirmed it does not contain the queried data (≥ 3 successes). */
-    object NotFound : LocateResult()
+    /** Test succeeded; [names] are the ranked candidate names (≤ 5) the decker may choose from. */
+    data class Candidates(val names: List<String>) : LocateResult()
+    /** Test failed, or succeeded but nothing matched the query. */
+    object None : LocateResult()
 }
+```
+
+There is no `LocatedTarget` hierarchy and no `Ongoing` / `Located` / `NotFound` variants — locate no longer accumulates successes across turns. The transient candidate list is parked on the decker between the test and the selection:
+
+```kotlin
+data class PendingLocate(val operation: SystemOperation, val candidates: List<String>)
 ```
 
 ---
@@ -91,6 +87,8 @@ sealed class LocateResult {
 **File:** `src/main/kotlin/com/shadowrun/matrix/operations/InterrogationState.kt`
 
 Tracks accumulated successes across repeated attempts at the same interrogation operation. Held by the caller between turns.
+
+> **Ticket 06:** the Locate operations (Locate File / Slave / Access Node) no longer accumulate — they resolve in a single shot via `SystemTestResolver.resolveLocate(...)` and do not use `InterrogationState`. This type and `resolveInterrogation(...)` are retained for the general interrogation mechanic but are unused by the current locate operations.
 
 ```kotlin
 data class InterrogationState(
@@ -457,46 +455,70 @@ data class AnalyzeSecurityResult(
 
 ### Locate Operations (Interrogation)
 
-All three (`Locate Access Node`, `Locate File`, `Locate Slave`) share the interrogation mechanic. Each takes a `query` string — the search goal the decker states on the first call. On subsequent calls for the same operation the query is already stored in the `InterrogationState` and the parameter is ignored.
+All three (`Locate Access Node`, `Locate File`, `Locate Slave`) share the discovery-then-selection
+mechanic (ticket 06). Each takes a `query` string — a regex/glob search term. A **single** System Test
+resolves the search; there is no cross-turn accumulation and no per-operation success threshold. The
+decker no longer supplies a vagueness level — it is derived from the query shape.
 
 ```kotlin
-fun locateFile(
+fun Decker.locateFile(
     host: Host,
-    query: String,
-    precision: QueryPrecision,
-    diceRoller: DiceRoller
+    query: String = "",
+    diceRoller: DiceRoller,
+    hackingPoolDice: Int = 0
 ): Pair<OperationResult, LocateResult>
 
-fun locateSlave(
+fun Decker.locateSlave(
     host: Host,
-    query: String,
-    precision: QueryPrecision,
-    diceRoller: DiceRoller
+    query: String = "",
+    diceRoller: DiceRoller,
+    hackingPoolDice: Int = 0
 ): Pair<OperationResult, LocateResult>
 
-fun locateAccessNode(
+fun Decker.locateAccessNode(
     host: Host,
-    query: String,
-    precision: QueryPrecision,
-    diceRoller: DiceRoller
+    query: String = "",
+    diceRoller: DiceRoller,
+    hackingPoolDice: Int = 0
 ): Pair<OperationResult, LocateResult>
 ```
 
-**Location thresholds (PRD SO individual table):**
+(A grid-context `locateAccessNode(grid, query, diceRoller, hackingPoolDice)` overload exists too — see
+Grid-Context Variants below.) All four delegate to a private `Decker.runLocate(...)` helper.
 
-| Operation | Accumulated successes to locate |
-|---|---|
-| Locate File | ≥ 5 |
-| Locate Access Node | ≥ 5 |
-| Locate Slave | ≥ **3** |
+**Query-shape helpers** (`src/main/kotlin/com/shadowrun/matrix/operations/LocateMatching.kt`):
 
-**Algorithm:**
-1. If no existing `InterrogationState` for this operation, create one with the provided `query`. If `query` is blank on a first call, the server rejects with `bad_request`.
-2. Call `SystemTestResolver.resolveInterrogation(...)` → `(outcome, newState)`.
-   - Net successes per turn = `deckerSuccesses − hostSuccesses`. A negative net contributes **0** — accumulated successes never decrease (SO-06).
-3. If `newState.accumulatedSuccesses >= threshold` (see table above): target located → `OperationResult.Success`.
-4. If `newState.accumulatedSuccesses >= 3` and target does not exist on this host: reveal "not found".
-5. Otherwise: `OperationResult.Failure` (still searching; caller updates `state`).
+- `queryPrecisionFromRegex(query): QueryPrecision` — derives the TN modifier from the query shape: a
+  full literal name → `VERY_SPECIFIC` (−2); a fragment wrapped in wildcards (`*frag*` / `.*frag.*`) or a
+  blank query → `VERY_VAGUE` (+2); a mostly-literal trailing wildcard (e.g. `Mitsuhama*`) → `VAGUE`.
+- `rankMatches(query, candidates): List<String>` — compiles `query` as a case-insensitive regex (glob
+  fallback for `*frag*`; invalid regex → empty list), keeps `containsMatchIn` hits, ranks exact
+  `matchEntire` first, then shortest, then alphabetical, and caps the result at **5** names.
+
+**Single-shot resolver.** `SystemTestResolver.resolveLocate(...)` runs one Locate test. The shared TN
+math (utility reduction first, then the derived precision modifier, each floored at TN 2) lives in the
+private `interrogationTn(...)`.
+
+**Algorithm** (`runLocate`):
+1. Require a non-blank `query` and that the decker is jacked in.
+2. `precision = queryPrecisionFromRegex(query)`; resolve `SystemTestResolver.resolveLocate(...)` → `outcome`.
+3. Add `outcome.hostSuccesses` to the security tally.
+4. On a decker win, `rankMatches(query, candidatePool)`:
+   - candidate pool is: host access-node → `connectedHosts` names; file → `dataFiles` names;
+     slave → `remoteDevices` names; grid → RTG:`ltgs`, LTG:`hosts`+`pltgs`, PLTG:`hosts`.
+   - if ≥ 1 match: park the names in `Decker.pendingLocate` and return `LocateResult.Candidates(names)`.
+   - otherwise return `LocateResult.None`.
+5. On a loss, return `LocateResult.None`.
+6. `OperationResult` is `Success` on a decker win, `Failure` otherwise.
+
+**Selection.** `Decker.selectLocateTarget(targetName: String): Decker` validates the pick against
+`pendingLocate.candidates`, then stores it and clears `pendingLocate`:
+- `LOCATE_ACCESS_NODE` → adds `targetName` to `knownAddresses`.
+- `LOCATE_FILE` / `LOCATE_SLAVE` → stores the host-qualified key `"<hostName>::<targetName>"` in
+  `locatedFiles` / `locatedSlaves` (requires the decker to be on a host).
+
+**Cancel.** `Decker.cancelLocateSelection(): Decker` clears `pendingLocate` without storing anything
+(used when the player dismisses the selection modal); a no-op if nothing is pending.
 
 ---
 
@@ -844,20 +866,20 @@ Returns the grid's current `SecurityRating`, the accumulated tally after this te
 Uses `grid.subsystemRatings.access` as TN and `grid.securityRating.value` as Security Value.
 Resolves `DECRYPT_ACCESS` against the grid's access subsystem.
 
-### `locateAccessNode(grid: Grid, query: String, precision: QueryPrecision, diceRoller: DiceRoller): Pair<OperationResult, LocateResult>`
+### `locateAccessNode(grid: Grid, query: String, diceRoller: DiceRoller, hackingPoolDice: Int = 0): Pair<OperationResult, LocateResult>`
 
-Interrogation operation. Uses `grid.subsystemRatings.index` implicitly via
-`SystemTestResolver.resolveInterrogation`. The "accessible host" pool used to evaluate
-`nodeExists` is:
+Interrogation operation. Uses `grid.subsystemRatings.index` and resolves via the single-shot
+`SystemTestResolver.resolveLocate`. The candidate pool ranked by `rankMatches(query, …)` is:
 
 | Grid type | Pool |
 |---|---|
-| `LTG`  | `ltg.hosts` |
-| `RTG`  | all hosts across all child `LTG`s |
-| `PLTG` | `pltg.hosts` |
+| `LTG`  | `ltg.hosts` names + `ltg.pltgs` names |
+| `RTG`  | `rtg.ltgs` names |
+| `PLTG` | `pltg.hosts` names |
 
-Thresholds and accumulated-success rules are identical to the host-context variant (≥ 5 to locate,
-≥ 3 with absent target → `NotFound`).
+Behaviour is identical to the host-context variant: on a decker win with ≥ 1 match, the top-5 names are
+parked in `pendingLocate` and returned as `LocateResult.Candidates`; otherwise `LocateResult.None`.
+There are no accumulated-success thresholds.
 
 ### `locateIc(grid: Grid, diceRoller: DiceRoller): OperationResult`
 
@@ -877,11 +899,12 @@ Resolves `LOCATE_IC` against the grid.
 | `noticeIcon` vs. decker Masking 6 + Sleaze 4 = TN 10, Sensor 3 | High TN; most rolls → `Undetected` |
 | `noticeTriggeredIc`: 1 success | `PresenceOnly` — GM tells decker IC was triggered |
 | `noticeTriggeredIc`: 3 successes | `FullyLocated` — type and rating revealed |
-| `locateFile` accumulates 3 successes, file not on host | `NotFound` returned |
-| `locateFile` accumulates 5 successes | `LocateResult.Located` returned |
-| `locateSlave` accumulates 3 successes | `LocateResult.Located` (slave threshold = 3, not 5) |
-| Very vague query on `locateFile` | TN +2 applied before subsystem rating reduction |
-| Very specific query | TN −2 applied |
+| `locateFile` win, query matches no file | `LocateResult.None` returned |
+| `locateFile` win, query matches ≥ 1 file | `LocateResult.Candidates(names)` (≤ 5), parked in `pendingLocate` |
+| `locateSlave` win with matches | `LocateResult.Candidates` (same single-shot mechanic — no separate slave threshold) |
+| Very vague query (`*frag*`) on `locateFile` | `queryPrecisionFromRegex` → `VERY_VAGUE`; TN +2 applied before subsystem rating reduction |
+| Very specific query (full literal name) | `VERY_SPECIFIC`; TN −2 applied |
+| `selectLocateTarget` for a located access node | chosen name added to `knownAddresses`; `pendingLocate` cleared |
 | `analyzeHost` with 7 net successes | All 6 ratings revealed |
 | `analyzeIcon` with Sensor 4 + Analyze 6 = 10 | Effective TN = max(2, control − 10) = 2 (floor enforced) |
 | `nullOperation` with 90-second inactivity | Host Security Value +2 applied |

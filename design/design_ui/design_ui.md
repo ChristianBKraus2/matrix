@@ -171,9 +171,10 @@ export interface JoinMessage {
 
 export interface ActionParams {
   newContent?: string | null;
-  precision?: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC';
   inactivitySeconds?: number;
-  query?: string;  // search query string for LOCATE_ACCESS_NODE
+  query?: string;       // search term (regex accepted) for LOCATE_FILE / LOCATE_SLAVE / LOCATE_ACCESS_NODE — no precision; the server derives vagueness from the query shape
+  dataSize?: number;    // Mp for UPLOAD_DATA
+  targetName?: string;  // chosen name for AccessLtg / AccessHost / SelectLocateTarget (empty cancels a SelectLocateTarget)
 }
 
 export interface ActionCommand {
@@ -215,6 +216,7 @@ export interface DeckerStateDto {
   sensor: number;
   activeUtilities: ActiveUtility[];
   locationIndex: number | null;  // index into visibleObjects for the current location; null when not jacked in; currently always 0 when jacked in (stub)
+  knownAddresses: string[];      // full names of LTGs/PLTGs/hosts the decker may access; gates the AccessLtg / AccessHost actions
 }
 
 export type AlertStatus = 'NO_ALERT' | 'PASSIVE_ALERT' | 'ACTIVE_ALERT';
@@ -236,12 +238,12 @@ export type ActionType = 'FREE' | 'SIMPLE' | 'COMPLEX';
 
 export type AvailableActionDto =
   | { kind: 'LogonToRtg';    index: number; actionType: ActionType; rtgName: string }
-  | { kind: 'LogonToLtg';    index: number; actionType: ActionType; ltgName: string }
-  | { kind: 'LogonToPltg';   index: number; actionType: ActionType; pltgName: string }
-  | { kind: 'LogonToHost';   index: number; actionType: ActionType; hostName: string }
+  | { kind: 'AccessLtg';     index: number; actionType: ActionType; ltgNames: string[] }
+  | { kind: 'AccessHost';    index: number; actionType: ActionType; hostNames: string[] }
+  | { kind: 'SelectLocateTarget'; index: number; actionType: ActionType; operation: SystemOperation; candidates: string[] }
   | { kind: 'GracefulLogoff';index: number; actionType: ActionType }
   | { kind: 'JackOut';       index: number; actionType: ActionType }
-  | { kind: 'Operation';     index: number; actionType: ActionType; operation: SystemOperation; targetKind: string | null; targetName: string | null; paramKind: "precision" | "newContent" | "dataSize" | null };
+  | { kind: 'Operation';     index: number; actionType: ActionType; operation: SystemOperation; targetKind: string | null; targetName: string | null; paramKind: "query" | "newContent" | "dataSize" | null };
 
 export interface StateMessage {
   type: 'state';
@@ -390,7 +392,7 @@ The `paramKind` field on `Operation` actions declares which inline control (if a
 
 | `paramKind` | Control |
 |---|---|
-| `"precision"` | Text input (SEARCH TERM) + five-position selector |
+| `"query"` | Text input (SEARCH TERM); no precision selector |
 | `"newContent"` | Text area |
 | `"dataSize"` | Numeric stepper (Mp) |
 | `null` | *(no inline control)* |
@@ -399,8 +401,13 @@ Full inline control specs per operation:
 
 | Operation | Control |
 |---|---|
-| `LOCATE_FILE` / `LOCATE_SLAVE` / `LOCATE_ACCESS_NODE` | Text input `[SEARCH TERM]` (blank on new operation, ignored on continuation) + five-position selector `[VERY VAGUE]` / `[VAGUE]` / `[NORMAL]` / `[SPECIFIC]` / `[VERY SPECIFIC]` — NORMAL selected by default |
+| `LOCATE_FILE` / `LOCATE_SLAVE` / `LOCATE_ACCESS_NODE` | Single text input `[SEARCH TERM]` (regex accepted) with the hint *"Vagueness is derived from the query shape"* — no precision selector. Sent as `query`. |
 | `EDIT_FILE` | Text area that expands when the card is focused; empty = erase file |
+
+**Non-`Operation` action cards with input:**
+
+- `AccessLtg` / `AccessHost` — a dropdown (`<select>`) of `ltgNames` / `hostNames` plus a CONFIRM button. Pressing CONFIRM sends `{ targetName }`. These replace the old per-target `LogonToLtg` / `LogonToPltg` / `LogonToHost` cards; only reachable targets whose address is in `knownAddresses` appear.
+- `SelectLocateTarget` — **not** rendered as an inline card. It is a **modal dialog** (`SelectLocateModal.tsx`) with a fixed-size list of **exactly 5 rows**: real `candidates` are clickable rows (clicking one selects it immediately and sends `{ targetName }` — no dropdown, no confirm), and any remaining rows are inert empty padding so the dialog never resizes. Esc or a backdrop click dismisses it with empty params, causing the server to call `cancelLocateSelection()`.
 
 `MAKE_COMCALL` and `TAP_COMCALL` render no inline control (`paramKind: null`): `MAKE_COMCALL` takes no
 params and just runs a System Test, and `TAP_COMCALL`'s dataline-scanner rating is resolved

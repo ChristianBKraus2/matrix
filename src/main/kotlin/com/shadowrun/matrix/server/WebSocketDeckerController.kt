@@ -28,7 +28,6 @@ import com.shadowrun.matrix.operations.Icon
 import com.shadowrun.matrix.operations.MatrixObject
 import com.shadowrun.matrix.operations.MonitoredOperationHandle
 import com.shadowrun.matrix.operations.OperationResult
-import com.shadowrun.matrix.operations.QueryPrecision
 import com.shadowrun.matrix.operations.SystemOperation
 import com.shadowrun.matrix.server.dto.ActionCommand
 import com.shadowrun.matrix.server.dto.MatrixJson
@@ -207,9 +206,35 @@ class WebSocketDeckerController(
         val host = (decker.currentLocation as? MatrixLocation.OnHost)?.host
         return when (action) {
             is AvailableAction.LogonToRtg     -> decker.logonToRtg(action.rtg, diceRoller).toDispatch()
-            is AvailableAction.LogonToLtg     -> decker.logonToLtg(action.ltg, diceRoller).toDispatch()
-            is AvailableAction.LogonToPltg    -> decker.logonToPltg(action.pltg, diceRoller).toDispatch()
-            is AvailableAction.LogonToHost    -> decker.logonToHost(action.host, diceRoller).toDispatch()
+            is AvailableAction.AccessLtg      -> {
+                val targetName = cmd.params?.targetName
+                    ?: return DispatchResult(decker, false, 0, 0, "Access LTG requires a target selection")
+                when (val target = action.targets.firstOrNull { it.name == targetName }) {
+                    is LTG  -> decker.logonToLtg(target, diceRoller).toDispatch()
+                    is PLTG -> decker.logonToPltg(target, diceRoller).toDispatch()
+                    else    -> DispatchResult(decker, false, 0, 0, "\"$targetName\" is not an accessible LTG/PLTG")
+                }
+            }
+            is AvailableAction.AccessHost     -> {
+                val targetName = cmd.params?.targetName
+                    ?: return DispatchResult(decker, false, 0, 0, "Access Host requires a target selection")
+                val target = action.targets.firstOrNull { it.name == targetName }
+                    ?: return DispatchResult(decker, false, 0, 0, "\"$targetName\" is not an accessible host")
+                decker.logonToHost(target, diceRoller).toDispatch()
+            }
+            is AvailableAction.SelectLocateTarget -> {
+                // Ticket 06: a blank/absent target name means the decker dismissed the selection
+                // modal — discard the pending candidates without storing any address.
+                val targetName = cmd.params?.targetName?.takeIf { it.isNotBlank() }
+                if (targetName == null) {
+                    DispatchResult(decker.cancelLocateSelection(), true, 0, 0, "Locate selection cancelled")
+                } else {
+                    if (targetName !in action.candidates)
+                        return DispatchResult(decker, false, 0, 0, "\"$targetName\" is not among the located candidates")
+                    val updated = decker.selectLocateTarget(targetName)
+                    DispatchResult(updated, true, 0, 0, "Stored $targetName (${action.operation})")
+                }
+            }
             is AvailableAction.GracefulLogoff -> {
                 val preLogoffSecRating = decker.currentLocation?.securityRating()
                 decker.gracefulLogoff(diceRoller).toDispatch(preLogoffSecRating, diceRoller)
@@ -254,12 +279,6 @@ class WebSocketDeckerController(
         diceRoller: DiceRoller,
         poolDice: Int
     ): DispatchResult {
-        val gridTag = when (decker.currentLocation) {
-            is MatrixLocation.OnLTG  -> "LTG"
-            is MatrixLocation.OnRTG  -> "RTG"
-            is MatrixLocation.OnPLTG -> "PLTG"
-            else -> null
-        }
         val grid = when (val loc = decker.currentLocation) {
             is MatrixLocation.OnLTG  -> loc.ltg
             is MatrixLocation.OnRTG  -> loc.rtg
@@ -272,9 +291,9 @@ class WebSocketDeckerController(
             SystemOperation.RELOCATE_ICON  -> DispatchResult(decker, false, 0, 0, "RELOCATE_ICON requires a host context")
             SystemOperation.LOCATE_ACCESS_NODE -> {
                 val query = p?.query?.trim() ?: ""
-                if (query.isBlank() && decker.interrogationStates["LOCATE_ACCESS_NODE@$gridTag"] == null)
-                    return DispatchResult(decker, false, 0, 0, "LOCATE_ACCESS_NODE requires a search term on the first call")
-                val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateAccessNode(grid, q, prec, diceRoller, poolDice) }
+                if (query.isBlank())
+                    return DispatchResult(decker, false, 0, 0, "LOCATE_ACCESS_NODE requires a search term")
+                val (opResult, locateResult) = decker.locateAccessNode(grid, query, diceRoller, poolDice)
                 opResult.toDispatch(locateResult.label())
             }
             SystemOperation.ANALYZE_SECURITY -> decker.analyzeSecurity(grid, diceRoller, poolDice).toDispatch()
@@ -349,21 +368,21 @@ class WebSocketDeckerController(
         val query = p?.query?.trim() ?: ""
         return when (action.operation) {
             SystemOperation.LOCATE_FILE -> {
-                if (query.isBlank() && decker.interrogationStates["LOCATE_FILE@HOST"] == null)
-                    return DispatchResult(decker, false, 0, 0, "LOCATE_FILE requires a search term on the first call")
-                val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateFile(host, q, prec, diceRoller, poolDice) }
+                if (query.isBlank())
+                    return DispatchResult(decker, false, 0, 0, "LOCATE_FILE requires a search term")
+                val (opResult, locateResult) = decker.locateFile(host, query, diceRoller, poolDice)
                 opResult.toDispatch(locateResult.label())
             }
             SystemOperation.LOCATE_SLAVE -> {
-                if (query.isBlank() && decker.interrogationStates["LOCATE_SLAVE@HOST"] == null)
-                    return DispatchResult(decker, false, 0, 0, "LOCATE_SLAVE requires a search term on the first call")
-                val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateSlave(host, q, prec, diceRoller, poolDice) }
+                if (query.isBlank())
+                    return DispatchResult(decker, false, 0, 0, "LOCATE_SLAVE requires a search term")
+                val (opResult, locateResult) = decker.locateSlave(host, query, diceRoller, poolDice)
                 opResult.toDispatch(locateResult.label())
             }
             SystemOperation.LOCATE_ACCESS_NODE -> {
-                if (query.isBlank() && decker.interrogationStates["LOCATE_ACCESS_NODE@HOST"] == null)
-                    return DispatchResult(decker, false, 0, 0, "LOCATE_ACCESS_NODE requires a search term on the first call")
-                val (opResult, locateResult) = locateWithState(p) { prec, q -> decker.locateAccessNode(host, q, prec, diceRoller, poolDice) }
+                if (query.isBlank())
+                    return DispatchResult(decker, false, 0, 0, "LOCATE_ACCESS_NODE requires a search term")
+                val (opResult, locateResult) = decker.locateAccessNode(host, query, diceRoller, poolDice)
                 opResult.toDispatch(locateResult.label())
             }
             SystemOperation.LOCATE_IC     -> decker.locateIc(host, diceRoller, poolDice).toDispatch()
@@ -484,15 +503,6 @@ class WebSocketDeckerController(
         return decker.relocateIcon(host, diceRoller, poolDice).toDispatch()
     }
 
-    private fun locateWithState(
-        params: com.shadowrun.matrix.server.dto.ActionParams?,
-        call: (QueryPrecision, String) -> Pair<OperationResult, LocateResult>
-    ): Pair<OperationResult, LocateResult> {
-        val precision = params?.precision?.let { runCatching { QueryPrecision.valueOf(it) }.getOrNull() } ?: QueryPrecision.NORMAL
-        val query = params?.query?.trim() ?: ""
-        return call(precision, query)
-    }
-
     private fun MatrixLocation.securityRating(): SecurityRating = when (this) {
         is MatrixLocation.OnHost -> host.securityRating
         is MatrixLocation.OnRTG  -> rtg.securityRating
@@ -553,9 +563,8 @@ class WebSocketDeckerController(
 
 
     private fun LocateResult.label() = when (this) {
-        is LocateResult.Ongoing  -> "ongoing (${accumulatedSuccesses} accumulated)"
-        is LocateResult.Located  -> "located!"
-        LocateResult.NotFound    -> "not found"
+        is LocateResult.Candidates -> "candidates: ${names.joinToString(", ")}"
+        LocateResult.None          -> "no matches"
     }
 
     private fun MedicResult.toDispatch() = DispatchResult(

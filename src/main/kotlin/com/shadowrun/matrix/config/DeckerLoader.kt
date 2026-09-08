@@ -29,6 +29,10 @@ object DeckerLoader {
     private fun buildDecker(data: Map<String, Any>, catalog: List<DeckCatalogEntry>): Decker {
         val deckData = data["cyberdeck"] as Map<String, Any>
         val cyberdeck = buildCyberdeck(deckData, catalog)
+        val knownAddresses = (data["known_addresses"] as? List<Any?>)
+            ?.mapNotNull { it?.toString() }
+            ?.toSet()
+            ?: emptySet()
         return Decker(
             name           = data["name"] as String,
             intelligence   = (data["intelligence"] as Int),
@@ -36,7 +40,8 @@ object DeckerLoader {
             willpower      = (data["willpower"] as Int),
             reaction       = (data["reaction"] as Int),
             computerSkill  = (data["computer_skill"] as Int),
-            cyberdeck      = cyberdeck
+            cyberdeck      = cyberdeck,
+            knownAddresses = knownAddresses
         )
     }
 

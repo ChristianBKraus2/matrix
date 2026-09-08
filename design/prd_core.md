@@ -282,16 +282,16 @@ Every system operation belongs to one of three categories:
 
 #### Interrogation Operations
 
-- SO-05: Interrogation operations involve a "dialogue" with the system to locate specific data. The decker may need to repeat the operation more than once.
-- SO-06: Keep a running total of the decker's **net successes** across all attempts at the same interrogation. When the total reaches **5 or more**, the decker has located the objective. The GM may independently assign a different success threshold or reveal data incrementally at specific totals.
-- SO-07: **Query precision modifiers** to the target number:
-  - Vague or general query: **+1** TN modifier.
-  - Extremely vague query: **+2** TN modifier.
-  - Well-phrased, insightful, or very relevant query: **–1** or **–2** TN modifier.
-- SO-08: If the host **does not contain** the queried information, the GM reveals this after the decker achieves **3 or more successes**.
+- SO-05: Interrogation operations locate specific data by name. The decker supplies a **search query** (a regex/glob expression describing the target); a **single System Test** resolves the search. There is no multi-turn dialogue and no cross-turn accumulation of successes.
+- SO-06: On a decker win the system returns the **top matching names** (capped at 5), ranked exact-match first, then shortest, then alphabetical. The decker then **chooses one** of the returned names; the chosen name — the target's full address/identifier — is stored on the decker (see the access-gating notes below). A loss, or a win whose query matches no name, returns nothing.
+- SO-07: **Query precision is derived by the system from the shape of the query** — the decker no longer supplies a vagueness level. The derived precision applies a TN modifier:
+  - A full literal name → very specific: **−2** TN modifier.
+  - A mostly-literal query with a trailing wildcard (e.g. `Mitsuhama*`) → vague.
+  - A bare fragment wrapped in wildcards (e.g. `*frag*`) or a blank query → very vague: **+2** TN modifier.
+- SO-08: If the query matches no target on the host/grid, the search simply returns no candidates.
 - SO-09: A successful interrogation may yield only a pointer to a file on another host (see Distributed Databases SO-03/SO-04).
 
-The following operations are interrogation operations: **Locate Access Node**, **Locate File**, **Locate Slave**.
+The following operations are interrogation operations: **Locate Access Node**, **Locate File**, **Locate Slave**. All three behave uniformly — there is no longer a per-operation success threshold (the old "Locate Slave needs fewer successes" distinction is gone).
 
 #### Ongoing Operations
 
@@ -328,11 +328,11 @@ Each operation entry: **Test** (subsystem), **Utility** (reduces TN), **Action t
 | Edit Slave | Slave | Spoof | Complex | Modifies data sent to/from a remote device (e.g., fake camera feeds). Monitored operation. |
 | Graceful Logoff | Access | Deception | Complex | Disconnects cleanly; no dump shock. On success, clears all traces from host security/memory. Track utility in location cycle adds its rating to TN. |
 | Invoke Medic | Control | Medic | Complex | Repairs the decker's icon Condition Monitor. Not a System Test — no host roll. Roll Medic Rating dice; TN by current icon damage: Light → 4, Moderate → 5, Serious → 6. Each success repairs 1 box. Medic `currentRating` decreases by 1 per invocation regardless of outcome. Requires Medic utility in active memory. |
-| Locate Access Node | Index | Browse | Complex | Finds LTG codes, host addresses, and commcodes for regular telecom calls (directory assistance). Interrogation operation. TN modifier: vague query +1, specific −1. Once a decker has located an LTG code or host address, she need not repeat this operation in future (unless the owner changes the address). |
+| Locate Access Node | Index | Browse | Complex | Finds LTG codes and host addresses. Interrogation operation: the decker supplies a search query (regex), a single test returns up to 5 matching names, and the decker picks one. The chosen address is stored in the decker's **known addresses** and is required before Access LTG / Access Host will offer that target (strict address gating). Query precision (TN modifier) is derived from the query shape. |
 | Locate Decker | Index | Scanner | Complex | Two-step: System Test then open-ended Sensor Test. Locates deckers whose Masking ≤ Sensor Test result (add target's Sleaze to their Masking). Sensor TN minimum is 2. |
-| Locate File | Index | Browse | Complex | Finds specific datafiles. Interrogation operation. Decker must have a specific search goal. |
+| Locate File | Index | Browse | Complex | Finds specific datafiles. Interrogation operation: a search query returns up to 5 matching file names, from which the decker picks one. A file must be located this way before Download Data / Edit File / Decrypt File will offer it. |
 | Locate IC | Index | Analyze | Complex | Like Locate Decker but for IC; auto-locates on System Test success (no Sensor Test needed). |
-| Locate Slave | Index | Browse | Complex | Like Locate File but for remote devices. Requires only **3 successes** (not 5) to locate a slave. Interrogation operation. |
+| Locate Slave | Index | Browse | Complex | Like Locate File but for remote devices. Interrogation operation: a search query returns up to 5 matching device names, from which the decker picks one. A slave must be located this way before Control Slave / Edit Slave / Monitor Slave will offer it. |
 | Logon to Host | Access | Deception | Complex | Standard System Test. Decker learns Access Rating on first attempt. Security tally starts accumulating on this test. |
 | Logon to LTG | Access | Deception | Complex | System Test vs. LTG Access Rating. Failed attempt leaves tally on LTG for ~1D3×5 minutes; switching jackpoints starts fresh tally. |
 | Logon to RTG | Access | Deception | Complex | System Test vs. RTG Access Rating. Required to move between LTGs or between RTGs. |

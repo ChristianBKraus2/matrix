@@ -55,6 +55,14 @@ data class Decker(
     val analyzedIcNames: Set<String> = emptySet(),
     val analyzeSecuritySystems: Set<String> = emptySet(),
     val knownPasscodes: Set<String> = emptySet(),
+    /** LTG/PLTG/host names the decker has stored an address for and may Access (ticket 06, persisted). */
+    val knownAddresses: Set<String> = emptySet(),
+    /** Host-qualified keys `"<hostName>::<fileName>"` of files revealed by Locate File (run-scoped). */
+    val locatedFiles: Set<String> = emptySet(),
+    /** Host-qualified keys `"<hostName>::<deviceName>"` of slaves revealed by Locate Slave (run-scoped). */
+    val locatedSlaves: Set<String> = emptySet(),
+    /** Candidates from the most recent successful Locate, awaiting the decker's selection (ticket 06). */
+    val pendingLocate: com.shadowrun.matrix.operations.PendingLocate? = null,
     val hackingPoolUsed: Int = 0,
     val evadeDetectionStates: List<EvadeDetectionState> = emptyList()
 ) : ActiveIcon {
@@ -150,30 +158,40 @@ data class Decker(
             add(AvailableAction.GracefulLogoff())
             add(AvailableAction.JackOut())
 
+            pendingLocate?.let { add(AvailableAction.SelectLocateTarget(it.operation, it.candidates)) }
+
             when (val loc = currentLocation) {
                 null -> Unit
 
                 is MatrixLocation.OnRTG -> {
                     loc.rtg.connectedRtgs.forEach { add(AvailableAction.LogonToRtg(it)) }
-                    loc.rtg.ltgs.forEach { add(AvailableAction.LogonToLtg(it)) }
+                    // Access is gated to LTGs whose address the decker has stored (ticket 06).
+                    val ltgs = loc.rtg.ltgs.filter { it.name in knownAddresses }
+                    if (ltgs.isNotEmpty()) add(AvailableAction.AccessLtg(ltgs))
                     addGridSystemActions()
                 }
 
                 is MatrixLocation.OnLTG -> {
                     add(AvailableAction.LogonToRtg(loc.ltg.parentRtg))
-                    loc.ltg.pltgs.forEach { add(AvailableAction.LogonToPltg(it)) }
-                    loc.ltg.hosts.forEach { add(AvailableAction.LogonToHost(it)) }
+                    val ltgTargets = loc.ltg.pltgs.filter { it.name in knownAddresses }
+                    if (ltgTargets.isNotEmpty()) add(AvailableAction.AccessLtg(ltgTargets))
+                    val hostTargets = loc.ltg.hosts.filter { it.name in knownAddresses }
+                    if (hostTargets.isNotEmpty()) add(AvailableAction.AccessHost(hostTargets))
                     addGridSystemActions()
                 }
 
                 is MatrixLocation.OnPLTG -> {
-                    add(AvailableAction.LogonToLtg(loc.pltg.parentLtg))
-                    loc.pltg.hosts.forEach { add(AvailableAction.LogonToHost(it)) }
+                    // Navigating back up to the parent LTG is still address-gated (ticket 06).
+                    val ltgTargets = listOf(loc.pltg.parentLtg).filter { it.name in knownAddresses }
+                    if (ltgTargets.isNotEmpty()) add(AvailableAction.AccessLtg(ltgTargets))
+                    val hostTargets = loc.pltg.hosts.filter { it.name in knownAddresses }
+                    if (hostTargets.isNotEmpty()) add(AvailableAction.AccessHost(hostTargets))
                     addGridSystemActions()
                 }
 
                 is MatrixLocation.OnHost -> {
-                    loc.host.connectedHosts.forEach { add(AvailableAction.LogonToHost(it)) }
+                    val hostTargets = loc.host.connectedHosts.filter { it.name in knownAddresses }
+                    if (hostTargets.isNotEmpty()) add(AvailableAction.AccessHost(hostTargets))
                     addHostSystemActions(loc.host)
                 }
             }
@@ -213,7 +231,9 @@ data class Decker(
             add(AvailableAction.Operation(SystemOperation.ANALYZE_IC, obj))
             add(AvailableAction.Operation(SystemOperation.ANALYZE_ICON, obj))
         }
+        // File/slave operations gate to targets revealed via Locate File / Locate Slave (ticket 06).
         host.dataFiles.forEach {
+            if ("${host.name}::${it.name}" !in locatedFiles) return@forEach
             val obj = MatrixObject.File(it)
             if (!it.isScrambleProtected) {
                 add(AvailableAction.Operation(SystemOperation.DOWNLOAD_DATA, obj))
@@ -222,6 +242,7 @@ data class Decker(
             if (it.isScrambleProtected) add(AvailableAction.Operation(SystemOperation.DECRYPT_FILE, obj))
         }
         host.remoteDevices.forEach {
+            if ("${host.name}::${it.name}" !in locatedSlaves) return@forEach
             val obj = MatrixObject.Device(it)
             add(AvailableAction.Operation(SystemOperation.CONTROL_SLAVE, obj))
             add(AvailableAction.Operation(SystemOperation.EDIT_SLAVE, obj))

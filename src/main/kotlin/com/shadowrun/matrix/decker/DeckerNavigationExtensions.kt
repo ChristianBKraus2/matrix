@@ -260,12 +260,12 @@ fun Decker.gracefulLogoff(diceRoller: DiceRoller): LogoffResult {
     if (trackPenalty > 0) logger.info { "[$name] gracefulLogoff: Track penalty +$trackPenalty applied to TN" }
     val outcome = SystemTestResolver.resolve(this, SystemOperation.GRACEFUL_LOGOFF, effectiveTn, securityValue, diceRoller)
     return if (outcome.deckerWins) {
-        LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet(), analyzedIcNames = emptySet(), analyzeSecuritySystems = emptySet())).also {
+        LogoffResult.GracefulSuccess(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet(), analyzedIcNames = emptySet(), analyzeSecuritySystems = emptySet(), pendingLocate = null)).also {
             logger.info { "[$name] gracefulLogoff succeeded: traces cleared, no dump shock" }
         }
     } else {
         val shock = !cyberdeck.isCyberterminal
-        LogoffResult.JackOut(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet(), analyzedIcNames = emptySet(), analyzeSecuritySystems = emptySet()), dumpShock = shock).also {
+        LogoffResult.JackOut(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet(), analyzedIcNames = emptySet(), analyzeSecuritySystems = emptySet(), pendingLocate = null), dumpShock = shock).also {
             logger.warn { "[$name] gracefulLogoff failed: falling back to jack-out (dumpShock=$shock)" }
         }
     }
@@ -277,7 +277,7 @@ fun Decker.jackOut(): LogoffResult {
     requireJackedIn()
     check(!isPinnedByBlackIc) { "Cannot jack out while pinned by Black IC" }
     val shock = !cyberdeck.isCyberterminal
-    return LogoffResult.JackOut(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet()), dumpShock = shock).also {
+    return LogoffResult.JackOut(copy(persona = null, currentLocation = null, blackIcPin = null, interrogationStates = emptyMap(), detectedIcons = emptySet(), pendingLocate = null), dumpShock = shock).also {
         logger.info { "[$name] jackOut complete: dumpShock=$shock" }
     }
 }
@@ -286,6 +286,10 @@ fun Decker.jackOut(): LogoffResult {
 
 private fun Decker.requireNotJackedIn() =
     check(persona == null && currentLocation == null) { "Decker is already jacked in" }
+
+/** Any node you successfully log onto becomes an address you know (ticket 06). Blank names are ignored. */
+private fun Decker.seedKnownAddress(targetName: String): Set<String> =
+    if (targetName.isNotBlank()) knownAddresses + targetName else knownAddresses
 
 private fun Decker.requireJackpoint() =
     checkNotNull(jackpoint) { "Decker has no jackpoint set" }
@@ -317,7 +321,7 @@ private fun Decker.performLogon(
                 status = com.shadowrun.matrix.common.PersonaStatus.LEGITIMATE
             )
         }
-        return LogonResult.Success(copy(persona = newPersona, currentLocation = newLocation), newLocation,
+        return LogonResult.Success(copy(persona = newPersona, currentLocation = newLocation, knownAddresses = seedKnownAddress(targetName)), newLocation,
             deckerSuccesses = 0, hostSuccesses = 0)
     }
     val outcome = SystemTestResolver.resolve(this, operation, accessRating, securityValue, diceRoller)
@@ -340,7 +344,7 @@ private fun Decker.performLogon(
                 status = com.shadowrun.matrix.common.PersonaStatus.INTRUDING
             )
         }
-        LogonResult.Success(copy(persona = newPersona, currentLocation = newLocation), newLocation,
+        LogonResult.Success(copy(persona = newPersona, currentLocation = newLocation, knownAddresses = seedKnownAddress(targetName)), newLocation,
             deckerSuccesses = outcome.deckerSuccesses, hostSuccesses = outcome.hostSuccesses)
     } else {
         LogonResult.Failure(withDestinationTallyEmbedded(newLocation), newLocation,

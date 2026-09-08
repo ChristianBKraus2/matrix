@@ -133,7 +133,7 @@ Each entry in `availableActions` becomes one card in the Bottom area. The card d
 
 The following actions are fully determined by pressing the card alone:
 
-- **Navigation** (excluded from general analysis — handled separately): `LogonToRtg`, `LogonToLtg`, `LogonToPltg`, `LogonToHost`
+- **Navigation** (excluded from general analysis — handled separately): `LogonToRtg` (per-target, ungated RTG backbone). The former per-target `LogonToLtg` / `LogonToPltg` / `LogonToHost` cards no longer exist — see `AccessLtg` / `AccessHost` below.
 - **Exit actions**: `GracefulLogoff`, `JackOut`
 - **All `Operation` actions** where `params` is ignored by the server — this covers the majority of operations: `ANALYZE_HOST`, `ANALYZE_IC`, `ANALYZE_ICON`, `ANALYZE_SECURITY`, `ANALYZE_SUBSYSTEM`, `CONTROL_SLAVE`, `DECRYPT_ACCESS`, `DECRYPT_FILE`, `DECRYPT_SLAVE`, `DOWNLOAD_DATA`, `EDIT_SLAVE`, `GRACEFUL_LOGOFF`, `INVOKE_MEDIC`, `LOCATE_IC`, `MAKE_COMCALL`, `MONITOR_SLAVE`, `RELOCATE_ICON`, `TAP_COMCALL`
 - **`NULL_OPERATION`**: uses `inactivitySeconds` (default `0`) — the default is sufficient; no extra input required
@@ -149,9 +149,19 @@ or stepper is shown.
 
 ### `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`
 
-Param: `precision` — one of `"VERY_VAGUE"`, `"VAGUE"`, `"NORMAL"`, `"SPECIFIC"`, `"VERY_SPECIFIC"` (default `"NORMAL"`)
+Param: `query` — a search term (regex accepted; may be blank). The decker does **not** supply a vagueness level; the server derives query precision from the shape of the query.
 
-**UI control:** A 5-position selector on the card. The selected value is sent with the `ActionCommand`.
+**UI control:** A single **SEARCH TERM** text input on the card, with a hint reading *"Vagueness is derived from the query shape"*. There is no precision selector. The entered term is sent as `query` with the `ActionCommand`.
+
+### `AccessLtg`, `AccessHost`
+
+These replace the old per-target `LogonToLtg` / `LogonToPltg` / `LogonToHost` cards. At most **one** `AccessLtg` and **one** `AccessHost` card appear; each carries the list of structurally-reachable target names the decker already has an address for (`ltgNames` / `hostNames`). Gating is strict — a target only appears once its address is in the decker's known addresses (seeded by jack-in / logon or by selecting a located access node).
+
+**UI control:** A dropdown (`<select>`) listing the known target names plus a CONFIRM button. Pressing CONFIRM submits `{ targetName }` carrying the chosen name.
+
+### `SelectLocateTarget`
+
+Emitted after a successful Locate returns candidate names. **Special case — it is NOT rendered as an inline action card.** It pops up as a **modal dialog** (`SelectLocateModal`) containing a fixed-size list of **exactly 5 rows**. Each real candidate is a clickable row; clicking one selects it immediately (no dropdown, no confirm button) and submits `{ targetName }`. When fewer than 5 candidates match, the remaining rows are inert empty padding so the dialog never resizes. Pressing Esc or clicking the backdrop dismisses the modal without storing an address (submits empty params, and the server then calls `cancelLocateSelection()`).
 
 ### `EDIT_FILE`
 

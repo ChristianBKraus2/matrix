@@ -429,6 +429,8 @@ This extension lives in `src/main/kotlin/com/shadowrun/matrix/game/DeckerExtensi
 
 Operations requiring host context must not appear in `availableActions` when the decker is on a grid node. The filter is applied inside `Decker.availableActions()`, not at the server dispatch point — offering an action and returning a failure is confusing to the player.
 
+**Navigation collapse and address gating (ticket 06).** Navigation to LTGs/PLTGs/hosts is emitted as **at most one** `AccessLtg(targets)` and **one** `AccessHost(targets)`, where `targets` are the structurally-reachable grids/hosts filtered to those whose `name` is in the decker's `knownAddresses` (each emitted only when non-empty). Gating is strict — an address is required even for a directly-attached target. The old per-target `LogonToLtg` / `LogonToPltg` / `LogonToHost` actions are removed; `LogonToRtg` remains per-target and ungated. Host operations that act on a specific resource are also gated: `DOWNLOAD_DATA` / `EDIT_FILE` / `DECRYPT_FILE` appear only for files in `locatedFiles`, and `CONTROL_SLAVE` / `EDIT_SLAVE` / `MONITOR_SLAVE` only for devices in `locatedSlaves`; `LOCATE_FILE` / `LOCATE_SLAVE` stay available so those resources can first be discovered. After a successful Locate, a one-shot `SelectLocateTarget(operation, candidates)` action lets the decker pick one of the ≤5 returned names.
+
 Both `swapUtility()` and `locateDecker()` are implemented on `Decker` but are excluded from `availableActions()` regardless of location context. Both are out of scope — `LOCATE_DECKER` see [out_of_scope.md §4](../out_of_scope.md), `SWAP_MEMORY` see [out_of_scope.md §5](../out_of_scope.md).
 
 ---

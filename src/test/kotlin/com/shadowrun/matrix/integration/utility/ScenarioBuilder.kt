@@ -118,8 +118,10 @@ class ScenarioBuilder(private val matrix: Matrix) {
     }
 
     fun logonToLtg(ltg: LTG, name: String = "logon to ${ltg.name}", succeed: Boolean = true) = step(name) {
+        // Ticket 06: Access is address-gated. Seed the address as if the decker had located it.
+        updateCurrentDecker(currentDecker().copy(knownAddresses = currentDecker().knownAddresses + ltg.name))
         assertVisible({ it is MatrixObject.LocalGrid && it.ltg.name == ltg.name }, "LTG '${ltg.name}'")
-        assertActionable({ it is AvailableAction.LogonToLtg && it.ltg.name == ltg.name }, "LogonToLtg '${ltg.name}'")
+        assertActionable({ it is AvailableAction.AccessLtg && it.targets.any { g -> g.name == ltg.name } }, "AccessLtg '${ltg.name}'")
         val r = currentDecker().logonToLtg(ltg, roller)
         if (succeed) {
             assertIs<LogonResult.Success>(r, "$name failed")
@@ -138,7 +140,8 @@ class ScenarioBuilder(private val matrix: Matrix) {
             else -> matrix.getLTG(path.split("/")[0], ltgName)!!
         }
         assertVisible({ it is MatrixObject.LocalGrid && it.ltg.name == ltg.name }, "LTG '${ltg.name}'")
-        assertActionable({ it is AvailableAction.LogonToLtg && it.ltg.name == ltg.name }, "LogonToLtg '${ltg.name}'")
+        updateCurrentDecker(currentDecker().copy(knownAddresses = currentDecker().knownAddresses + ltg.name))
+        assertActionable({ it is AvailableAction.AccessLtg && it.targets.any { g -> g.name == ltg.name } }, "AccessLtg '${ltg.name}'")
         val r = currentDecker().logonToLtg(ltg, roller)
         if (succeed) {
             assertIs<LogonResult.Success>(r, "logon to LTG $path failed")
@@ -150,8 +153,9 @@ class ScenarioBuilder(private val matrix: Matrix) {
     }
 
     fun logonToPltg(pltg: PLTG, name: String = "logon to ${pltg.name}", succeed: Boolean = true) = step(name) {
+        updateCurrentDecker(currentDecker().copy(knownAddresses = currentDecker().knownAddresses + pltg.name))
         assertVisible({ it is MatrixObject.PrivateGrid && it.pltg.name == pltg.name }, "PLTG '${pltg.name}'")
-        assertActionable({ it is AvailableAction.LogonToPltg && it.pltg.name == pltg.name }, "LogonToPltg '${pltg.name}'")
+        assertActionable({ it is AvailableAction.AccessLtg && it.targets.any { g -> g.name == pltg.name } }, "AccessLtg '${pltg.name}'")
         val r = currentDecker().logonToPltg(pltg, roller)
         if (succeed) {
             assertIs<LogonResult.Success>(r, "$name failed")
@@ -169,8 +173,9 @@ class ScenarioBuilder(private val matrix: Matrix) {
             else -> matrix.getLTG(ltgPath.split("/")[0], ltgName)!!
         }
         val pltg = ltg.pltgs.first()
+        updateCurrentDecker(currentDecker().copy(knownAddresses = currentDecker().knownAddresses + pltg.name))
         assertVisible({ it is MatrixObject.PrivateGrid && it.pltg.name == pltg.name }, "PLTG '${pltg.name}'")
-        assertActionable({ it is AvailableAction.LogonToPltg && it.pltg.name == pltg.name }, "LogonToPltg '${pltg.name}'")
+        assertActionable({ it is AvailableAction.AccessLtg && it.targets.any { g -> g.name == pltg.name } }, "AccessLtg '${pltg.name}'")
         val r = currentDecker().logonToPltg(pltg, roller)
         if (succeed) {
             assertIs<LogonResult.Success>(r, "logon to PLTG under $ltgPath failed")
@@ -182,8 +187,9 @@ class ScenarioBuilder(private val matrix: Matrix) {
     }
 
     fun logonToHost(host: Host, name: String = "logon to ${host.name}", succeed: Boolean = true) = step(name) {
+        updateCurrentDecker(currentDecker().copy(knownAddresses = currentDecker().knownAddresses + host.name))
         assertVisible({ it is MatrixObject.HostNode && it.host.name == host.name }, "host '${host.name}'")
-        assertActionable({ it is AvailableAction.LogonToHost && it.host.name == host.name }, "LogonToHost '${host.name}'")
+        assertActionable({ it is AvailableAction.AccessHost && it.targets.any { h -> h.name == host.name } }, "AccessHost '${host.name}'")
         val r = currentDecker().logonToHost(host, roller)
         if (succeed) {
             assertIs<LogonResult.Success>(r, "$name failed")

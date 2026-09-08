@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ActionParams, AvailableActionDto } from '../types/messages'
+import SelectLocateModal from './SelectLocateModal'
 
 interface Props {
   actions: AvailableActionDto[]
@@ -10,9 +11,9 @@ interface Props {
 function actionLabel(action: AvailableActionDto): string {
   switch (action.kind) {
     case 'LogonToRtg':    return `LOGON RTG: ${action.rtgName}`
-    case 'LogonToLtg':    return `LOGON LTG: ${action.ltgName}`
-    case 'LogonToPltg':   return `LOGON PLTG: ${action.pltgName}`
-    case 'LogonToHost':   return `LOGON HOST: ${action.hostName}`
+    case 'AccessLtg':     return 'ACCESS LTG'
+    case 'AccessHost':    return 'ACCESS HOST'
+    case 'SelectLocateTarget': return `SELECT ${formatEnum(action.operation)}`
     case 'GracefulLogoff': return 'GRACEFUL LOGOFF'
     case 'JackOut':       return 'JACK OUT'
     case 'Operation':     return formatEnum(action.operation)
@@ -22,22 +23,25 @@ function actionLabel(action: AvailableActionDto): string {
 function formatEnum(s: string) { return s.replace(/_/g, ' ') }
 
 interface CardState {
-  precision: 'VERY_VAGUE' | 'VAGUE' | 'NORMAL' | 'SPECIFIC' | 'VERY_SPECIFIC'
   query: string
   newContent: string
   dataSize: number
+  selectedTarget: string
 }
 
 function defaultCardState(): CardState {
-  return { precision: 'NORMAL', query: '', newContent: '', dataSize: 100 }
+  return { query: '', newContent: '', dataSize: 100, selectedTarget: '' }
 }
 
 function buildParams(paramKind: string | null, cs: CardState): ActionParams | undefined {
-  if (paramKind === 'precision')           return { precision: cs.precision, query: cs.query }
+  if (paramKind === 'query')               return { query: cs.query }
   if (paramKind === 'newContent')          return { newContent: cs.newContent === '' ? null : cs.newContent }
   if (paramKind === 'dataSize')            return { dataSize: cs.dataSize }
   return undefined
 }
+
+/** Action kinds whose card must not fire on click — they require a dropdown selection + CONFIRM. */
+const SELECTION_KINDS = new Set(['AccessLtg', 'AccessHost'])
 
 const SAFE_ACTION_TYPES = new Set(['FREE', 'SIMPLE', 'COMPLEX'])
 
@@ -67,6 +71,8 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
 
   function handleClick(action: AvailableActionDto) {
     if (!isActiveTurn) return
+    // Selection cards (Access LTG/Host, Select Locate Target) act only via their CONFIRM button.
+    if (SELECTION_KINDS.has(action.kind)) return
     const paramKind = action.kind === 'Operation' ? action.paramKind : null
     if (paramKind === 'newContent') {
       setFocusedCards(prev => {
@@ -81,14 +87,21 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
     onAction(action.index, params)
   }
 
+  // Ticket 06: the locate selection is a special case — rendered as a modal dialog, not an inline
+  // action card. Pull it out of the card list and drive the modal from it.
+  const selectLocate = actions.find(
+    (a): a is Extract<AvailableActionDto, { kind: 'SelectLocateTarget' }> => a.kind === 'SelectLocateTarget'
+  )
+  const cardActions = actions.filter(a => a.kind !== 'SelectLocateTarget')
+
   return (
     <div className="panel actions-panel">
       <div className="panel-header">ACTIONS</div>
       <div className="panel-body">
-        {actions.length === 0 ? (
+        {cardActions.length === 0 ? (
           <div className="no-data">[ NO ACTIONS AVAILABLE ]</div>
         ) : (
-          actions.map((action) => {
+          cardActions.map((action) => {
             const paramKind = action.kind === 'Operation' ? action.paramKind : null
             const cs = getState(action.index)
             const disabled = !isActiveTurn
@@ -117,31 +130,45 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
                   <div className="action-target">▸ {action.targetName}</div>
                 )}
 
-                {paramKind === 'precision' && (
+                {(action.kind === 'AccessLtg' || action.kind === 'AccessHost') && (
+                  <div className="action-control" onClick={e => e.stopPropagation()}>
+                    <div className="ctrl-label">TARGET</div>
+                    {(() => {
+                      const names = action.kind === 'AccessLtg' ? action.ltgNames : action.hostNames
+                      const selected = cs.selectedTarget || names[0] || ''
+                      return (
+                        <>
+                          <select
+                            className="target-select"
+                            value={selected}
+                            onChange={e => patchState(action.index, { selectedTarget: e.target.value })}
+                          >
+                            {names.map(n => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                          <button
+                            className="confirm-btn"
+                            disabled={disabled || !selected}
+                            onClick={() => onAction(action.index, { targetName: selected })}
+                          >
+                            CONFIRM
+                          </button>
+                        </>
+                      )
+                    })()}
+                  </div>
+                )}
+
+                {paramKind === 'query' && (
                   <div className="action-control" onClick={e => e.stopPropagation()}>
                     <div className="ctrl-label">SEARCH TERM</div>
                     <input
                       type="text"
                       className="query-input"
-                      placeholder="Search term…"
+                      placeholder="Regex / *fragment*…"
                       value={cs.query}
                       onChange={e => patchState(action.index, { query: e.target.value })}
                     />
-                  </div>
-                )}
-
-                {paramKind === 'precision' && (
-                  <div className="action-control" onClick={e => e.stopPropagation()}>
-                    <div className="ctrl-label">PRECISION</div>
-                    {(['VERY_VAGUE', 'VAGUE', 'NORMAL', 'SPECIFIC', 'VERY_SPECIFIC'] as const).map(v => (
-                      <button
-                        key={v}
-                        className={`toggle-btn ${cs.precision === v ? 'active' : ''}`}
-                        onClick={() => patchState(action.index, { precision: v })}
-                      >
-                        {formatEnum(v)}
-                      </button>
-                    ))}
+                    <div className="edit-hint">Vagueness is derived from the query shape</div>
                   </div>
                 )}
 
@@ -194,6 +221,13 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
           })
         )}
       </div>
+      {selectLocate && isActiveTurn && (
+        <SelectLocateModal
+          action={selectLocate}
+          onSelect={name => onAction(selectLocate.index, { targetName: name })}
+          onCancel={() => onAction(selectLocate.index, {})}
+        />
+      )}
     </div>
   )
 }

@@ -13,6 +13,7 @@ export interface ActionParams {
   query?: string
   inactivitySeconds?: number
   dataSize?: number
+  targetName?: string
 }
 
 export interface ActionCommand {
@@ -55,6 +56,7 @@ export interface DeckerStateDto {
   sensor: number
   activeUtilities: ActiveUtility[]
   storedUtilities: ActiveUtility[]
+  knownAddresses: string[]
 }
 
 // These union types mirror Kotlin enums serialised with .name (not @SerialName).
@@ -91,12 +93,12 @@ export type SystemOperation =
 
 export type AvailableActionDto =
   | { kind: 'LogonToRtg'; index: number; actionType: ActionType; rtgName: string }
-  | { kind: 'LogonToLtg'; index: number; actionType: ActionType; ltgName: string }
-  | { kind: 'LogonToPltg'; index: number; actionType: ActionType; pltgName: string }
-  | { kind: 'LogonToHost'; index: number; actionType: ActionType; hostName: string }
+  | { kind: 'AccessLtg'; index: number; actionType: ActionType; ltgNames: string[] }
+  | { kind: 'AccessHost'; index: number; actionType: ActionType; hostNames: string[] }
+  | { kind: 'SelectLocateTarget'; index: number; actionType: ActionType; operation: SystemOperation; candidates: string[] }
   | { kind: 'GracefulLogoff'; index: number; actionType: ActionType }
   | { kind: 'JackOut'; index: number; actionType: ActionType }
-  | { kind: 'Operation'; index: number; actionType: ActionType; operation: SystemOperation; paramKind: 'precision' | 'newContent' | 'dataSize' | null; targetKind: string | null; targetName: string | null }
+  | { kind: 'Operation'; index: number; actionType: ActionType; operation: SystemOperation; paramKind: 'query' | 'newContent' | 'dataSize' | null; targetKind: string | null; targetName: string | null }
 
 export interface StateMessage {
   type: 'state'

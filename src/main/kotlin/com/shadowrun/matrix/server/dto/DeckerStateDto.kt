@@ -25,7 +25,9 @@ data class DeckerStateDto(
     val masking: Int,
     val sensor: Int,
     val activeUtilities: List<UtilityDto>,
-    val storedUtilities: List<UtilityDto>
+    val storedUtilities: List<UtilityDto>,
+    /** Names of LTGs/PLTGs/hosts the decker has stored an address for and may Access (ticket 06). */
+    val knownAddresses: List<String> = emptyList()
 )
 
 @Serializable
@@ -59,7 +61,8 @@ fun Decker.toDto() = DeckerStateDto(
         ?: cyberdeck.personaPrograms.firstOrNull { it.attributeType == PersonaAttributeType.SENSORS }?.rating
         ?: 0,
     activeUtilities = cyberdeck.activeUtilities.map { UtilityDto(it.type.name, it.currentRating) },
-    storedUtilities = cyberdeck.storedUtilities.map { UtilityDto(it.type.name, it.currentRating) }
+    storedUtilities = cyberdeck.storedUtilities.map { UtilityDto(it.type.name, it.currentRating) },
+    knownAddresses = knownAddresses.toList()
 )
 
 private fun MatrixLocation.label(): String = when (this) {
