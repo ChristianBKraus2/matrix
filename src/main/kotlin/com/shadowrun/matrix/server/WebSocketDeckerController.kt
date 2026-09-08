@@ -521,7 +521,7 @@ class WebSocketDeckerController(
     )
 
     private fun LogonResult.toDispatch() = when (this) {
-        is LogonResult.Success -> DispatchResult(decker, true,  deckerSuccesses, hostSuccesses, "Logged on to $location")
+        is LogonResult.Success -> DispatchResult(decker, true,  deckerSuccesses, hostSuccesses, "Logged on to ${location.logLabel()}")
         is LogonResult.Failure -> DispatchResult(decker, false, deckerSuccesses, hostSuccesses, "Logon failed")
     }
 
@@ -565,6 +565,13 @@ class WebSocketDeckerController(
     private fun LocateResult.label() = when (this) {
         is LocateResult.Candidates -> "candidates: ${names.joinToString(", ")}"
         LocateResult.None          -> "no matches"
+    }
+
+    private fun MatrixLocation.logLabel(): String = when (this) {
+        is MatrixLocation.OnRTG  -> rtg.name
+        is MatrixLocation.OnLTG  -> "${ltg.name}, ${ltg.securityRating.code}(${ltg.securityRating.value})"
+        is MatrixLocation.OnPLTG -> "${pltg.name} (${pltg.owner})"
+        is MatrixLocation.OnHost -> "${host.name}, ${host.securityRating.code}(${host.securityRating.value}) - ${host.alertStatus}"
     }
 
     private fun MedicResult.toDispatch() = DispatchResult(
