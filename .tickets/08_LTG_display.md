@@ -1,0 +1,1 @@
+When the location is an LTG the same type of information should be displayed as for an RTG. As the LTG does not have some of this info, one has to retrieve the info from the parent RTG.

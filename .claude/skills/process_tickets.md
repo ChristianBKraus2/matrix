@@ -4,11 +4,11 @@ description: Process a ticket / issue of the customer that is either formulated 
 
 ## Procedure
 
-Process a ticket specified by its number <number>.
+Process a ticket specified by its number `<number>`.
 
 ### 0) Create a todo list 
 
-Create a todo list with steps 1 to 10. They must be all processed in this sequence.
+Create a todo list with steps 1 to 11. They must be all processed in this sequence.
 
 ### 1) Read the ticket
 
@@ -16,6 +16,8 @@ Create a todo list with steps 1 to 10. They must be all processed in this sequen
 - Have a look into the github issue # `<number>` of this project. Also fetch the title of the issue.
 
 If only one of both exists, create the other one considering the issue number and the title. Also take over the description of the issue.
+
+If neither exists, stop and ask the user which to create first before proceeding.
 
 ### 2) Read all PRDs
 
@@ -30,34 +32,56 @@ Based on the issue description (and title) plan a solution for this issue.
 
 ### 4) Double Check against PRD
 
-Based on the planned solution, check whether the PRD would have to be modified. If the PRD must be changed, get an **approval from the user before continuing**.
+Based on the planned solution, check 
+- whether the PRD would have to be modified. 
+- whether the core of the game (everything except folder `/src/main/kotlin/com/shadowrun/matrix/game' or `frontend`) must be changed
+
+If the PRD or the core game must be changed:
+
+> ⛔ **STOP — User approval required.**  
+> Present your planned changes to the PRD / core and do NOT continue until the user explicitly approves in this conversation.
 
 ### 5) Apply the correction
 
 Implement the solution by updating the code and the unit tests. Then run all tests and confirm they are green before proceeding:
 
-```powershell
+```
 powershell -Command "cd 'C:\VSCode\private\matrix'; .\gradlew.bat test integrationTest"
 ```
 
-Do not proceed to documentation until all tests pass.
+If any tests fail, investigate the failure, fix the code, re-run, and repeat until all tests are green. Do not proceed to the next step until all tests pass.
 
 ### 6) Manual Test
 
-At this point the user has to apply an additional MANDATORY manual test. Only when the user CONFIRMS that everything is OK, continue with (7).
+At this point the user has to apply an additional MANDATORY manual test.
+
+> ⛔ **STOP — Manual test required.**  
+> Do NOT continue until the user explicitly confirms in this conversation that everything is OK. Only then continue with step 7.
 
 ### 7) Update PRD, Design and Documentation
-
-Continue with this only when the user confirmed the manual test in the previous item.
 
 Update the PRD (if necessary), the design documents and the player guide in the documentation folder.
 
 ### 8) Update the ticket
 
-Update the ticket (file `.tickets/<number>_<title>.md`) with the solution. The Solution section must include:
+Update the ticket (file `.tickets/<number>_<title>.md`) with the solution. The ticket must follow this exact structure:
 
-- **Chosen approach** — what was done and why, including key files changed.
-- **Options considered but not taken** — at least one alternative with a reason for rejection (serves as an ADR).
+```markdown
+# <N> <Title>
+
+## Issue
+<original problem description>
+
+## Solution
+
+### Chosen approach
+<what was done and why, including key files changed>
+
+### Options considered but not taken
+- **<Alternative>** — rejected because <reason>
+```
+
+The `### Options considered but not taken` sub-section is mandatory and must contain at least one alternative (serves as an ADR).
 
 ### 9) Commit the changes
 
@@ -69,11 +93,11 @@ Fix #<N>: <title>
 
 ### 10) Update the GitHub Issue
 
-#### 1. Write the issue body to a temp file
+#### a) Write the issue body to a temp file
 
 Use the Write tool to create `.tickets/issue_body_tmp.md` with the full issue body (original problem description + solution content from the ticket).
 
-#### 2. Update the issue body
+#### b) Update the issue body
 
 ```bash
 powershell -Command "& 'C:\Program Files\GitHub CLI\gh.exe' issue edit <N> --body-file '.tickets\issue_body_tmp.md'"
@@ -81,22 +105,23 @@ powershell -Command "& 'C:\Program Files\GitHub CLI\gh.exe' issue edit <N> --bod
 
 Never pass the body inline via `--body` or a PowerShell here-string — backticks in markdown break the quoting. Always use `--body-file`.
 
-#### 3. Close the issue
+#### c) Close the issue
 
 ```bash
 powershell -Command "& 'C:\Program Files\GitHub CLI\gh.exe' issue close <N>"
 ```
 
-#### 4. Delete the temp file
+#### d) Delete the temp file
 
 Remove `.tickets\issue_body_tmp.md` after the issue is updated.
 
-### Confirm and Finalize
+### 11) Confirm and Finalize
 
-Double check whether the every task is complete including the following:
+Double check whether every task is complete including the following:
 
 - All steps of the todo list are marked as done.
 - A ticket in folder ./tickets exists and a git issue exists. The non-existing one was created.
 - The ticket and the git issue contain the same issue description and solution.
+- The ticket contains both `### Chosen approach` and `### Options considered but not taken` sub-sections.
 - The PRD, design, documentation, code and all tests have been updated, if relevant.
-- All changed files have been staged and commited. (If not stage all changed files and commit additionally)
+- All changed files have been staged and committed. (If not, stage all changed files and commit additionally.)

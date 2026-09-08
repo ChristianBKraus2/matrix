@@ -75,9 +75,26 @@ detekt {
     source.setFrom(files("src/main/kotlin", "src/test/kotlin"))
 }
 
+tasks.register<Exec>("npmInstall") {
+    workingDir = file("frontend")
+    commandLine("cmd", "/c", "npm install")
+    inputs.files("frontend/package.json", "frontend/package-lock.json")
+    outputs.dir("frontend/node_modules")
+    outputs.file("frontend/node_modules/.package-lock.json")
+}
+
 tasks.register<Exec>("buildFrontend") {
     workingDir = file("frontend")
-    commandLine("cmd", "/c", "npm install && npm run build")
+    commandLine("cmd", "/c", "npm run build")
+    dependsOn("npmInstall")
+    inputs.dir("frontend/src")
+    inputs.files(
+        "frontend/index.html",
+        "frontend/tsconfig.json",
+        "frontend/tsconfig.node.json",
+        "frontend/vite.config.ts"
+    )
+    outputs.dir("frontend/dist")
 }
 
 tasks.register<Copy>("copyFrontendBuild") {

@@ -44,8 +44,8 @@ private const val GENERIC_BAD_REQUEST = "malformed request"
 // Same-origin allow-list for the WebSocket upgrade (CSWSH mitigation). The UI is served
 // same-origin from "/", so the local/production origins suffice. A missing Origin header
 // (non-browser clients, tests) is allowed — browsers always send Origin on a WS handshake.
-// Note: the Vite dev server runs on a different port; add its origin here to use it.
-private val ALLOWED_ORIGINS = setOf("http://localhost:8080", "http://127.0.0.1:8080")
+// localhost:5173 is the Vite HMR dev server (npm run dev).
+private val ALLOWED_ORIGINS = setOf("http://localhost:8080", "http://127.0.0.1:8080", "http://localhost:5173")
 
 fun Application.matrixModule(registry: SessionRegistry) {
     install(WebSockets) {
