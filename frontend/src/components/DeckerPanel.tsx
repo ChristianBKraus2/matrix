@@ -45,9 +45,17 @@ export default function DeckerPanel({ decker }: Props) {
         <DamageMonitor label="PHYS" damage={decker.physicalDamage} maxBoxes={decker.physicalMaxBoxes} />
         <DamageMonitor label="MENT" damage={decker.mentalDamage} maxBoxes={decker.mentalMaxBoxes} />
 
-        <div className="stat-row">
-          <span className="stat-label">HACKING POOL</span>
-          <span className="stat-value">{decker.hackingPool}d</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 16px', marginBottom: 4 }}>
+          {[
+            { label: 'HACKING POOL', value: `${decker.hackingPool}d` },
+            { label: 'HARDENING', value: String(decker.hardening) },
+            { label: 'RESPONSE', value: String(decker.responseIncrease) },
+          ].map(({ label, value }) => (
+            <span key={label} style={{ whiteSpace: 'nowrap' }}>
+              <span className="stat-label">{label}</span>{' '}
+              <span className="stat-value">{value}</span>
+            </span>
+          ))}
         </div>
         <div className="stat-row">
           <span className="stat-label">R:B/E/M/S</span>
@@ -59,7 +67,7 @@ export default function DeckerPanel({ decker }: Props) {
             <div className="section-title">
               <span>PROGRAMS</span>
               <span className="programs-memory">
-                {decker.freeActiveMemoryMp}/{decker.totalActiveMemoryMp} Mp
+                {decker.freeActiveMemoryMp}/{decker.totalActiveMemoryMp} Mp | IO: {decker.ioSpeedMpPerTurn} Mp/t
                 {decker.offlineStorageCount > 0 && ` | offline: ${decker.offlineStorageCount}`}
               </span>
             </div>

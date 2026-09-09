@@ -50,6 +50,9 @@ export interface DeckerStateDto {
   mentalMaxBoxes: number
   hackingPool: number
   mcpRating: number
+  hardening: number
+  responseIncrease: number
+  ioSpeedMpPerTurn: number
   bod: number
   evasion: number
   masking: number

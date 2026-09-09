@@ -32,6 +32,7 @@ class SessionRegistryTest {
             physicalDamage = 0, physicalMaxBoxes = 10,
             mentalDamage = 0, mentalMaxBoxes = 10,
             hackingPool = 5, remainingHackingPool = 5, mcpRating = 4,
+            hardening = 0, responseIncrease = 0, ioSpeedMpPerTurn = 0,
             bod = 0, evasion = 0, masking = 0, sensor = 0,
             activeUtilities = emptyList(),
             storedUtilities = emptyList(),

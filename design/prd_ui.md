@@ -58,11 +58,14 @@ All fields from the `decker` object of `StateMessage`:
 | `isPinnedByBlackIc` | Critical status indicator |
 | `physicalDamage` / `physicalMaxBoxes` | Physical condition monitor |
 | `mentalDamage` / `mentalMaxBoxes` | Mental condition monitor |
-| `hackingPool` | Current hacking pool dice |
+| `hackingPool` | Current hacking pool dice — displayed together with `hardening` and `responseIncrease` as flex-wrap chips on one row: `HACKING POOL Xd`, `HARDENING Y`, `RESPONSE Z`; pairs break as complete units when the panel is narrow |
+| `hardening` | Cyberdeck hardening — see above |
+| `responseIncrease` | Response Increase — see above |
 | `mcpRating`, `bod`, `evasion`, `masking`, `sensor` | Compact stat line: label `R:B/E/M/S`, value `mcpRating:bod/evasion/masking/sensor` |
 | `activeUtilities` (`type`, `rating`) | Loaded programs — displayed in bright green |
 | `storedUtilities` (`type`, `rating`) | All programs on the deck; those not in `activeUtilities` are shown in italic dark green (`--green-dark`) to indicate they are not loaded |
-| `freeActiveMemoryMp` / `totalActiveMemoryMp` | Shown on the same line as the **PROGRAMS** section label, right-aligned: `X/Y Mp` |
+| `freeActiveMemoryMp` / `totalActiveMemoryMp` | Shown on the same line as the **PROGRAMS** section label, right-aligned: `X/Y Mp \| IO: Z Mp/t` |
+| `ioSpeedMpPerTurn` | Shown on the PROGRAMS line alongside memory: `\| IO: Z Mp/t` |
 | `offlineStorageCount` | Appended to the PROGRAMS line when non-zero: `\| offline: N` |
 
 `decker.location` is also read here to identify the current node for the Top area (see below).

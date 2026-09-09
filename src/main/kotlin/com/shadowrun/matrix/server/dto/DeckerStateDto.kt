@@ -20,6 +20,9 @@ data class DeckerStateDto(
     val hackingPool: Int,
     val remainingHackingPool: Int,
     val mcpRating: Int,
+    val hardening: Int,
+    val responseIncrease: Int,
+    val ioSpeedMpPerTurn: Int,
     val bod: Int,
     val evasion: Int,
     val masking: Int,
@@ -51,6 +54,9 @@ fun Decker.toDto() = DeckerStateDto(
     hackingPool = hackingPool,
     remainingHackingPool = remainingHackingPool,
     mcpRating = cyberdeck.mcpRating,
+    hardening = cyberdeck.hardening,
+    responseIncrease = cyberdeck.responseIncrease,
+    ioSpeedMpPerTurn = cyberdeck.ioSpeedMpPerTurn,
     bod = persona?.bod
         ?: cyberdeck.personaPrograms.firstOrNull { it.attributeType == PersonaAttributeType.BOD }?.rating
         ?: 0,
