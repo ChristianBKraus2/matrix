@@ -5,7 +5,7 @@ import LocationPanel from './components/LocationPanel'
 import EntitiesPanel from './components/EntitiesPanel'
 import ActionsPanel from './components/ActionsPanel'
 import NarrativePanel from './components/NarrativePanel'
-import type { ErrorCode, GameEvent } from './types/messages'
+import type { ErrorCode, GameEvent, MatrixObjectDto } from './types/messages'
 
 const ERROR_LABELS: Record<ErrorCode, string> = {
   not_your_turn:         'Not your turn',
@@ -91,6 +91,7 @@ function JoinScreen({
 export default function App() {
   const ws = useWebSocket()
   const isRegistered = ws.role === 'registered_decker' || ws.role === 'active_controller'
+  const [selectedEntity, setSelectedEntity] = useState<MatrixObjectDto | null>(null)
 
   if (!isRegistered) {
     return (
@@ -115,11 +116,12 @@ export default function App() {
       <LocationPanel gameState={gameState} />
       <DeckerPanel decker={gameState.decker} />
       <NarrativePanel events={events} isActiveTurn={role === 'active_controller'} />
-      <EntitiesPanel visibleObjects={gameState.visibleObjects} />
+      <EntitiesPanel visibleObjects={gameState.visibleObjects} onEntitySelect={setSelectedEntity} />
       <ActionsPanel
         actions={gameState.availableActions}
         isActiveTurn={role === 'active_controller'}
         onAction={sendAction}
+        selectedEntity={selectedEntity}
       />
     </div>
   )

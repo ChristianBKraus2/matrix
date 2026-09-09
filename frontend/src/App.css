@@ -355,21 +355,47 @@ body {
 .actions-panel .panel-body {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
-  gap: 5px;
-  align-content: flex-start;
+  gap: 6px;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.action-group {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--green-dim);
+}
+
+.action-group-header {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--green-dim);
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--green-dim);
+  background: var(--green-faint);
+  flex-shrink: 0;
+}
+
+.action-group-body {
   overflow-y: auto;
+  padding: 4px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  align-content: start;
+  max-height: min(180px, 22vh);
 }
 
 .action-card {
   border: 1px solid var(--green-dim);
-  padding: 6px 10px;
-  min-width: 155px;
-  max-width: 270px;
+  padding: 4px 8px;
+  width: 100%;
   cursor: pointer;
   background: var(--bg-panel);
   transition: border-color 0.1s, box-shadow 0.1s;
-  flex-shrink: 0;
+
 }
 .action-card:hover:not(.disabled) { border-color: var(--green); box-shadow: var(--glow); }
 .action-card.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }

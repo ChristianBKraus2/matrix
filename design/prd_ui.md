@@ -108,7 +108,29 @@ Location-type objects (`GridNode`, `LocalGrid`, `PrivateGrid`, `HostNode`) that 
 
 ### Bottom — Actions panel
 
-All entries from `availableActions` are rendered as cards. Each card shows the action kind, type (`FREE` / `SIMPLE` / `COMPLEX`), and any target name. Pressing a card submits the corresponding `ActionCommand`.
+Available actions are displayed in four equally-sized groups arranged side by side in a single horizontal row:
+
+| Group | Actions included |
+|---|---|
+| **Navigation** | `LogonToRtg`, `AccessLtg`, `AccessHost`, `GracefulLogoff`, `JackOut`, `DECRYPT_ACCESS` |
+| **Locate** | `LOCATE_ACCESS_NODE`, `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_IC` |
+| **Host** | `ANALYZE_HOST`, `ANALYZE_SECURITY`, `ANALYZE_SUBSYSTEM` |
+| **Others** | Entity-context filtered (see below) |
+
+Within each group, cards are laid out in a 2-column grid and scroll vertically when overflow occurs.
+
+**Action cost badge:** Each card shows a compact badge in the upper-right corner: `F` for FREE actions, `S` for SIMPLE actions, and nothing for COMPLEX actions.
+
+**Others group — entity-context filtering:** The Others group displays a subset of the remaining actions based on which entity is currently focused in the Entities panel:
+
+| Focused entity | Actions shown |
+|---|---|
+| `IcProgram` | IC actions (`ANALYZE_IC`) + Icon actions (`ANALYZE_ICON`) + Misc |
+| `File` | File actions (`DOWNLOAD_DATA`, `UPLOAD_DATA`, `EDIT_FILE`, `DECRYPT_FILE`) + Misc |
+| `Device` (slave) | Slave actions (`CONTROL_SLAVE`, `EDIT_SLAVE`, `MONITOR_SLAVE`, `DECRYPT_SLAVE`) + Misc |
+| None / `HostSubsystem` | Misc only (`MAKE_COMCALL`, `TAP_COMCALL`, `NULL_OPERATION`, `RELOCATE_ICON`, `INVOKE_MEDIC`) |
+
+Pressing a card submits the corresponding `ActionCommand`. Inline controls (dropdowns, steppers, text inputs) work the same way within each group.
 
 ### Middle — Narrative / event area
 

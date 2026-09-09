@@ -1,22 +1,70 @@
 import { useEffect, useState } from 'react'
-import type { ActionParams, AvailableActionDto } from '../types/messages'
+import type { ActionParams, AvailableActionDto, MatrixObjectDto } from '../types/messages'
 import SelectLocateModal from './SelectLocateModal'
 
 interface Props {
   actions: AvailableActionDto[]
   isActiveTurn: boolean
   onAction: (index: number, params?: ActionParams) => void
+  selectedEntity: MatrixObjectDto | null
 }
+
+// ── Grouping ──────────────────────────────────────────────────────────────────
+
+const NAVIGATE_KINDS = new Set(['LogonToRtg', 'AccessLtg', 'AccessHost', 'GracefulLogoff', 'JackOut'])
+const NAVIGATE_OPS   = new Set(['DECRYPT_ACCESS'])
+const LOCATE_OPS     = new Set(['LOCATE_ACCESS_NODE', 'LOCATE_FILE', 'LOCATE_SLAVE', 'LOCATE_IC'])
+const HOST_OPS       = new Set(['ANALYZE_HOST', 'ANALYZE_SECURITY', 'ANALYZE_SUBSYSTEM'])
+const IC_OPS         = new Set(['ANALYZE_IC'])
+const ICON_OPS       = new Set(['ANALYZE_ICON'])
+const FILE_OPS       = new Set(['DOWNLOAD_DATA', 'UPLOAD_DATA', 'EDIT_FILE', 'DECRYPT_FILE'])
+const SLAVE_OPS      = new Set(['CONTROL_SLAVE', 'EDIT_SLAVE', 'MONITOR_SLAVE', 'DECRYPT_SLAVE'])
+
+type Group = 'navigation' | 'locate' | 'host' | 'others'
+type OthersSub = 'ic' | 'icon' | 'file' | 'slave' | 'misc'
+
+function classifyAction(action: AvailableActionDto): Group {
+  if (NAVIGATE_KINDS.has(action.kind)) return 'navigation'
+  if (action.kind === 'Operation') {
+    if (NAVIGATE_OPS.has(action.operation)) return 'navigation'
+    if (LOCATE_OPS.has(action.operation))   return 'locate'
+    if (HOST_OPS.has(action.operation))     return 'host'
+  }
+  return 'others'
+}
+
+function othersSubCategory(action: AvailableActionDto): OthersSub {
+  if (action.kind !== 'Operation') return 'misc'
+  if (IC_OPS.has(action.operation))    return 'ic'
+  if (ICON_OPS.has(action.operation))  return 'icon'
+  if (FILE_OPS.has(action.operation))  return 'file'
+  if (SLAVE_OPS.has(action.operation)) return 'slave'
+  return 'misc'
+}
+
+function filterOthers(actions: AvailableActionDto[], entity: MatrixObjectDto | null): AvailableActionDto[] {
+  const kind = entity?.kind
+  return actions.filter(a => {
+    const sub = othersSubCategory(a)
+    if (sub === 'misc') return true
+    if (kind === 'IcProgram') return sub === 'ic' || sub === 'icon'
+    if (kind === 'File')      return sub === 'file'
+    if (kind === 'Device')    return sub === 'slave'
+    return false
+  })
+}
+
+// ── Label / card state helpers ────────────────────────────────────────────────
 
 function actionLabel(action: AvailableActionDto): string {
   switch (action.kind) {
-    case 'LogonToRtg':    return `LOGON RTG: ${action.rtgName}`
-    case 'AccessLtg':     return 'ACCESS LTG'
-    case 'AccessHost':    return 'ACCESS HOST'
+    case 'LogonToRtg':         return `LOGON RTG: ${action.rtgName}`
+    case 'AccessLtg':          return 'ACCESS LTG'
+    case 'AccessHost':         return 'ACCESS HOST'
     case 'SelectLocateTarget': return `SELECT ${formatEnum(action.operation)}`
-    case 'GracefulLogoff': return 'GRACEFUL LOGOFF'
-    case 'JackOut':       return 'JACK OUT'
-    case 'Operation':     return formatEnum(action.operation)
+    case 'GracefulLogoff':     return 'GRACEFUL LOGOFF'
+    case 'JackOut':            return 'JACK OUT'
+    case 'Operation':          return formatEnum(action.operation)
   }
 }
 
@@ -34,9 +82,9 @@ function defaultCardState(): CardState {
 }
 
 function buildParams(paramKind: string | null, cs: CardState): ActionParams | undefined {
-  if (paramKind === 'query')               return { query: cs.query }
-  if (paramKind === 'newContent')          return { newContent: cs.newContent === '' ? null : cs.newContent }
-  if (paramKind === 'dataSize')            return { dataSize: cs.dataSize }
+  if (paramKind === 'query')      return { query: cs.query }
+  if (paramKind === 'newContent') return { newContent: cs.newContent === '' ? null : cs.newContent }
+  if (paramKind === 'dataSize')   return { dataSize: cs.dataSize }
   return undefined
 }
 
@@ -45,7 +93,9 @@ const SELECTION_KINDS = new Set(['AccessLtg', 'AccessHost'])
 
 const SAFE_ACTION_TYPES = new Set(['FREE', 'SIMPLE', 'COMPLEX'])
 
-export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props) {
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export default function ActionsPanel({ actions, isActiveTurn, onAction, selectedEntity }: Props) {
   const [cardStates, setCardStates] = useState<Record<number, CardState>>({})
   const [focusedCards, setFocusedCards] = useState<Set<number>>(new Set())
 
@@ -71,7 +121,6 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
 
   function handleClick(action: AvailableActionDto) {
     if (!isActiveTurn) return
-    // Selection cards (Access LTG/Host, Select Locate Target) act only via their CONFIRM button.
     if (SELECTION_KINDS.has(action.kind)) return
     const paramKind = action.kind === 'Operation' ? action.paramKind : null
     if (paramKind === 'newContent') {
@@ -94,132 +143,155 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction }: Props)
   )
   const cardActions = actions.filter(a => a.kind !== 'SelectLocateTarget')
 
+  const navActions    = cardActions.filter(a => classifyAction(a) === 'navigation')
+  const locateActions = cardActions.filter(a => classifyAction(a) === 'locate')
+  const hostActions   = cardActions.filter(a => classifyAction(a) === 'host')
+  const othersRaw     = cardActions.filter(a => classifyAction(a) === 'others')
+  const othersActions = filterOthers(othersRaw, selectedEntity)
+
+  function renderCard(action: AvailableActionDto) {
+    const paramKind = action.kind === 'Operation' ? action.paramKind : null
+    const cs = getState(action.index)
+    const disabled = !isActiveTurn
+    const safeActionType = SAFE_ACTION_TYPES.has(action.actionType) ? action.actionType : 'UNKNOWN'
+    const badge = action.actionType === 'FREE' ? 'F' : action.actionType === 'SIMPLE' ? 'S' : null
+
+    return (
+      <div
+        key={action.index}
+        className={`action-card ${disabled ? 'disabled' : ''}`}
+        role="button"
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled}
+        onClick={() => handleClick(action)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handleClick(action)
+          }
+        }}
+      >
+        <div className="action-card-header">
+          <span className="action-kind">{actionLabel(action)}</span>
+          {badge && <span className={`action-type ${safeActionType}`}>{badge}</span>}
+        </div>
+        {action.kind === 'Operation' && action.targetName && (
+          <div className="action-target">▸ {action.targetName}</div>
+        )}
+
+        {(action.kind === 'AccessLtg' || action.kind === 'AccessHost') && (
+          <div className="action-control" onClick={e => e.stopPropagation()}>
+            <div className="ctrl-label">TARGET</div>
+            {(() => {
+              const names = action.kind === 'AccessLtg' ? action.ltgNames : action.hostNames
+              const selected = cs.selectedTarget || names[0] || ''
+              return (
+                <>
+                  <select
+                    className="target-select"
+                    value={selected}
+                    onChange={e => patchState(action.index, { selectedTarget: e.target.value })}
+                  >
+                    {names.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <button
+                    className="confirm-btn"
+                    disabled={disabled || !selected}
+                    onClick={() => onAction(action.index, { targetName: selected })}
+                  >
+                    CONFIRM
+                  </button>
+                </>
+              )
+            })()}
+          </div>
+        )}
+
+        {paramKind === 'query' && (
+          <div className="action-control" onClick={e => e.stopPropagation()}>
+            <div className="ctrl-label">SEARCH TERM</div>
+            <input
+              type="text"
+              className="query-input"
+              placeholder="Regex / *fragment*…"
+              value={cs.query}
+              onChange={e => patchState(action.index, { query: e.target.value })}
+            />
+            <div className="edit-hint">Vagueness is derived from the query shape</div>
+          </div>
+        )}
+
+        {paramKind === 'newContent' && (
+          <div className="action-control" onClick={e => e.stopPropagation()}>
+            {focusedCards.has(action.index) ? (
+              <>
+                <textarea
+                  className="edit-textarea"
+                  placeholder="New file content…"
+                  value={cs.newContent}
+                  onChange={e => patchState(action.index, { newContent: e.target.value })}
+                  rows={3}
+                  maxLength={4096}
+                  autoFocus
+                />
+                <div className="edit-hint">Leave empty to erase file</div>
+                <button
+                  className="confirm-btn"
+                  disabled={disabled}
+                  onClick={() => onAction(action.index, buildParams('newContent', cs))}
+                >
+                  CONFIRM
+                </button>
+              </>
+            ) : (
+              <div className="edit-placeholder">[ click to enter content ]</div>
+            )}
+          </div>
+        )}
+
+        {paramKind === 'dataSize' && (
+          <div className="action-control" onClick={e => e.stopPropagation()}>
+            <div className="ctrl-label">DATA SIZE (Mp)</div>
+            <div className="stepper">
+              <button
+                className="stepper-btn"
+                onClick={() => patchState(action.index, { dataSize: Math.max(1, cs.dataSize - 10) })}
+              >−</button>
+              <span>{cs.dataSize}</span>
+              <button
+                className="stepper-btn"
+                onClick={() => patchState(action.index, { dataSize: cs.dataSize + 10 })}
+              >+</button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const groups = [
+    { key: 'navigation', label: 'NAVIGATION', actions: navActions },
+    { key: 'locate',     label: 'LOCATE',     actions: locateActions },
+    { key: 'host',       label: 'HOST',       actions: hostActions },
+    { key: 'others',     label: 'OTHERS',     actions: othersActions },
+  ]
+
   return (
     <div className="panel actions-panel">
       <div className="panel-header">ACTIONS</div>
       <div className="panel-body">
-        {cardActions.length === 0 ? (
-          <div className="no-data">[ NO ACTIONS AVAILABLE ]</div>
-        ) : (
-          cardActions.map((action) => {
-            const paramKind = action.kind === 'Operation' ? action.paramKind : null
-            const cs = getState(action.index)
-            const disabled = !isActiveTurn
-            const safeActionType = SAFE_ACTION_TYPES.has(action.actionType) ? action.actionType : 'UNKNOWN'
-
-            return (
-              <div
-                key={action.index}
-                className={`action-card ${disabled ? 'disabled' : ''}`}
-                role="button"
-                tabIndex={disabled ? -1 : 0}
-                aria-disabled={disabled}
-                onClick={() => handleClick(action)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    handleClick(action)
-                  }
-                }}
-              >
-                <div className="action-card-header">
-                  <span className="action-kind">{actionLabel(action)}</span>
-                  <span className={`action-type ${safeActionType}`}>{action.actionType}</span>
-                </div>
-                {action.kind === 'Operation' && action.targetName && (
-                  <div className="action-target">▸ {action.targetName}</div>
-                )}
-
-                {(action.kind === 'AccessLtg' || action.kind === 'AccessHost') && (
-                  <div className="action-control" onClick={e => e.stopPropagation()}>
-                    <div className="ctrl-label">TARGET</div>
-                    {(() => {
-                      const names = action.kind === 'AccessLtg' ? action.ltgNames : action.hostNames
-                      const selected = cs.selectedTarget || names[0] || ''
-                      return (
-                        <>
-                          <select
-                            className="target-select"
-                            value={selected}
-                            onChange={e => patchState(action.index, { selectedTarget: e.target.value })}
-                          >
-                            {names.map(n => <option key={n} value={n}>{n}</option>)}
-                          </select>
-                          <button
-                            className="confirm-btn"
-                            disabled={disabled || !selected}
-                            onClick={() => onAction(action.index, { targetName: selected })}
-                          >
-                            CONFIRM
-                          </button>
-                        </>
-                      )
-                    })()}
-                  </div>
-                )}
-
-                {paramKind === 'query' && (
-                  <div className="action-control" onClick={e => e.stopPropagation()}>
-                    <div className="ctrl-label">SEARCH TERM</div>
-                    <input
-                      type="text"
-                      className="query-input"
-                      placeholder="Regex / *fragment*…"
-                      value={cs.query}
-                      onChange={e => patchState(action.index, { query: e.target.value })}
-                    />
-                    <div className="edit-hint">Vagueness is derived from the query shape</div>
-                  </div>
-                )}
-
-                {paramKind === 'newContent' && (
-                  <div className="action-control" onClick={e => e.stopPropagation()}>
-                    {focusedCards.has(action.index) ? (
-                      <>
-                        <textarea
-                          className="edit-textarea"
-                          placeholder="New file content…"
-                          value={cs.newContent}
-                          onChange={e => patchState(action.index, { newContent: e.target.value })}
-                          rows={3}
-                          maxLength={4096}
-                          autoFocus
-                        />
-                        <div className="edit-hint">Leave empty to erase file</div>
-                        <button
-                          className="confirm-btn"
-                          disabled={disabled}
-                          onClick={() => onAction(action.index, buildParams('newContent', cs))}
-                        >
-                          CONFIRM
-                        </button>
-                      </>
-                    ) : (
-                      <div className="edit-placeholder">[ click to enter content ]</div>
-                    )}
-                  </div>
-                )}
-
-                {paramKind === 'dataSize' && (
-                  <div className="action-control" onClick={e => e.stopPropagation()}>
-                    <div className="ctrl-label">DATA SIZE (Mp)</div>
-                    <div className="stepper">
-                      <button
-                        className="stepper-btn"
-                        onClick={() => patchState(action.index, { dataSize: Math.max(1, cs.dataSize - 10) })}
-                      >−</button>
-                      <span>{cs.dataSize}</span>
-                      <button
-                        className="stepper-btn"
-                        onClick={() => patchState(action.index, { dataSize: cs.dataSize + 10 })}
-                      >+</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })
-        )}
+        {groups.map(g => (
+          <div key={g.key} className="action-group">
+            <div className="action-group-header">{g.label}</div>
+            <div className="action-group-body">
+              {g.actions.length === 0 ? (
+                <div className="no-data">[ NONE ]</div>
+              ) : (
+                g.actions.map(action => renderCard(action))
+              )}
+            </div>
+          </div>
+        ))}
       </div>
       {selectLocate && isActiveTurn && (
         <SelectLocateModal

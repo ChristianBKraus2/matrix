@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { MatrixObjectDto } from '../types/messages'
 
 interface Props {
   visibleObjects: MatrixObjectDto[]
+  onEntitySelect?: (entity: MatrixObjectDto | null) => void
 }
 
 type EntityKind = 'HostSubsystem' | 'IcProgram' | 'File' | 'Device'
@@ -85,13 +86,18 @@ function EntityCard({
   )
 }
 
-export default function EntitiesPanel({ visibleObjects }: Props) {
+export default function EntitiesPanel({ visibleObjects, onEntitySelect }: Props) {
   const entities = visibleObjects.filter(isEntity)
   // Track focus by the entity's stable DTO index, not its position in the re-derived array,
   // so focus follows the same entity across state broadcasts (F-2). Falls back to the first
   // entity when nothing is focused yet or the focused entity is no longer visible.
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   const focused = entities.find((e) => e.index === focusedIndex) ?? entities[0]
+
+  // Report focused entity to parent for Others-box filtering in ActionsPanel.
+  useEffect(() => {
+    onEntitySelect?.(focused ?? null)
+  }, [focused?.index])  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="panel entities-panel">
