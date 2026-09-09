@@ -14,7 +14,9 @@ import com.shadowrun.matrix.ic.Killer
 import com.shadowrun.matrix.ic.Probe
 import com.shadowrun.matrix.network.DataFile
 import com.shadowrun.matrix.network.Host
+import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.MatrixLocation
+import com.shadowrun.matrix.network.RTG
 import com.shadowrun.matrix.network.RemoteDevice
 import com.shadowrun.matrix.operations.Icon
 import com.shadowrun.matrix.operations.MatrixObject
@@ -289,6 +291,24 @@ class SystemOperationsTest {
         }
     }
 
+    @Test
+    fun `analyzeHost revealing security rating adds host to analyzeSecuritySystems`() {
+        val h = host(secValue = 2, control = 2)
+        val d = decker(jackedIn = true, host = h, intelligence = 0, cyberdeck = deck(mcpRating = 2, programs = programs(rating = 1)))
+        val result = d.analyzeHost(h, listOf(HostInfoItem.SecurityRating), winRoller)
+        assertNotNull(result.revealedSecurityRating)
+        assertTrue(h.name in result.decker.analyzeSecuritySystems)
+    }
+
+    @Test
+    fun `analyzeHost not revealing security rating does not add host to analyzeSecuritySystems`() {
+        val h = host(secValue = 2, control = 2)
+        val d = decker(jackedIn = true, host = h, intelligence = 0, cyberdeck = deck(mcpRating = 2, programs = programs(rating = 1)))
+        val result = d.analyzeHost(h, listOf(HostInfoItem.Subsystem(SubsystemType.FILES)), winRoller)
+        assertNull(result.revealedSecurityRating)
+        assertTrue(h.name !in result.decker.analyzeSecuritySystems)
+    }
+
     // ── analyzeSecurity ───────────────────────────────────────────────────────────
 
     @Test
@@ -299,6 +319,38 @@ class SystemOperationsTest {
         assertEquals(AlertStatus.PASSIVE_ALERT, result.alertStatus)
         assertEquals(h.securityRating, result.securityRating)
         assertTrue(result.currentTally > 0)
+    }
+
+    @Test
+    fun `analyzeSecurity on LTG adds both LTG and parent RTG to analyzeSecuritySystems`() {
+        val secRating = SecurityRating(SecurityCode.GREEN, 4)
+        val rtg = RTG("TestRTG", "Seattle", secRating, SubsystemRatings(4, 4, 4, 4, 4))
+        val ltg = LTG("TestLTG", parentRtg = rtg, securityRating = secRating, subsystemRatings = SubsystemRatings(4, 4, 4, 4, 4))
+        val persona = Persona(bod = 6, evasion = 6, masking = 6, sensor = 6, reaction = 5)
+        val d = Decker(
+            name = "TestDecker", intelligence = 6, body = 4, willpower = 5, reaction = 5,
+            computerSkill = 6, cyberdeck = deck(), persona = persona,
+            currentLocation = MatrixLocation.OnLTG(ltg)
+        )
+        val result = d.analyzeSecurity(ltg, winRoller)
+        assertTrue(ltg.name in result.decker.analyzeSecuritySystems)
+        assertTrue(rtg.name in result.decker.analyzeSecuritySystems, "parent RTG must also be revealed")
+    }
+
+    @Test
+    fun `analyzeSecurity on LTG failure adds neither LTG nor parent RTG to analyzeSecuritySystems`() {
+        val secRating = SecurityRating(SecurityCode.RED, 10)
+        val rtg = RTG("TestRTG", "Seattle", secRating, SubsystemRatings(4, 4, 4, 4, 4))
+        val ltg = LTG("TestLTG", parentRtg = rtg, securityRating = secRating, subsystemRatings = SubsystemRatings(4, 4, 4, 4, 4))
+        val persona = Persona(bod = 1, evasion = 1, masking = 1, sensor = 1, reaction = 5)
+        val d = Decker(
+            name = "TestDecker", intelligence = 1, body = 4, willpower = 5, reaction = 5,
+            computerSkill = 1, cyberdeck = deck(), persona = persona,
+            currentLocation = MatrixLocation.OnLTG(ltg)
+        )
+        val result = d.analyzeSecurity(ltg, loseRoller)
+        assertTrue(ltg.name !in result.decker.analyzeSecuritySystems)
+        assertTrue(rtg.name !in result.decker.analyzeSecuritySystems)
     }
 
     // ── Locate File / Locate Slave ────────────────────────────────────────────────

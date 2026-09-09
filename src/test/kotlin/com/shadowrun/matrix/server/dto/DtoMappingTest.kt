@@ -84,8 +84,18 @@ class DtoMappingTest {
         assertIs<MatrixObjectDto.GridNode>(dto)
         assertEquals(0, dto.index)
         assertEquals(rtg.name, dto.name)
-        assertEquals(rtg.securityRating.code.name, dto.securityCode)
+        assertNull(dto.securityCode, "securityCode hidden before Analyze Security")
+        assertNull(dto.securityValue, "securityValue hidden before Analyze Security")
         assertEquals(rtg.ltgs.size, dto.ltgCount)
+    }
+
+    @Test
+    fun `MatrixObject GridNode toDto with analyzeSecuritySystems reveals securityCode and securityValue`() {
+        val rtg = GridMock.matrix.rtgs.first()
+        val dto = MatrixObject.GridNode(rtg).toDto(0, analyzeSecuritySystems = setOf(rtg.name))
+        assertIs<MatrixObjectDto.GridNode>(dto)
+        assertEquals(rtg.securityRating.code.name, dto.securityCode)
+        assertEquals(rtg.securityRating.value, dto.securityValue)
     }
 
     @Test
@@ -104,6 +114,17 @@ class DtoMappingTest {
         assertIs<MatrixObjectDto.HostNode>(dto)
         assertEquals(2, dto.index)
         assertEquals(host.name, dto.name)
+        assertNull(dto.securityCode, "securityCode hidden before Analyze Security")
+        assertNull(dto.securityValue, "securityValue hidden before Analyze Security")
+    }
+
+    @Test
+    fun `MatrixObject HostNode toDto with analyzeSecuritySystems reveals securityCode and securityValue`() {
+        val host = GridMock.getDefaultHost()
+        val dto = MatrixObject.HostNode(host).toDto(2, analyzeSecuritySystems = setOf(host.name))
+        assertIs<MatrixObjectDto.HostNode>(dto)
+        assertEquals(host.securityRating.code.name, dto.securityCode)
+        assertEquals(host.securityRating.value, dto.securityValue)
     }
 
     @Test
@@ -233,7 +254,19 @@ class DtoMappingTest {
         assertEquals(8, dto.index)
         assertEquals("Corp-PLTG", dto.name)
         assertEquals("Renraku", dto.owner)
+        assertNull(dto.securityCode, "securityCode hidden before Analyze Security")
+        assertNull(dto.securityValue, "securityValue hidden before Analyze Security")
+    }
+
+    @Test
+    fun `MatrixObject PrivateGrid toDto with analyzeSecuritySystems reveals securityCode and securityValue`() {
+        val ltg = GridMock.matrix.rtgs.first().ltgs.first()
+        val pltg = PLTG("Corp-PLTG", "Renraku", ltg,
+            ltg.securityRating, ltg.subsystemRatings)
+        val dto = MatrixObject.PrivateGrid(pltg).toDto(8, analyzeSecuritySystems = setOf("Corp-PLTG"))
+        assertIs<MatrixObjectDto.PrivateGrid>(dto)
         assertEquals(pltg.securityRating.code.name, dto.securityCode)
+        assertEquals(pltg.securityRating.value, dto.securityValue)
     }
 
     @Test

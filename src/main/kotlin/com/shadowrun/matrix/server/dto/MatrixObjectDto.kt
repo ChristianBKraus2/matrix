@@ -24,8 +24,8 @@ sealed class MatrixObjectDto {
         val name: String,
         val region: String,
         val alertStatus: String,
-        val securityCode: String,
-        val securityTally: Int?,
+        val securityCode: String?,
+        val securityValue: Int?,
         val ltgCount: Int,
         val connectedRtgCount: Int
     ) : MatrixObjectDto()
@@ -37,7 +37,7 @@ sealed class MatrixObjectDto {
         val name: String,
         val parentRtgName: String,
         val alertStatus: String,
-        val securityTally: Int?,
+        val securityValue: Int?,
         val hostCount: Int,
         val pltgCount: Int
     ) : MatrixObjectDto()
@@ -50,7 +50,8 @@ sealed class MatrixObjectDto {
         val owner: String,
         val parentLtgName: String,
         val alertStatus: String,
-        val securityCode: String,
+        val securityCode: String?,
+        val securityValue: Int?,
         val hostCount: Int
     ) : MatrixObjectDto()
 
@@ -62,8 +63,8 @@ sealed class MatrixObjectDto {
         val topologyType: String,
         val offline: Boolean,
         val alertStatus: String,
-        val securityCode: String,
-        val securityTally: Int?
+        val securityCode: String?,
+        val securityValue: Int?
     ) : MatrixObjectDto()
 
     @Serializable
@@ -109,25 +110,36 @@ fun List<MatrixObject>.toDto(analyzeSecuritySystems: Set<String> = emptySet()): 
     mapIndexed { i, obj -> obj.toDto(i, analyzeSecuritySystems) }
 
 fun MatrixObject.toDto(index: Int, analyzeSecuritySystems: Set<String> = emptySet()): MatrixObjectDto = when (this) {
-    is MatrixObject.GridNode ->
+    is MatrixObject.GridNode -> {
+        val revealed = rtg.name in analyzeSecuritySystems
         MatrixObjectDto.GridNode(index, name = rtg.name, region = rtg.region,
-            alertStatus = rtg.alertStatus.name, securityCode = rtg.securityRating.code.name,
-            securityTally = if (rtg.name in analyzeSecuritySystems) rtg.securityTally else null,
+            alertStatus = rtg.alertStatus.name,
+            securityCode = if (revealed) rtg.securityRating.code.name else null,
+            securityValue = if (revealed) rtg.securityRating.value else null,
             ltgCount = rtg.ltgs.size, connectedRtgCount = rtg.connectedRtgs.size)
-    is MatrixObject.LocalGrid ->
+    }
+    is MatrixObject.LocalGrid -> {
+        val revealed = ltg.name in analyzeSecuritySystems
         MatrixObjectDto.LocalGrid(index, name = ltg.name, parentRtgName = ltg.parentRtg.name,
             alertStatus = ltg.alertStatus.name,
-            securityTally = if (ltg.name in analyzeSecuritySystems) ltg.securityTally else null,
+            securityValue = if (revealed) ltg.securityRating.value else null,
             hostCount = ltg.hosts.size, pltgCount = ltg.pltgs.size)
-    is MatrixObject.PrivateGrid ->
+    }
+    is MatrixObject.PrivateGrid -> {
+        val revealed = pltg.name in analyzeSecuritySystems
         MatrixObjectDto.PrivateGrid(index, name = pltg.name, owner = pltg.owner,
             parentLtgName = pltg.parentLtg.name, alertStatus = pltg.alertStatus.name,
-            securityCode = pltg.securityRating.code.name, hostCount = pltg.hosts.size)
-    is MatrixObject.HostNode ->
+            securityCode = if (revealed) pltg.securityRating.code.name else null,
+            securityValue = if (revealed) pltg.securityRating.value else null,
+            hostCount = pltg.hosts.size)
+    }
+    is MatrixObject.HostNode -> {
+        val revealed = host.name in analyzeSecuritySystems
         MatrixObjectDto.HostNode(index, name = host.name, topologyType = host.topologyType.name,
             offline = host.offline, alertStatus = host.alertStatus.name,
-            securityCode = host.securityRating.code.name,
-            securityTally = if (host.name in analyzeSecuritySystems) host.securityTally else null)
+            securityCode = if (revealed) host.securityRating.code.name else null,
+            securityValue = if (revealed) host.securityRating.value else null)
+    }
     is MatrixObject.HostSubsystem ->
         MatrixObjectDto.HostSubsystem(index, subsystemType = node.subsystemType.name, description = node.description)
     is MatrixObject.IcProgram ->

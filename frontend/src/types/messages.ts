@@ -72,10 +72,10 @@ export type TopologyType = 'OPEN_ACCESS' | 'TIERED' | 'HOST_HOST' | 'PRIVATE_GRI
 export type SubsystemType = 'ACCESS' | 'CONTROL' | 'INDEX' | 'FILES' | 'SLAVE'
 
 export type MatrixObjectDto =
-  | { kind: 'GridNode'; index: number; name: string; region: string; alertStatus: AlertStatus; securityCode: SecurityCode; securityTally: number | null; ltgCount: number; connectedRtgCount: number }
-  | { kind: 'LocalGrid'; index: number; name: string; parentRtgName: string; alertStatus: AlertStatus; securityTally: number | null; hostCount: number; pltgCount: number }
-  | { kind: 'PrivateGrid'; index: number; name: string; owner: string; parentLtgName: string; alertStatus: AlertStatus; securityCode: SecurityCode; hostCount: number }
-  | { kind: 'HostNode'; index: number; name: string; topologyType: TopologyType; offline: boolean; alertStatus: AlertStatus; securityCode: SecurityCode; securityTally: number | null }
+  | { kind: 'GridNode'; index: number; name: string; region: string; alertStatus: AlertStatus; securityCode: SecurityCode | null; securityValue: number | null; ltgCount: number; connectedRtgCount: number }
+  | { kind: 'LocalGrid'; index: number; name: string; parentRtgName: string; alertStatus: AlertStatus; securityValue: number | null; hostCount: number; pltgCount: number }
+  | { kind: 'PrivateGrid'; index: number; name: string; owner: string; parentLtgName: string; alertStatus: AlertStatus; securityCode: SecurityCode | null; securityValue: number | null; hostCount: number }
+  | { kind: 'HostNode'; index: number; name: string; topologyType: TopologyType; offline: boolean; alertStatus: AlertStatus; securityCode: SecurityCode | null; securityValue: number | null }
   | { kind: 'HostSubsystem'; index: number; subsystemType: SubsystemType; description: string }
   | { kind: 'IcProgram'; index: number; name: string; analyzed: boolean; rating: number | null; behavior: 'PROACTIVE' | 'REACTIVE' | null; guardedNodeType: string | null }
   | { kind: 'File'; index: number; name: string; isScrambleProtected: boolean; isPointer: boolean; sizeMp: number }

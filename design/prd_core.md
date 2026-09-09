@@ -314,10 +314,10 @@ Each operation entry: **Test** (subsystem), **Utility** (reduces TN), **Action t
 
 | Operation | Test | Utility | Action | Notes |
 | --- | --- | --- | --- | --- |
-| Analyze Host | Control | Analyze | Complex | Each net success reveals one piece of info. **Decker chooses** which piece each success reveals: Security Rating or any one subsystem rating not yet revealed. 7+ successes reveals all. Decker must be on the host. |
+| Analyze Host | Control | Analyze | Complex | Each net success reveals one piece of info. **Decker chooses** which piece each success reveals: Security Rating or any one subsystem rating not yet revealed. 7+ successes reveals all. Decker must be on the host. If Security Rating is revealed, the host's Security Rating (code and value) is remembered for the remainder of the run and shown in the location panel. |
 | Analyze IC | Control | Analyze | Free | Identifies type and rating of a located IC program, plus any options/defenses. |
 | Analyze Icon | Control | Analyze | Free | Scans any icon; identifies general type. Decker may subtract Sensor Rating + Analyze rating from TN, but TN may not drop below 2. |
-| Analyze Security | Control | Analyze | Simple | Returns current Security Rating, decker's current security tally (including points from this test), and alert status. |
+| Analyze Security | Control | Analyze | Simple | Returns current Security Rating (code + value), decker's current security tally (including points from this test), and alert status. **The Security Rating is delivered in the result message only and is not persisted in the location panel.** On a successful test, the Security Rating (code and value) is revealed for the current system and remembered for the remainder of the run; for an LTG the parent RTG's code is also revealed. |
 | Analyze Subsystem | Targeted Subsystem | Analyze | Simple | Identifies anomalies in a subsystem, such as scramble IC or other defenses. |
 | Control Slave | Slave | Spoof | Complex | Takes control of a remote device. For manufacturing/scientific processes, use average of Computer Skill + applicable B/R or Knowledge Skill. Monitored operation. |
 | Decrypt Access | Access | Decrypt | Simple | Defeats scramble IC on a SAN; required before Logon to Host on a scrambled SAN. |

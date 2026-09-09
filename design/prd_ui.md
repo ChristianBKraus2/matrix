@@ -81,12 +81,12 @@ The displayed fields vary by kind:
 
 | Kind | Displayed fields |
 |---|---|
-| `GridNode` | `region`, `securityCode`, `alertStatus`, `securityTally`†, `ltgCount`, `connectedRtgCount` |
-| `LocalGrid` | `region`* (from parent RTG), `securityCode`* (from parent RTG), `alertStatus`, `securityTally`†, `hostCount`, `pltgCount` |
-| `PrivateGrid` | `owner`, `parentLtgName`, `securityCode`, `alertStatus`, `hostCount` |
-| `HostNode` | `topologyType`, `alertStatus`, `securityCode`, `securityTally`†, `offline` (when true) |
+| `GridNode` | `region`, `securityCode`†, `securityValue`†, `alertStatus`, `ltgCount`, `connectedRtgCount` |
+| `LocalGrid` | `region`* (from parent RTG), `securityCode`* (from parent RTG, shown when parent RTG is revealed), `securityValue`†, `alertStatus`, `hostCount`, `pltgCount` |
+| `PrivateGrid` | `owner`, `parentLtgName`, `securityCode`†, `securityValue`†, `alertStatus`, `hostCount` |
+| `HostNode` | `topologyType`, `alertStatus`, `securityCode`†, `securityValue`†, `offline` (when true) |
 
-† `securityTally` is only shown after the decker has successfully run **Analyze Security** on that system; the field is `null` in the DTO until then.
+† `securityCode` and `securityValue` are `null` in the DTO — and shown as `???` in the UI — until a successful **Analyze Security** or **Analyze Host** (that reveals Security Rating) has been performed on that system. The security tally is **not** shown in the location panel; it is delivered once via the `ResultMessage` at the time of the operation.
 
 ### Right — Entities panel
 

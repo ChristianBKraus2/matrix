@@ -106,7 +106,8 @@ fun Decker.analyzeHost(host: Host, requestedItems: List<HostInfoItem>, diceRolle
         subsystems = chosen.filterIsInstance<HostInfoItem.Subsystem>()
             .associate { it.type to host.subsystemRatings.get(it.type) }
     }
-    return AnalyzeHostResult(updatedDecker, outcome, secRating, subsystems).also {
+    val finalDecker = if (secRating != null) updatedDecker.copy(analyzeSecuritySystems = updatedDecker.analyzeSecuritySystems + host.name) else updatedDecker
+    return AnalyzeHostResult(finalDecker, outcome, secRating, subsystems).also {
         logger.info { "[$name] analyzeHost: net=$net successes, revealed security=${secRating != null}, subsystems=${subsystems.keys}" }
     }
 }
@@ -329,8 +330,13 @@ fun Decker.analyzeSecurity(grid: Grid, diceRoller: DiceRoller, hackingPoolDice: 
     logger.info { "[$name] analyzeSecurity → ${grid.name}" }
     requireJackedIn()
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_SECURITY, grid.subsystemRatings.control, grid.securityRating.value, diceRoller, hackingPoolDice)
+    val revealedNames = if (outcome.deckerWins) buildSet {
+        add(grid.name)
+        // LTG inherits its security code from the parent RTG — reveal the RTG too so its code is visible.
+        if (grid is LTG) add(grid.parentRtg.name)
+    } else emptySet()
     val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
-        .let { if (outcome.deckerWins) it.copy(analyzeSecuritySystems = analyzeSecuritySystems + grid.name) else it }
+        .let { if (revealedNames.isNotEmpty()) it.copy(analyzeSecuritySystems = analyzeSecuritySystems + revealedNames) else it }
     val newTally = tallyFor(grid) + outcome.hostSuccesses
     return AnalyzeSecurityResult(updatedDecker, outcome, grid.securityRating, newTally, grid.alertStatus).also {
         logger.info { "[$name] analyzeSecurity: tally=$newTally alert=${grid.alertStatus}" }
