@@ -231,12 +231,21 @@ body {
 /* ── Programs ────────────────────────────────────────────────────────────────── */
 
 .section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   font-size: 13px;
   color: var(--green-dim);
   letter-spacing: 2px;
   margin: 8px 0 4px;
   border-bottom: 1px solid var(--green-faint);
   padding-bottom: 2px;
+}
+
+.programs-memory {
+  letter-spacing: 0;
+  font-size: 11px;
+  color: var(--green-dark);
 }
 
 .program-row {

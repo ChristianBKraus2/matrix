@@ -184,7 +184,10 @@ class WebSocketServerIntegrationTest : IntegrationTestBase() {
             mcpRating = 4,
             bod = 0, evasion = 0, masking = 0, sensor = 0,
             activeUtilities = emptyList(),
-            storedUtilities = emptyList()
+            storedUtilities = emptyList(),
+            freeActiveMemoryMp = 0,
+            totalActiveMemoryMp = 0,
+            offlineStorageCount = 0
         )
 
     @Test

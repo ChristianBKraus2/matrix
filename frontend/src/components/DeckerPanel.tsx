@@ -56,7 +56,13 @@ export default function DeckerPanel({ decker }: Props) {
 
         {decker.storedUtilities.length > 0 && (
           <>
-            <div className="section-title">PROGRAMS</div>
+            <div className="section-title">
+              <span>PROGRAMS</span>
+              <span className="programs-memory">
+                {decker.freeActiveMemoryMp}/{decker.totalActiveMemoryMp} Mp
+                {decker.offlineStorageCount > 0 && ` | offline: ${decker.offlineStorageCount}`}
+              </span>
+            </div>
             <div>
               {decker.storedUtilities.map((u) => {
                 const loaded = decker.activeUtilities.some((a) => a.type === u.type)

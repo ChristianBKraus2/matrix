@@ -62,6 +62,8 @@ All fields from the `decker` object of `StateMessage`:
 | `mcpRating`, `bod`, `evasion`, `masking`, `sensor` | Compact stat line: label `R:B/E/M/S`, value `mcpRating:bod/evasion/masking/sensor` |
 | `activeUtilities` (`type`, `rating`) | Loaded programs — displayed in bright green |
 | `storedUtilities` (`type`, `rating`) | All programs on the deck; those not in `activeUtilities` are shown in italic dark green (`--green-dark`) to indicate they are not loaded |
+| `freeActiveMemoryMp` / `totalActiveMemoryMp` | Shown on the same line as the **PROGRAMS** section label, right-aligned: `X/Y Mp` |
+| `offlineStorageCount` | Appended to the PROGRAMS line when non-zero: `\| offline: N` |
 
 `decker.location` is also read here to identify the current node for the Top area (see below).
 

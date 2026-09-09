@@ -26,6 +26,9 @@ data class DeckerStateDto(
     val sensor: Int,
     val activeUtilities: List<UtilityDto>,
     val storedUtilities: List<UtilityDto>,
+    val freeActiveMemoryMp: Int,
+    val totalActiveMemoryMp: Int,
+    val offlineStorageCount: Int,
     /** Names of LTGs/PLTGs/hosts the decker has stored an address for and may Access (ticket 06). */
     val knownAddresses: List<String> = emptyList()
 )
@@ -62,6 +65,9 @@ fun Decker.toDto() = DeckerStateDto(
         ?: 0,
     activeUtilities = cyberdeck.activeUtilities.map { UtilityDto(it.type.name, it.currentRating) },
     storedUtilities = cyberdeck.storedUtilities.map { UtilityDto(it.type.name, it.currentRating) },
+    freeActiveMemoryMp = cyberdeck.freeActiveMemoryMp,
+    totalActiveMemoryMp = cyberdeck.activeMemoryMp,
+    offlineStorageCount = offlineStorageFiles.size,
     knownAddresses = knownAddresses.toList()
 )
 

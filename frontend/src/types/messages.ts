@@ -56,6 +56,9 @@ export interface DeckerStateDto {
   sensor: number
   activeUtilities: ActiveUtility[]
   storedUtilities: ActiveUtility[]
+  freeActiveMemoryMp: number
+  totalActiveMemoryMp: number
+  offlineStorageCount: number
   knownAddresses: string[]
 }
 
