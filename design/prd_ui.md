@@ -117,7 +117,7 @@ Available actions are displayed in four equally-sized groups arranged side by si
 | **Host** | `ANALYZE_HOST`, `ANALYZE_SECURITY`, `ANALYZE_SUBSYSTEM` |
 | **Others** | Entity-context filtered (see below) |
 
-Within each group, cards are laid out in a 2-column grid and scroll vertically when overflow occurs.
+Within each group, cards are laid out in a responsive grid (`repeat(auto-fill, minmax(120px, 1fr))`): the number of columns adapts to the available width (more columns on wider screens, down to one column on narrow ones). No vertical scrollbar is used — all cards are always visible.
 
 **Action cost badge:** Each card shows a compact badge in the upper-right corner: `F` for FREE actions, `S` for SIMPLE actions, and nothing for COMPLEX actions.
 

@@ -209,15 +209,13 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction, selected
 
         {paramKind === 'query' && (
           <div className="action-control" onClick={e => e.stopPropagation()}>
-            <div className="ctrl-label">SEARCH TERM</div>
             <input
               type="text"
               className="query-input"
-              placeholder="Regex / *fragment*…"
+              placeholder="Search term…"
               value={cs.query}
               onChange={e => patchState(action.index, { query: e.target.value })}
             />
-            <div className="edit-hint">Vagueness is derived from the query shape</div>
           </div>
         )}
 
