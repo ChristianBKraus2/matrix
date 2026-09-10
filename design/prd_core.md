@@ -32,7 +32,7 @@ This document focuses on the various use cases.
   - Enter any LTG attached to the RTG via **Logon to LTG**.
   - Perform a **Locate Access Node** operation to discover LTG codes and host addresses.
 - M-08: From a **PLTG**, a decker may perform any system operation available on public RTGs and LTGs.
-- M-08a: **ANALYZE_IC** is only available inside a host. IC programs are host-resident objects; this operation is not available from RTG, LTG, or PLTG contexts.
+- M-08a: **ANALYZE_IC** and **LOCATE_IC** are only available inside a host. IC programs are host-resident objects; these operations are not available from RTG, LTG, or PLTG contexts.
 
 #### Security Tally Persistence Rules
 
