@@ -64,7 +64,7 @@ Update the PRD (if necessary), the design documents and the player guide in the 
 
 ### 8) Update the ticket
 
-Update the ticket (file `.tickets/<number>_<title>.md`) with the solution. The ticket must follow this exact structure:
+Update the ticket (file `.tickets/<number>_<title>.md`) with the solution. Add another section between the problem description and the solution that describes further clarification that you achieved through communicating with the user - if this applies. The ticket must follow this exact structure:
 
 ```markdown
 # <N> <Title>

@@ -1,0 +1,1 @@
+When the decker enters a host the contained IC, Files, etc. are immediately visible. They must be located first. Double check this statement against extracted_text.txt.
