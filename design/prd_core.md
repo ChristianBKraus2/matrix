@@ -253,6 +253,8 @@ Cyberterminals are legal Matrix access devices used by ordinary corporate worker
 - MP-06: If a decker **suspects** the presence of another icon, she may perform a **Locate Decker** or **Locate IC** operation to verify that suspicion.
 - MP-09: Friendly deckers who wish to make their presences known to each other may do so automatically, without requiring a Sensor Test.
 - MP-10: When a Locate Decker operation succeeds, the targeted decker is **automatically informed** that their location has been traced. The target does not learn who performed the operation or where the attacker is.
+- MP-11: Logging onto a host does **not** grant a free Sensor Test for the IC already residing there — per MP-01 the free test fires only when a *new* icon enters the decker's area, and on logon the decker is the newcomer. Resident IC, files, and remote devices are therefore **not** visible on entry; they must be discovered (IC via Locate IC or by coming under attack; a guarding Scramble via Analyze Subsystem; files/devices via Locate File / Locate Slave).
+- MP-12: IC visibility is tracked per **icon identity** (type + name + rating + guarded node), not by name alone. A located resident IC and a separately-triggered IC of the same name are distinct icons; locating or detecting one never reveals the other. Identity-equal icons appearing in both the resident and active pools are shown once.
 
 ### Noticing Triggered Reactive IC
 
@@ -318,7 +320,7 @@ Each operation entry: **Test** (subsystem), **Utility** (reduces TN), **Action t
 | Analyze IC | Control | Analyze | Free | Identifies type and rating of a located IC program, plus any options/defenses. |
 | Analyze Icon | Control | Analyze | Free | Scans any icon; identifies general type. Decker may subtract Sensor Rating + Analyze rating from TN, but TN may not drop below 2. |
 | Analyze Security | Control | Analyze | Simple | Returns current Security Rating (code + value), decker's current security tally (including points from this test), and alert status. **The Security Rating is delivered in the result message only and is not persisted in the location panel.** On a successful test, the Security Rating (code and value) is revealed for the current system and remembered for the remainder of the run; for an LTG the parent RTG's code is also revealed. |
-| Analyze Subsystem | Targeted Subsystem | Analyze | Simple | Identifies anomalies in a subsystem, such as scramble IC or other defenses. |
+| Analyze Subsystem | Targeted Subsystem | Analyze | Simple | Identifies anomalies in a subsystem, such as scramble IC or other defenses. On a successful test, any Scramble IC guarding the targeted subsystem (or unguarded resident Scramble) becomes **located** and thereby visible (see MP-11). |
 | Control Slave | Slave | Spoof | Complex | Takes control of a remote device. For manufacturing/scientific processes, use average of Computer Skill + applicable B/R or Knowledge Skill. Monitored operation. |
 | Decrypt Access | Access | Decrypt | Simple | Defeats scramble IC on a SAN; required before Logon to Host on a scrambled SAN. |
 | Decrypt File | Files | Decrypt | Simple | Defeats scramble IC on a file; required before downloading a scrambled file. |

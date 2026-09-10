@@ -133,15 +133,20 @@ data class Decker(
             is MatrixLocation.OnHost -> buildList {
                 add(MatrixObject.HostNode(loc.host))
                 loc.host.nodes.forEach { add(MatrixObject.HostSubsystem(it)) }
-                val detected = detectedIcNames
-                loc.host.icPrograms
-                    .filter { it.name in detected }
+                // IC visibility is identity-based (not name-based): only IC whose specific instance has
+                // been located/detected is shown. Resident host IC and triggered active IC are unioned
+                // and de-duplicated by identity so an IC that appears in both pools renders once (ticket 15).
+                val detectedIcs = detectedIcons.filterIsInstance<Icon.IcIcon>().map { it.ic }
+                (loc.host.icPrograms + activeIc)
+                    .filter { candidate -> detectedIcs.any { it.matchesIdentity(candidate) } }
+                    .distinctBy { listOf(it::class, it.name, it.rating, it.guardedNode) }
                     .forEach { add(MatrixObject.IcProgram(it, analyzed = it.name in analyzedIcNames)) }
-                activeIc
-                    .filter { it.name in detected }
-                    .forEach { add(MatrixObject.IcProgram(it, analyzed = it.name in analyzedIcNames)) }
-                loc.host.dataFiles.forEach { add(MatrixObject.File(it)) }
-                loc.host.remoteDevices.forEach { add(MatrixObject.Device(it)) }
+                loc.host.dataFiles
+                    .filter { "${loc.host.name}::${it.name}" in locatedFiles }
+                    .forEach { add(MatrixObject.File(it)) }
+                loc.host.remoteDevices
+                    .filter { "${loc.host.name}::${it.name}" in locatedSlaves }
+                    .forEach { add(MatrixObject.Device(it)) }
                 loc.host.connectedHosts.forEach { add(MatrixObject.HostNode(it)) }
             }
         }

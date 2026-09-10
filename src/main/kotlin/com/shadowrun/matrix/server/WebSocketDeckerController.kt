@@ -5,6 +5,7 @@ import com.shadowrun.matrix.combat.CombatResolver
 import com.shadowrun.matrix.common.JackpointType
 import com.shadowrun.matrix.common.SecurityCode
 import com.shadowrun.matrix.common.SecurityRating
+import com.shadowrun.matrix.ic.IC
 import com.shadowrun.matrix.ic.LethalBlackIC
 import com.shadowrun.matrix.ic.NonLethalBlackIC
 import com.shadowrun.matrix.decker.*import com.shadowrun.matrix.game.ActionResult
@@ -164,7 +165,7 @@ class WebSocketDeckerController(
 
             val oldDecker = decker
             try {
-                val result = dispatch(chosen, cmd, diceRoller)
+                val result = dispatch(chosen, cmd, diceRoller, context.activeIc)
                 decker = result.decker
                 context.applyDeckerOperationResult(oldDecker, decker)
                 context.runSpawnDetection(diceRoller)
@@ -202,7 +203,7 @@ class WebSocketDeckerController(
         }
     }
 
-    private fun dispatch(action: AvailableAction, cmd: ActionCommand, diceRoller: DiceRoller): DispatchResult {
+    private fun dispatch(action: AvailableAction, cmd: ActionCommand, diceRoller: DiceRoller, activeIc: List<IC>): DispatchResult {
         val host = (decker.currentLocation as? MatrixLocation.OnHost)?.host
         return when (action) {
             is AvailableAction.LogonToRtg     -> decker.logonToRtg(action.rtg, diceRoller).toDispatch()
@@ -267,7 +268,7 @@ class WebSocketDeckerController(
                         "Insufficient hacking pool: requested $poolDice, remaining ${decker.remainingHackingPool}")
                 }
                 val opResult = if (host == null) dispatchGridOperation(action, cmd, diceRoller, poolDice)
-                               else dispatchHostOperation(action, cmd, host, diceRoller, poolDice)
+                               else dispatchHostOperation(action, cmd, host, diceRoller, poolDice, activeIc)
                 opResult.copy(decker = opResult.decker.copy(hackingPoolUsed = opResult.decker.hackingPoolUsed + poolDice))
             }
         }
@@ -309,7 +310,8 @@ class WebSocketDeckerController(
         cmd: ActionCommand,
         host: Host,
         diceRoller: DiceRoller,
-        poolDice: Int
+        poolDice: Int,
+        activeIc: List<IC>
     ): DispatchResult = when (action.operation) {
         SystemOperation.ANALYZE_HOST,
         SystemOperation.ANALYZE_IC,
@@ -319,7 +321,7 @@ class WebSocketDeckerController(
         SystemOperation.LOCATE_FILE,
         SystemOperation.LOCATE_SLAVE,
         SystemOperation.LOCATE_ACCESS_NODE,
-        SystemOperation.LOCATE_IC           -> dispatchLocateOp(action, cmd, host, diceRoller, poolDice)
+        SystemOperation.LOCATE_IC           -> dispatchLocateOp(action, cmd, host, diceRoller, poolDice, activeIc)
         SystemOperation.DOWNLOAD_DATA,
         SystemOperation.EDIT_FILE,
         SystemOperation.UPLOAD_DATA,
@@ -363,7 +365,7 @@ class WebSocketDeckerController(
             else -> DispatchResult(decker, false, 0, 0, "Unsupported analyze op: ${action.operation}")
         }
 
-    private fun dispatchLocateOp(action: AvailableAction.Operation, cmd: ActionCommand, host: Host, diceRoller: DiceRoller, poolDice: Int): DispatchResult {
+    private fun dispatchLocateOp(action: AvailableAction.Operation, cmd: ActionCommand, host: Host, diceRoller: DiceRoller, poolDice: Int, activeIc: List<IC>): DispatchResult {
         val p = cmd.params
         val query = p?.query?.trim() ?: ""
         return when (action.operation) {
@@ -385,7 +387,7 @@ class WebSocketDeckerController(
                 val (opResult, locateResult) = decker.locateAccessNode(host, query, diceRoller, poolDice)
                 opResult.toDispatch(locateResult.label())
             }
-            SystemOperation.LOCATE_IC     -> decker.locateIc(host, diceRoller, poolDice).toDispatch()
+            SystemOperation.LOCATE_IC     -> decker.locateIc(host, diceRoller, activeIc, poolDice).toDispatch()
             else -> DispatchResult(decker, false, 0, 0, "Unsupported locate op: ${action.operation}")
         }
     }

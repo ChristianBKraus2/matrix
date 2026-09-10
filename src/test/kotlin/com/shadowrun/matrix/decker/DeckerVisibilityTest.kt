@@ -138,7 +138,11 @@ class DeckerVisibilityTest {
 
     @Test
     fun `visibleObjects on Host includes host, nodes, IC, files, and devices`() {
-        val d = decker(MatrixLocation.OnHost(host)).copy(detectedIcons = setOf(Icon.IcIcon(probe)))
+        val d = decker(MatrixLocation.OnHost(host)).copy(
+            detectedIcons = setOf(Icon.IcIcon(probe)),
+            locatedFiles = setOf("Test Host::SensitiveData.txt", "Test Host::Secret.txt"),
+            locatedSlaves = setOf("Test Host::Security Camera 1")
+        )
         val objects = d.visibleObjects()
 
         assertEquals(1, objects.filterIsInstance<MatrixObject.HostNode>().size)
@@ -146,6 +150,47 @@ class DeckerVisibilityTest {
         assertEquals(1, objects.filterIsInstance<MatrixObject.IcProgram>().size)
         assertEquals(2, objects.filterIsInstance<MatrixObject.File>().size)
         assertEquals(1, objects.filterIsInstance<MatrixObject.Device>().size)
+    }
+
+    @Test
+    fun `visibleObjects on Host hides files and devices until located`() {
+        val d = decker(MatrixLocation.OnHost(host))
+        val objects = d.visibleObjects()
+
+        assertEquals(0, objects.filterIsInstance<MatrixObject.File>().size, "Files must not be visible before Locate File")
+        assertEquals(0, objects.filterIsInstance<MatrixObject.Device>().size, "Devices must not be visible before Locate Slave")
+    }
+
+    @Test
+    fun `visibleObjects on Host shows only the located subset of files and devices`() {
+        val d = decker(MatrixLocation.OnHost(host)).copy(
+            locatedFiles = setOf("Test Host::SensitiveData.txt")
+        )
+        val objects = d.visibleObjects()
+
+        val files = objects.filterIsInstance<MatrixObject.File>()
+        assertEquals(1, files.size)
+        assertEquals("SensitiveData.txt", files.single().file.name)
+        assertEquals(0, objects.filterIsInstance<MatrixObject.Device>().size)
+    }
+
+    @Test
+    fun `visibleObjects filters IC by identity not name`() {
+        // Detecting a triggered Probe(r5) must NOT reveal the resident Probe(r4) — same name, different rating.
+        val triggered = Probe(rating = 5, guardedNode = null)
+        val d = decker(MatrixLocation.OnHost(host)).copy(detectedIcons = setOf(Icon.IcIcon(triggered)))
+        val ics = d.visibleObjects(listOf(triggered)).filterIsInstance<MatrixObject.IcProgram>()
+        assertEquals(1, ics.size, "only the detected triggered Probe should show, not the resident Probe")
+        assertEquals(5, ics.single().ic.rating)
+    }
+
+    @Test
+    fun `visibleObjects deduplicates identity-equal resident and active IC`() {
+        // A resident Probe(r4) and an identity-equal active copy collapse to a single icon.
+        val activeCopy = Probe(rating = 4, guardedNode = null)
+        val d = decker(MatrixLocation.OnHost(host)).copy(detectedIcons = setOf(Icon.IcIcon(probe)))
+        val ics = d.visibleObjects(listOf(activeCopy)).filterIsInstance<MatrixObject.IcProgram>()
+        assertEquals(1, ics.size, "identity-equal resident and active IC must render once")
     }
 
     // ── availableActions ──────────────────────────────────────────────────────────

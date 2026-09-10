@@ -30,6 +30,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MovementTest {
@@ -699,7 +700,9 @@ class MovementTest {
     // ── logonToHost IC detection ──────────────────────────────────────────────────
 
     @Test
-    fun `logonToHost populates detectedIcNames when sensor test succeeds`() {
+    fun `logonToHost does not auto-detect resident IC on entry`() {
+        // SR3 p. 215: the free Sensor Test only fires when a new icon enters the decker's area.
+        // On logon the decker is the newcomer, so resident IC must be found via Locate IC (ticket 15).
         val probe = Probe(rating = 5)
         val h = host().copy(icPrograms = listOf(probe))
         val l = ltg().copy(hosts = listOf(h))
@@ -711,6 +714,6 @@ class MovementTest {
         })
         val result = d.logonToHost(h, alwaysFive)
         assertIs<LogonResult.Success>(result)
-        assertTrue(result.decker.detectedIcNames.contains(probe.name))
+        assertFalse(result.decker.detectedIcNames.contains(probe.name))
     }
 }

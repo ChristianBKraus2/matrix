@@ -27,10 +27,7 @@ sans:
 
 ic_programs:
   - type: Probe
-    rating: 5
-  - type: Killer
-    rating: 6
-    guarded_node: FILES
+    rating: 1
 
 data_files:
   - name: Personnel Records

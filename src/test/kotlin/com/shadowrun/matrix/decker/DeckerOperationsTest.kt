@@ -15,6 +15,8 @@ import com.shadowrun.matrix.ic.Probe
 import com.shadowrun.matrix.ic.Scramble
 import com.shadowrun.matrix.network.DataFile
 import com.shadowrun.matrix.network.Host
+import com.shadowrun.matrix.network.Node
+import com.shadowrun.matrix.operations.Icon
 import com.shadowrun.matrix.network.MatrixLocation
 import com.shadowrun.matrix.network.RemoteDevice
 import com.shadowrun.matrix.operations.HostInfoItem
@@ -241,6 +243,41 @@ class DeckerOperationsTest {
         assertIs<OperationResult.Failure>(result)
     }
 
+    @Test
+    fun `analyzeSubsystem on success detects Scramble IC guarding that subsystem`() {
+        val filesNode = Node(SubsystemType.FILES)
+        val scramble = Scramble(rating = 4, guardedNode = filesNode)
+        val h = host(secValue = 2, files = 2, icPrograms = listOf(scramble))
+        val d = decker(host = h)
+        val result = d.analyzeSubsystem(h, SubsystemType.FILES, winRoller)
+        assertIs<OperationResult.Success>(result)
+        val detected = result.decker.detectedIcons.filterIsInstance<Icon.IcIcon>()
+        assertEquals(1, detected.size, "Scramble IC guarding FILES should be detected on success")
+        assertTrue(detected.first().ic.matchesIdentity(scramble), "detected IC must match the Scramble")
+    }
+
+    @Test
+    fun `analyzeSubsystem on success does not detect Scramble IC guarding a different subsystem`() {
+        val slaveNode = Node(SubsystemType.SLAVE)
+        val scramble = Scramble(rating = 4, guardedNode = slaveNode)
+        val h = host(secValue = 2, files = 2, icPrograms = listOf(scramble))
+        val d = decker(host = h)
+        val result = d.analyzeSubsystem(h, SubsystemType.FILES, winRoller)
+        assertIs<OperationResult.Success>(result)
+        assertTrue(result.decker.detectedIcons.isEmpty(), "Scramble IC guarding SLAVE must not appear when analyzing FILES")
+    }
+
+    @Test
+    fun `analyzeSubsystem on failure does not detect Scramble IC`() {
+        val filesNode = Node(SubsystemType.FILES)
+        val scramble = Scramble(rating = 4, guardedNode = filesNode)
+        val h = host(secValue = 3, files = 12, icPrograms = listOf(scramble))
+        val d = decker(host = h)
+        val result = d.analyzeSubsystem(h, SubsystemType.FILES, loseRoller)
+        assertIs<OperationResult.Failure>(result)
+        assertTrue(result.decker.detectedIcons.isEmpty(), "Scramble IC must not be detected on analyzeSubsystem failure")
+    }
+
     // ── decryptAccess / decryptFile / decryptSlave ─────────────────────────────────
 
     @Test
@@ -418,6 +455,42 @@ class DeckerOperationsTest {
         val d = decker(host = h)
         val result = d.locateIc(h, loseRoller)
         assertIs<OperationResult.Failure>(result)
+    }
+
+    @Test
+    fun `locateIc on success reveals resident host IC`() {
+        val probe = Probe(rating = 1)
+        val h = host(secValue = 2, index = 2, icPrograms = listOf(probe))
+        val d = decker(host = h)
+        val result = d.locateIc(h, winRoller)
+        assertIs<OperationResult.Success>(result)
+        val detected = result.decker.detectedIcons.filterIsInstance<Icon.IcIcon>()
+        assertEquals(1, detected.size, "resident IC should be located on a successful Locate IC")
+        assertTrue(detected.first().ic.matchesIdentity(probe))
+    }
+
+    @Test
+    fun `locateIc on success also reveals triggered active IC`() {
+        val resident = Probe(rating = 1)
+        val triggered = Probe(rating = 5)
+        val h = host(secValue = 2, index = 2, icPrograms = listOf(resident))
+        val d = decker(host = h)
+        val result = d.locateIc(h, winRoller, activeIc = listOf(triggered))
+        assertIs<OperationResult.Success>(result)
+        val detected = result.decker.detectedIcons.filterIsInstance<Icon.IcIcon>().map { it.ic }
+        assertEquals(2, detected.size, "both resident and active IC should be located")
+        assertTrue(detected.any { it.matchesIdentity(resident) })
+        assertTrue(detected.any { it.matchesIdentity(triggered) })
+    }
+
+    @Test
+    fun `locateIc on failure reveals no IC`() {
+        val probe = Probe(rating = 1)
+        val h = host(secValue = 8, index = 12, icPrograms = listOf(probe))
+        val d = decker(host = h)
+        val result = d.locateIc(h, loseRoller)
+        assertIs<OperationResult.Failure>(result)
+        assertTrue(result.decker.detectedIcons.isEmpty(), "no IC should be located on a failed Locate IC")
     }
 
     // ── locateAccessNode ──────────────────────────────────────────────────────────

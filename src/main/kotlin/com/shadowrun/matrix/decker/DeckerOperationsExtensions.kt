@@ -158,7 +158,16 @@ fun Decker.analyzeSubsystem(host: Host, subsystem: SubsystemType, diceRoller: Di
     requireJackedIn()
     val tn = host.subsystemRatings.get(subsystem)
     val outcome = SystemTestResolver.resolve(this, SystemOperation.ANALYZE_SUBSYSTEM, tn, host.securityRating.value, diceRoller, hackingPoolDice)
-    val updatedDecker = withUpdatedTally(outcome.hostSuccesses)
+    var updatedDecker = withUpdatedTally(outcome.hostSuccesses)
+    if (outcome.deckerWins) {
+        val scrambleIc = host.icPrograms.filterIsInstance<Scramble>()
+            .filter { it.guardedNode == null || it.guardedNode.subsystemType == subsystem }
+        if (scrambleIc.isNotEmpty()) {
+            val newDetected = scrambleIc.mapTo(mutableSetOf()) { Icon.IcIcon(it) }
+            updatedDecker = updatedDecker.copy(detectedIcons = updatedDecker.detectedIcons + newDetected)
+            logger.info { "[$name] analyzeSubsystem: detected ${scrambleIc.size} Scramble IC on $subsystem" }
+        }
+    }
     return if (outcome.deckerWins) OperationResult.Success(updatedDecker, outcome)
     else OperationResult.Failure(updatedDecker, outcome)
 }
@@ -601,11 +610,18 @@ fun Decker.locateDecker(
     return LocateDeckerResult(updated, outcome, located, targetNotified = located)
 }
 
-fun Decker.locateIc(host: Host, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {
+fun Decker.locateIc(host: Host, diceRoller: DiceRoller, activeIc: List<IC> = emptyList(), hackingPoolDice: Int = 0): OperationResult {
     logger.info { "[$name] locateIc on ${host.name}" }
     requireJackedIn()
     val outcome = SystemTestResolver.resolve(this, SystemOperation.LOCATE_IC, host.subsystemRatings.index, host.securityRating.value, diceRoller, hackingPoolDice)
-    val updated = withUpdatedTally(outcome.hostSuccesses)
+    var updated = withUpdatedTally(outcome.hostSuccesses)
+    if (outcome.deckerWins) {
+        // Locate IC auto-locates the IC program(s) present on the host — resident IC plus any triggered
+        // active IC — with no Sensor Test (SR3 p.217). Located IC then become visible (ticket 15).
+        val located = (host.icPrograms + activeIc).map { Icon.IcIcon(it) }
+        updated = updated.copy(detectedIcons = updated.detectedIcons + located)
+        logger.info { "[$name] locateIc: located ${located.size} IC on ${host.name}" }
+    }
     return if (outcome.deckerWins) OperationResult.Success(updated, outcome)
     else OperationResult.Failure(updated, outcome)
 }

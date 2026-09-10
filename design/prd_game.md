@@ -42,3 +42,14 @@ Locate operations (`LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_ACCESS_NODE`) are **si
 - `pendingLocate: PendingLocate?` (transient) — the ≤5 candidate names from the most recent successful Locate, awaiting the decker's selection. Cleared when the decker logs off, jacks out, or is dumped.
 
 `availableActions()` emits **at most one** `AccessLtg(targets)` and **one** `AccessHost(targets)`, where `targets` are the structurally-reachable LTGs/PLTGs/hosts filtered to those whose `name` is in `knownAddresses` (each emitted only when non-empty). Gating is **strict** — an address is required even for a directly-attached target. The old per-target `LogonToLtg` / `LogonToPltg` / `LogonToHost` actions are removed; `LogonToRtg` stays per-target and ungated (RTG backbone). Downstream host operations are gated too: `DOWNLOAD_DATA` / `EDIT_FILE` / `DECRYPT_FILE` appear only for files in `locatedFiles`, and `CONTROL_SLAVE` / `EDIT_SLAVE` / `MONITOR_SLAVE` only for devices in `locatedSlaves`; `LOCATE_FILE` / `LOCATE_SLAVE` themselves stay available so targets can be discovered.
+
+## Decker State — IC Visibility
+
+On host entry the decker sees **no IC** — resident host IC is not auto-detected on logon (PRD MP-11; the free Sensor Test of MP-01 fires only for icons entering the decker's area, and on logon the decker is the newcomer). IC becomes visible only once its specific instance is added to `detectedIcons`:
+
+- **Locate IC** — on a successful System Test, auto-locates (no Sensor Test) every IC present on the host: the resident `host.icPrograms` **plus** the triggered `context.activeIc`.
+- **Analyze Subsystem** — a successful test locates any Scramble IC guarding the targeted subsystem.
+- **Spawn detection** (`runSpawnDetection`) — when a trigger step activates new IC, a Sensor Test (MP-07/MP-08) may detect it.
+- **Coming under attack** — a proactive IC that attacks becomes visible (CC-13).
+
+`visibleObjects` filters IC by **identity** (`IC.matchesIdentity`: type + name + rating + guarded node), not by name, and de-duplicates the union of the resident and active pools. Detecting a triggered Probe never reveals a distinct resident Probe of a different rating, and an identity-equal IC present in both pools renders exactly once (PRD MP-12).

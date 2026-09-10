@@ -76,6 +76,8 @@ Everything you can currently see in the node — IC programs, host subsystems, f
 
 You must analyze an IC program before you know its rating and what it is protecting.
 
+When you first log onto a host you see only its subsystems — the IC, files, and devices residing there are **hidden until you locate them**. Use **Locate IC** to reveal lurking IC (a guarding Scramble is also revealed by **Analyze Subsystem**), **Locate File** to reveal files, and **Locate Slave** to reveal devices. IC that attacks you, or that the host triggers as your tally climbs, also becomes visible on its own.
+
 ### Actions Panel (bottom)
 
 Every action available to you right now is shown as a card with:
