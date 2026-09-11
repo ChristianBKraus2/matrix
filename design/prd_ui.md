@@ -114,7 +114,7 @@ Available actions are displayed in four equally-sized groups arranged side by si
 |---|---|
 | **Navigation** | `LogonToRtg`, `AccessLtg`, `AccessHost`, `GracefulLogoff`, `JackOut`, `DECRYPT_ACCESS` |
 | **Locate** | `LOCATE_ACCESS_NODE`, `LOCATE_FILE`, `LOCATE_SLAVE`, `LOCATE_IC` |
-| **Host** | `ANALYZE_HOST`, `ANALYZE_SECURITY`, `ANALYZE_SUBSYSTEM` |
+| **Host** | `ANALYZE_HOST`, `ANALYZE_SECURITY` |
 | **Others** | Entity-context filtered (see below) |
 
 Within each group, cards are laid out in a responsive grid (`repeat(auto-fill, minmax(120px, 1fr))`): the number of columns adapts to the available width (more columns on wider screens, down to one column on narrow ones). No vertical scrollbar is used — all cards are always visible. The bottom panel has a fixed height sized to display 4 rows of height-1 cards (action name only) or 2 rows of height-2 cards (action name + inline input), without a horizontal scrollbar.
@@ -128,7 +128,8 @@ Within each group, cards are laid out in a responsive grid (`repeat(auto-fill, m
 | `IcProgram` | IC actions (`ANALYZE_IC`) + Icon actions (`ANALYZE_ICON`) + Misc |
 | `File` | File actions (`DOWNLOAD_DATA`, `UPLOAD_DATA`, `EDIT_FILE`, `DECRYPT_FILE`) + Misc |
 | `Device` (slave) | Slave actions (`CONTROL_SLAVE`, `EDIT_SLAVE`, `MONITOR_SLAVE`, `DECRYPT_SLAVE`) + Misc |
-| None / `HostSubsystem` | Misc only (`MAKE_COMCALL`, `TAP_COMCALL`, `NULL_OPERATION`, `RELOCATE_ICON`, `INVOKE_MEDIC`) |
+| `HostSubsystem` | The single `ANALYZE_SUBSYSTEM` card targeting that subsystem + Misc |
+| None | Misc only (`MAKE_COMCALL`, `TAP_COMCALL`, `NULL_OPERATION`, `RELOCATE_ICON`, `INVOKE_MEDIC`) |
 
 Pressing a card submits the corresponding `ActionCommand`. Inline controls (dropdowns, steppers, text inputs) work the same way within each group.
 

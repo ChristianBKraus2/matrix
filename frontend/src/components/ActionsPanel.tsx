@@ -14,14 +14,15 @@ interface Props {
 const NAVIGATE_KINDS = new Set(['LogonToRtg', 'AccessLtg', 'AccessHost', 'DecryptAccess', 'GracefulLogoff', 'JackOut'])
 const NAVIGATE_OPS   = new Set<string>()
 const LOCATE_OPS     = new Set(['LOCATE_ACCESS_NODE', 'LOCATE_FILE', 'LOCATE_SLAVE', 'LOCATE_IC'])
-const HOST_OPS       = new Set(['ANALYZE_HOST', 'ANALYZE_SECURITY', 'ANALYZE_SUBSYSTEM'])
+const HOST_OPS       = new Set(['ANALYZE_HOST', 'ANALYZE_SECURITY'])
 const IC_OPS         = new Set(['ANALYZE_IC'])
 const ICON_OPS       = new Set(['ANALYZE_ICON'])
 const FILE_OPS       = new Set(['DOWNLOAD_DATA', 'UPLOAD_DATA', 'EDIT_FILE', 'DECRYPT_FILE'])
 const SLAVE_OPS      = new Set(['CONTROL_SLAVE', 'EDIT_SLAVE', 'MONITOR_SLAVE', 'DECRYPT_SLAVE'])
+const SUBSYSTEM_OPS  = new Set(['ANALYZE_SUBSYSTEM'])
 
 type Group = 'navigation' | 'locate' | 'host' | 'others'
-type OthersSub = 'ic' | 'icon' | 'file' | 'slave' | 'misc'
+type OthersSub = 'ic' | 'icon' | 'file' | 'slave' | 'subsystem' | 'misc'
 
 function classifyAction(action: AvailableActionDto): Group {
   if (NAVIGATE_KINDS.has(action.kind)) return 'navigation'
@@ -35,21 +36,24 @@ function classifyAction(action: AvailableActionDto): Group {
 
 function othersSubCategory(action: AvailableActionDto): OthersSub {
   if (action.kind !== 'Operation') return 'misc'
-  if (IC_OPS.has(action.operation))    return 'ic'
-  if (ICON_OPS.has(action.operation))  return 'icon'
-  if (FILE_OPS.has(action.operation))  return 'file'
-  if (SLAVE_OPS.has(action.operation)) return 'slave'
+  if (IC_OPS.has(action.operation))        return 'ic'
+  if (ICON_OPS.has(action.operation))      return 'icon'
+  if (FILE_OPS.has(action.operation))      return 'file'
+  if (SLAVE_OPS.has(action.operation))     return 'slave'
+  if (SUBSYSTEM_OPS.has(action.operation)) return 'subsystem'
   return 'misc'
 }
 
 function filterOthers(actions: AvailableActionDto[], entity: MatrixObjectDto | null): AvailableActionDto[] {
   const kind = entity?.kind
+  const selectedSubsystemType = entity?.kind === 'HostSubsystem' ? entity.subsystemType : null
   return actions.filter(a => {
     const sub = othersSubCategory(a)
     if (sub === 'misc') return true
     if (kind === 'IcProgram') return sub === 'ic' || sub === 'icon'
     if (kind === 'File')      return sub === 'file'
     if (kind === 'Device')    return sub === 'slave'
+    if (kind === 'HostSubsystem') return sub === 'subsystem' && a.kind === 'Operation' && a.targetName === selectedSubsystemType
     return false
   })
 }
