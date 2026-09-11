@@ -117,7 +117,7 @@ Available actions are displayed in four equally-sized groups arranged side by si
 | **Host** | `ANALYZE_HOST`, `ANALYZE_SECURITY`, `ANALYZE_SUBSYSTEM` |
 | **Others** | Entity-context filtered (see below) |
 
-Within each group, cards are laid out in a responsive grid (`repeat(auto-fill, minmax(120px, 1fr))`): the number of columns adapts to the available width (more columns on wider screens, down to one column on narrow ones). No vertical scrollbar is used — all cards are always visible.
+Within each group, cards are laid out in a responsive grid (`repeat(auto-fill, minmax(120px, 1fr))`): the number of columns adapts to the available width (more columns on wider screens, down to one column on narrow ones). No vertical scrollbar is used — all cards are always visible. The bottom panel has a fixed height sized to display 4 rows of height-1 cards (action name only) or 2 rows of height-2 cards (action name + inline input), without a horizontal scrollbar.
 
 **Action cost badge:** Each card shows a compact badge in the upper-right corner: `F` for FREE actions, `S` for SIMPLE actions, and nothing for COMPLEX actions.
 
@@ -184,7 +184,7 @@ Param: `query` — a search term (regex accepted; may be blank). The decker does
 
 These replace the old per-target `LogonToLtg` / `LogonToPltg` / `LogonToHost` cards. At most **one** `AccessLtg` and **one** `AccessHost` card appear; each carries the list of structurally-reachable target names the decker already has an address for (`ltgNames` / `hostNames`). Gating is strict — a target only appears once its address is in the decker's known addresses (seeded by jack-in / logon or by selecting a located access node).
 
-**UI control:** A dropdown (`<select>`) listing the known target names plus a CONFIRM button. Pressing CONFIRM submits `{ targetName }` carrying the chosen name.
+**UI control:** The card uses two rows: the first row shows the action label and an **OK** button (right-aligned); the second row shows a dropdown (`<select>`) listing the known target names. Pressing OK submits `{ targetName }` carrying the currently selected name. No separate "TARGET" label is shown.
 
 ### `SelectLocateTarget`
 

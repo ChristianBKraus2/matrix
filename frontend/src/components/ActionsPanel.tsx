@@ -156,6 +156,12 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction, selected
     const safeActionType = SAFE_ACTION_TYPES.has(action.actionType) ? action.actionType : 'UNKNOWN'
     const badge = action.actionType === 'FREE' ? 'F' : action.actionType === 'SIMPLE' ? 'S' : null
 
+    const isAccessAction = action.kind === 'AccessLtg' || action.kind === 'AccessHost'
+    const accessNames = isAccessAction
+      ? (action.kind === 'AccessLtg' ? action.ltgNames : action.hostNames)
+      : []
+    const accessSelected = cs.selectedTarget || accessNames[0] || ''
+
     return (
       <div
         key={action.index}
@@ -173,37 +179,32 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction, selected
       >
         <div className="action-card-header">
           <span className="action-kind">{actionLabel(action)}</span>
-          {badge && <span className={`action-type ${safeActionType}`}>{badge}</span>}
+          {isAccessAction ? (
+            <button
+              className="confirm-btn"
+              disabled={disabled || !accessSelected}
+              onClick={e => { e.stopPropagation(); onAction(action.index, { targetName: accessSelected }) }}
+            >
+              OK
+            </button>
+          ) : (
+            badge && <span className={`action-type ${safeActionType}`}>{badge}</span>
+          )}
         </div>
         {action.kind === 'Operation' && action.targetName && (
           <div className="action-target">▸ {action.targetName}</div>
         )}
 
-        {(action.kind === 'AccessLtg' || action.kind === 'AccessHost') && (
+        {isAccessAction && (
           <div className="action-control" onClick={e => e.stopPropagation()}>
-            <div className="ctrl-label">TARGET</div>
-            {(() => {
-              const names = action.kind === 'AccessLtg' ? action.ltgNames : action.hostNames
-              const selected = cs.selectedTarget || names[0] || ''
-              return (
-                <>
-                  <select
-                    className="target-select"
-                    value={selected}
-                    onChange={e => patchState(action.index, { selectedTarget: e.target.value })}
-                  >
-                    {names.map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                  <button
-                    className="confirm-btn"
-                    disabled={disabled || !selected}
-                    onClick={() => onAction(action.index, { targetName: selected })}
-                  >
-                    CONFIRM
-                  </button>
-                </>
-              )
-            })()}
+            <select
+              className="target-select"
+              value={accessSelected}
+              onClick={e => e.stopPropagation()}
+              onChange={e => patchState(action.index, { selectedTarget: e.target.value })}
+            >
+              {accessNames.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
           </div>
         )}
 
