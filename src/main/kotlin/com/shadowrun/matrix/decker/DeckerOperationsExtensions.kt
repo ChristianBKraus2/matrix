@@ -179,7 +179,10 @@ fun Decker.decryptAccess(host: Host, diceRoller: DiceRoller, hackingPoolDice: In
     requireJackedIn()
     val outcome = SystemTestResolver.resolve(this, SystemOperation.DECRYPT_ACCESS, host.subsystemRatings.access, host.securityRating.value, diceRoller, hackingPoolDice)
     val updated = withUpdatedTally(outcome.hostSuccesses)
-    return if (outcome.deckerWins) OperationResult.Success(updated, outcome) else OperationResult.Failure(updated, outcome)
+    return if (outcome.deckerWins)
+        OperationResult.Success(updated.copy(decryptedSans = updated.decryptedSans + host.name), outcome)
+    else
+        OperationResult.Failure(updated, outcome)
 }
 
 fun Decker.decryptAccess(grid: Grid, diceRoller: DiceRoller, hackingPoolDice: Int = 0): OperationResult {

@@ -286,4 +286,12 @@ class DtoMappingTest {
         assertIs<AvailableActionDto.AccessHost>(dto)
         assertEquals(listOf(host.name), dto.hostNames)
     }
+
+    @Test
+    fun `AvailableAction DecryptAccess toDto`() {
+        val host = GridMock.getDefaultHost()
+        val dto = AvailableAction.DecryptAccess(listOf(host)).toDto(11)
+        assertIs<AvailableActionDto.DecryptAccess>(dto)
+        assertEquals(listOf(host.name), dto.hostNames)
+    }
 }

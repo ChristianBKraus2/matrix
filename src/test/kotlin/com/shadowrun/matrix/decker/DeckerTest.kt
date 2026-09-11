@@ -11,8 +11,13 @@ import com.shadowrun.matrix.common.SecurityRating
 import com.shadowrun.matrix.common.SubsystemRatings
 import com.shadowrun.matrix.common.SubsystemType
 import com.shadowrun.matrix.network.Jackpoint
+import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.LTG
 import com.shadowrun.matrix.network.MatrixLocation
+import com.shadowrun.matrix.network.SAN
+import com.shadowrun.matrix.common.IntrusionDifficulty
+import com.shadowrun.matrix.common.TopologyType
+import com.shadowrun.matrix.operations.AvailableAction
 import com.shadowrun.matrix.network.Node
 import com.shadowrun.matrix.network.PLTG
 import com.shadowrun.matrix.network.RTG
@@ -356,6 +361,73 @@ class DeckerTest {
         val updated = d.tickEvadeCountdowns()
         assertEquals(1, updated.evadeDetectionStates.size)
         assertEquals("Probe", updated.evadeDetectionStates.single().icName)
+    }
+
+    // ── availableActions — DecryptAccess gating (ticket 17) ──────────────────────
+
+    private fun testHost(name: String, scrambleProtected: Boolean) = Host(
+        name = name,
+        securityRating = secRating(),
+        subsystemRatings = subsystems(),
+        intrusionDifficulty = IntrusionDifficulty.AVERAGE,
+        topologyType = TopologyType.OPEN_ACCESS,
+        sans = listOf(SAN("Main SAN", isScrambleProtected = scrambleProtected))
+    )
+
+    private fun deckerOnLtgWithHosts(vararg hosts: Host): Decker {
+        val ltgWithHosts = ltg().copy(hosts = hosts.toList())
+        return deckerWithMasking(6).copy(
+            currentLocation = MatrixLocation.OnLTG(ltgWithHosts),
+            knownAddresses = hosts.map { it.name }.toSet()
+        )
+    }
+
+    @Test
+    fun `non-scrambled host appears in AccessHost`() {
+        val host = testHost("ClearHost", scrambleProtected = false)
+        val d = deckerOnLtgWithHosts(host)
+        val actions = d.availableActions()
+        val access = actions.filterIsInstance<AvailableAction.AccessHost>().firstOrNull()
+        assertTrue(access != null && access.targets.any { it.name == "ClearHost" },
+            "ClearHost should be in AccessHost")
+        assertTrue(actions.filterIsInstance<AvailableAction.DecryptAccess>().isEmpty(),
+            "DecryptAccess should not appear for a non-scrambled host")
+    }
+
+    @Test
+    fun `scramble-protected host appears in DecryptAccess not in AccessHost`() {
+        val host = testHost("LockedHost", scrambleProtected = true)
+        val d = deckerOnLtgWithHosts(host)
+        val actions = d.availableActions()
+        val decrypt = actions.filterIsInstance<AvailableAction.DecryptAccess>().firstOrNull()
+        assertTrue(decrypt != null && decrypt.targets.any { it.name == "LockedHost" },
+            "LockedHost should be in DecryptAccess")
+        assertTrue(actions.filterIsInstance<AvailableAction.AccessHost>().isEmpty(),
+            "AccessHost should not appear for a scramble-protected host")
+    }
+
+    @Test
+    fun `after decryptedSans recorded host moves to AccessHost`() {
+        val host = testHost("LockedHost", scrambleProtected = true)
+        val d = deckerOnLtgWithHosts(host).copy(decryptedSans = setOf("LockedHost"))
+        val actions = d.availableActions()
+        val access = actions.filterIsInstance<AvailableAction.AccessHost>().firstOrNull()
+        assertTrue(access != null && access.targets.any { it.name == "LockedHost" },
+            "LockedHost should appear in AccessHost after decryption")
+        assertTrue(actions.filterIsInstance<AvailableAction.DecryptAccess>().isEmpty(),
+            "DecryptAccess should not appear after host is decrypted")
+    }
+
+    @Test
+    fun `mixed hosts — scrambled in DecryptAccess, clear in AccessHost`() {
+        val clear = testHost("ClearHost", scrambleProtected = false)
+        val locked = testHost("LockedHost", scrambleProtected = true)
+        val d = deckerOnLtgWithHosts(clear, locked)
+        val actions = d.availableActions()
+        val access = actions.filterIsInstance<AvailableAction.AccessHost>().firstOrNull()
+        val decrypt = actions.filterIsInstance<AvailableAction.DecryptAccess>().firstOrNull()
+        assertTrue(access != null && access.targets.any { it.name == "ClearHost" })
+        assertTrue(decrypt != null && decrypt.targets.any { it.name == "LockedHost" })
     }
 }
 

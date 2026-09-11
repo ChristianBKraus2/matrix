@@ -297,6 +297,24 @@ class DeckerOperationsTest {
     }
 
     @Test
+    fun `decryptAccess success records host in decryptedSans`() {
+        val h = host(secValue = 2, access = 2)
+        val d = decker(host = h)
+        val result = d.decryptAccess(h, winRoller)
+        assertIs<OperationResult.Success>(result)
+        assertTrue(h.name in result.decker.decryptedSans, "host should be recorded in decryptedSans after success")
+    }
+
+    @Test
+    fun `decryptAccess failure does not record host in decryptedSans`() {
+        val h = host(secValue = 8, access = 12)
+        val d = decker(host = h)
+        val result = d.decryptAccess(h, loseRoller)
+        assertIs<OperationResult.Failure>(result)
+        assertTrue(h.name !in result.decker.decryptedSans, "host must not be recorded in decryptedSans after failure")
+    }
+
+    @Test
     fun `decryptFile returns Success on win`() {
         val h = host(secValue = 2, files = 2)
         val d = decker(host = h)

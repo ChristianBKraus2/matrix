@@ -31,6 +31,11 @@ sealed class AvailableActionDto {
         override val actionType: String, val hostNames: List<String>) : AvailableActionDto()
 
     @Serializable
+    @SerialName("DecryptAccess")
+    data class DecryptAccess(override val index: Int,
+        override val actionType: String, val hostNames: List<String>) : AvailableActionDto()
+
+    @Serializable
     @SerialName("SelectLocateTarget")
     data class SelectLocateTarget(override val index: Int,
         override val actionType: String, val operation: String, val candidates: List<String>) : AvailableActionDto()
@@ -60,6 +65,7 @@ fun AvailableAction.toDto(index: Int): AvailableActionDto = when (this) {
     is AvailableAction.LogonToRtg    -> AvailableActionDto.LogonToRtg(index, actionType = actionType.name, rtgName = rtg.name)
     is AvailableAction.AccessLtg     -> AvailableActionDto.AccessLtg(index, actionType = actionType.name, ltgNames = targets.map { it.name })
     is AvailableAction.AccessHost    -> AvailableActionDto.AccessHost(index, actionType = actionType.name, hostNames = targets.map { it.name })
+    is AvailableAction.DecryptAccess -> AvailableActionDto.DecryptAccess(index, actionType = actionType.name, hostNames = targets.map { it.name })
     is AvailableAction.SelectLocateTarget -> AvailableActionDto.SelectLocateTarget(index, actionType = actionType.name, operation = operation.name, candidates = candidates)
     is AvailableAction.GracefulLogoff -> AvailableActionDto.GracefulLogoff(index, actionType = actionType.name)
     is AvailableAction.JackOut       -> AvailableActionDto.JackOut(index, actionType = actionType.name)

@@ -259,15 +259,20 @@ class ScenarioBuilder(private val matrix: Matrix) {
     }
 
     fun decryptAccess(
+        targetHostName: String? = null,
         name: String = "decryptAccess",
         succeed: Boolean = true
     ) = step(name) {
-        assertActionable({ it is AvailableAction.Operation && it.operation == SystemOperation.DECRYPT_ACCESS }, "DECRYPT_ACCESS")
-        val loc = currentDecker().currentLocation
-        require(loc is MatrixLocation.OnHost) { "Expected OnHost but was $loc" }
-        val host = loc.host
+        assertActionable({ it is AvailableAction.DecryptAccess }, "DecryptAccess")
+        val action = currentDecker().availableActions().filterIsInstance<AvailableAction.DecryptAccess>().first()
+        val targetHost = if (targetHostName != null) {
+            action.targets.firstOrNull { it.name == targetHostName }
+                ?: error("Host '$targetHostName' not in DecryptAccess targets: ${action.targets.map { it.name }}")
+        } else {
+            action.targets.first()
+        }
         val old = currentDecker()
-        val result = old.decryptAccess(host, roller)
+        val result = old.decryptAccess(targetHost, roller)
         if (succeed) assertIs<OperationResult.Success>(result, "$name should succeed")
         else assertIs<OperationResult.Failure>(result, "$name should fail")
         context.applyDeckerOperationResult(old, result.decker)

@@ -61,6 +61,8 @@ data class Decker(
     val locatedFiles: Set<String> = emptySet(),
     /** Host-qualified keys `"<hostName>::<deviceName>"` of slaves revealed by Locate Slave (run-scoped). */
     val locatedSlaves: Set<String> = emptySet(),
+    /** Names of hosts whose scramble-protected SAN has been successfully defeated via Decrypt Access (ticket 17, run-scoped). */
+    val decryptedSans: Set<String> = emptySet(),
     /** Candidates from the most recent successful Locate, awaiting the decker's selection (ticket 06). */
     val pendingLocate: com.shadowrun.matrix.operations.PendingLocate? = null,
     val hackingPoolUsed: Int = 0,
@@ -180,8 +182,8 @@ data class Decker(
                     add(AvailableAction.LogonToRtg(loc.ltg.parentRtg))
                     val ltgTargets = loc.ltg.pltgs.filter { it.name in knownAddresses }
                     if (ltgTargets.isNotEmpty()) add(AvailableAction.AccessLtg(ltgTargets))
-                    val hostTargets = loc.ltg.hosts.filter { it.name in knownAddresses }
-                    if (hostTargets.isNotEmpty()) add(AvailableAction.AccessHost(hostTargets))
+                    val knownHosts = loc.ltg.hosts.filter { it.name in knownAddresses }
+                    addHostNavigationActions(knownHosts)
                     addGridSystemActions()
                 }
 
@@ -189,25 +191,32 @@ data class Decker(
                     // Navigating back up to the parent LTG is still address-gated (ticket 06).
                     val ltgTargets = listOf(loc.pltg.parentLtg).filter { it.name in knownAddresses }
                     if (ltgTargets.isNotEmpty()) add(AvailableAction.AccessLtg(ltgTargets))
-                    val hostTargets = loc.pltg.hosts.filter { it.name in knownAddresses }
-                    if (hostTargets.isNotEmpty()) add(AvailableAction.AccessHost(hostTargets))
+                    val knownHosts = loc.pltg.hosts.filter { it.name in knownAddresses }
+                    addHostNavigationActions(knownHosts)
                     addGridSystemActions()
                 }
 
                 is MatrixLocation.OnHost -> {
-                    val hostTargets = loc.host.connectedHosts.filter { it.name in knownAddresses }
-                    if (hostTargets.isNotEmpty()) add(AvailableAction.AccessHost(hostTargets))
+                    val knownHosts = loc.host.connectedHosts.filter { it.name in knownAddresses }
+                    addHostNavigationActions(knownHosts)
                     addHostSystemActions(loc.host)
                 }
             }
         }
     }
 
+    /** Splits hosts into accessible (no scramble or already decrypted) vs. needs-decrypt, adding the appropriate actions (ticket 17). */
+    private fun MutableList<AvailableAction>.addHostNavigationActions(knownHosts: List<Host>) {
+        val accessible = knownHosts.filter { host -> host.sans.none { it.isScrambleProtected } || host.name in decryptedSans }
+        val needsDecrypt = knownHosts.filter { host -> host.sans.any { it.isScrambleProtected } && host.name !in decryptedSans }
+        if (accessible.isNotEmpty()) add(AvailableAction.AccessHost(accessible))
+        if (needsDecrypt.isNotEmpty()) add(AvailableAction.DecryptAccess(needsDecrypt))
+    }
+
     private fun MutableList<AvailableAction>.addGridSystemActions() {
         add(AvailableAction.Operation(SystemOperation.NULL_OPERATION))
         add(AvailableAction.Operation(SystemOperation.LOCATE_ACCESS_NODE))
         add(AvailableAction.Operation(SystemOperation.ANALYZE_SECURITY))
-        add(AvailableAction.Operation(SystemOperation.DECRYPT_ACCESS))
     }
 
     private fun MutableList<AvailableAction>.addHostSystemActions(host: Host) {
@@ -219,7 +228,6 @@ data class Decker(
         add(AvailableAction.Operation(SystemOperation.LOCATE_SLAVE))
         add(AvailableAction.Operation(SystemOperation.LOCATE_ACCESS_NODE))
         add(AvailableAction.Operation(SystemOperation.LOCATE_IC))
-        add(AvailableAction.Operation(SystemOperation.DECRYPT_ACCESS))
         add(AvailableAction.Operation(SystemOperation.DECRYPT_SLAVE))
         add(AvailableAction.Operation(SystemOperation.UPLOAD_DATA))
         add(AvailableAction.Operation(SystemOperation.MAKE_COMCALL))

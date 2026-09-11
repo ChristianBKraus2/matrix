@@ -92,26 +92,8 @@ class ICActivationTest : IntegrationTestBase() {
     }
 
     // --- Group: decryptAccess ---
-
-    @Test
-    fun `successful decryptAccess does not activate IC`() {
-        val icon = scenario {
-            jackInToLtg("UCAS/UCAS-SEA")
-            logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
-            decryptAccess(succeed = true)
-        }
-        icon.assertNoActiveIc()
-    }
-
-    @Test
-    fun `failed decryptAccess raises tally and activates Probe IC`() {
-        val icon = scenario(diceRoller = winThenRoller(zeroCalls = 26, thenValue = 3)) {
-            jackInToLtg("UCAS/UCAS-SEA")
-            logonToHost("UCAS/UCAS-SEA/Mitsuhama Pagoda")
-            decryptAccess(succeed = false)
-        }
-        assertTrue(icon.context.activeIc.any { it is Probe }, "Probe IC should activate after failed decryptAccess raises tally past 5")
-    }
+    // Note: decryptAccess is now a targeted action on scramble-protected host SANs (ticket 17).
+    // Its IC activation via tally is covered by DeckerOperationsTest.
 
     // --- Group: analyzeSecurity ---
 

@@ -101,6 +101,7 @@ export type AvailableActionDto =
   | { kind: 'LogonToRtg'; index: number; actionType: ActionType; rtgName: string }
   | { kind: 'AccessLtg'; index: number; actionType: ActionType; ltgNames: string[] }
   | { kind: 'AccessHost'; index: number; actionType: ActionType; hostNames: string[] }
+  | { kind: 'DecryptAccess'; index: number; actionType: ActionType; hostNames: string[] }
   | { kind: 'SelectLocateTarget'; index: number; actionType: ActionType; operation: SystemOperation; candidates: string[] }
   | { kind: 'GracefulLogoff'; index: number; actionType: ActionType }
   | { kind: 'JackOut'; index: number; actionType: ActionType }

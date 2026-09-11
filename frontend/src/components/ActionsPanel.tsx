@@ -11,8 +11,8 @@ interface Props {
 
 // ── Grouping ──────────────────────────────────────────────────────────────────
 
-const NAVIGATE_KINDS = new Set(['LogonToRtg', 'AccessLtg', 'AccessHost', 'GracefulLogoff', 'JackOut'])
-const NAVIGATE_OPS   = new Set(['DECRYPT_ACCESS'])
+const NAVIGATE_KINDS = new Set(['LogonToRtg', 'AccessLtg', 'AccessHost', 'DecryptAccess', 'GracefulLogoff', 'JackOut'])
+const NAVIGATE_OPS   = new Set<string>()
 const LOCATE_OPS     = new Set(['LOCATE_ACCESS_NODE', 'LOCATE_FILE', 'LOCATE_SLAVE', 'LOCATE_IC'])
 const HOST_OPS       = new Set(['ANALYZE_HOST', 'ANALYZE_SECURITY', 'ANALYZE_SUBSYSTEM'])
 const IC_OPS         = new Set(['ANALYZE_IC'])
@@ -61,6 +61,7 @@ function actionLabel(action: AvailableActionDto): string {
     case 'LogonToRtg':         return `LOGON RTG: ${action.rtgName}`
     case 'AccessLtg':          return 'ACCESS LTG'
     case 'AccessHost':         return 'ACCESS HOST'
+    case 'DecryptAccess':      return 'DECRYPT ACCESS'
     case 'SelectLocateTarget': return `SELECT ${formatEnum(action.operation)}`
     case 'GracefulLogoff':     return 'GRACEFUL LOGOFF'
     case 'JackOut':            return 'JACK OUT'
@@ -89,7 +90,7 @@ function buildParams(paramKind: string | null, cs: CardState): ActionParams | un
 }
 
 /** Action kinds whose card must not fire on click — they require a dropdown selection + CONFIRM. */
-const SELECTION_KINDS = new Set(['AccessLtg', 'AccessHost'])
+const SELECTION_KINDS = new Set(['AccessLtg', 'AccessHost', 'DecryptAccess'])
 
 const SAFE_ACTION_TYPES = new Set(['FREE', 'SIMPLE', 'COMPLEX'])
 
@@ -156,7 +157,7 @@ export default function ActionsPanel({ actions, isActiveTurn, onAction, selected
     const safeActionType = SAFE_ACTION_TYPES.has(action.actionType) ? action.actionType : 'UNKNOWN'
     const badge = action.actionType === 'FREE' ? 'F' : action.actionType === 'SIMPLE' ? 'S' : null
 
-    const isAccessAction = action.kind === 'AccessLtg' || action.kind === 'AccessHost'
+    const isAccessAction = action.kind === 'AccessLtg' || action.kind === 'AccessHost' || action.kind === 'DecryptAccess'
     const accessNames = isAccessAction
       ? (action.kind === 'AccessLtg' ? action.ltgNames : action.hostNames)
       : []

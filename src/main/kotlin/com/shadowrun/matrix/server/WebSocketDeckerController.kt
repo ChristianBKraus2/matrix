@@ -223,6 +223,17 @@ class WebSocketDeckerController(
                     ?: return DispatchResult(decker, false, 0, 0, "\"$targetName\" is not an accessible host")
                 decker.logonToHost(target, diceRoller).toDispatch()
             }
+            is AvailableAction.DecryptAccess  -> {
+                val targetName = cmd.params?.targetName
+                    ?: return DispatchResult(decker, false, 0, 0, "Decrypt Access requires a target selection")
+                val target = action.targets.firstOrNull { it.name == targetName }
+                    ?: return DispatchResult(decker, false, 0, 0, "\"$targetName\" is not a known scramble-protected host")
+                val poolDice = (cmd.params.hackingPoolDice ?: 0).coerceAtLeast(0)
+                if (poolDice > decker.remainingHackingPool)
+                    return DispatchResult(decker, false, 0, 0, "Insufficient hacking pool: requested $poolDice, remaining ${decker.remainingHackingPool}")
+                val result = decker.decryptAccess(target, diceRoller, poolDice).toDispatch()
+                result.copy(decker = result.decker.copy(hackingPoolUsed = result.decker.hackingPoolUsed + poolDice))
+            }
             is AvailableAction.SelectLocateTarget -> {
                 // Ticket 06: a blank/absent target name means the decker dismissed the selection
                 // modal — discard the pending candidates without storing any address.
@@ -299,7 +310,6 @@ class WebSocketDeckerController(
             }
             SystemOperation.ANALYZE_SECURITY -> decker.analyzeSecurity(grid, diceRoller, poolDice).toDispatch()
             SystemOperation.LOCATE_IC        -> decker.locateIc(grid, diceRoller, poolDice).toDispatch()
-            SystemOperation.DECRYPT_ACCESS   -> decker.decryptAccess(grid, diceRoller, poolDice).toDispatch()
             SystemOperation.INVOKE_MEDIC -> decker.invokeMedic(diceRoller).toDispatch()
             else -> DispatchResult(decker, false, 0, 0, "${action.operation} not supported on grid")
         }
@@ -325,7 +335,6 @@ class WebSocketDeckerController(
         SystemOperation.DOWNLOAD_DATA,
         SystemOperation.EDIT_FILE,
         SystemOperation.UPLOAD_DATA,
-        SystemOperation.DECRYPT_ACCESS,
         SystemOperation.DECRYPT_FILE,
         SystemOperation.DECRYPT_SLAVE       -> dispatchDataOp(action, cmd, host, diceRoller, poolDice)
         SystemOperation.CONTROL_SLAVE,
@@ -422,7 +431,6 @@ class WebSocketDeckerController(
                     dispatch.copy(decker = dispatch.decker.copy(activeUploads = dispatch.decker.activeUploads + handle))
                 else dispatch
             }
-            SystemOperation.DECRYPT_ACCESS -> decker.decryptAccess(host, diceRoller, poolDice).toDispatch()
             SystemOperation.DECRYPT_FILE -> {
                 val file = (action.target as? MatrixObject.File)?.file
                     ?: return DispatchResult(decker, false, 0, 0, "DECRYPT_FILE requires a File target")

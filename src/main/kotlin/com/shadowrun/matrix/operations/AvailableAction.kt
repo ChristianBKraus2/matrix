@@ -3,6 +3,7 @@ package com.shadowrun.matrix.operations
 import com.shadowrun.matrix.common.ActionType
 import com.shadowrun.matrix.common.ActionType.COMPLEX
 import com.shadowrun.matrix.common.ActionType.FREE
+import com.shadowrun.matrix.common.ActionType.SIMPLE
 import com.shadowrun.matrix.network.Grid
 import com.shadowrun.matrix.network.Host
 import com.shadowrun.matrix.network.RTG
@@ -20,6 +21,9 @@ sealed class AvailableAction {
 
     /** Access a host the decker has stored an address for (ticket 06). One action, dropdown of targets. */
     data class AccessHost(val targets: List<Host>, override val actionType: ActionType = COMPLEX) : AvailableAction()
+
+    /** Defeat scramble IC on a SAN; shows hosts that are scramble-protected and not yet decrypted (ticket 17). */
+    data class DecryptAccess(val targets: List<Host>, override val actionType: ActionType = SIMPLE) : AvailableAction()
 
     /** Choose one candidate name revealed by a successful Locate; stores it on the decker (ticket 06). */
     data class SelectLocateTarget(
